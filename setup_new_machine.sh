@@ -20,13 +20,19 @@ python3 -m venv .venv
 ./.venv/bin/python -m playwright install chromium
 cd "$ROOT"
 
-# 3) Phục hồi memory vào ~/.claude/projects/<mã-đường-dẫn>/
+# 3) Phục hồi memory + lịch sử chat vào ~/.claude/projects/<mã-đường-dẫn>/
 ENC="$(printf '%s' "$ROOT" | sed 's#/#-#g')"
-DEST="$HOME/.claude/projects/$ENC/memory"
+PROJ="$HOME/.claude/projects/$ENC"
 if [ -d "$ROOT/_claude/memory" ]; then
-  echo "== Phục hồi memory -> $DEST =="
-  mkdir -p "$DEST"
-  cp -R "$ROOT/_claude/memory/"* "$DEST/"
+  echo "== Phục hồi memory -> $PROJ/memory =="
+  mkdir -p "$PROJ/memory"
+  cp -R "$ROOT/_claude/memory/"* "$PROJ/memory/"
+fi
+if ls "$ROOT/_claude/sessions/"*.jsonl >/dev/null 2>&1; then
+  echo "== Phục hồi lịch sử chat -> $PROJ/ =="
+  mkdir -p "$PROJ"
+  cp "$ROOT/_claude/sessions/"*.jsonl "$PROJ/"
+  echo "   (mở Claude Code trong thư mục này rồi 'claude --resume' để tiếp tục chat)"
 fi
 
 echo ""
