@@ -1,0 +1,379 @@
+2026-07-19 13:36:32,116 | INFO    | Pipeline: /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-19 13:36:32,116 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-19 13:36:32,116 | INFO    | [DRY] T001 IMAGE   -> REF_ANDREA_PORTRAIT  (input: -)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T002 IMAGE   -> REF_ANDREA_FULL_JANITOR  (input: REF_ANDREA_PORTRAIT)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T003 IMAGE   -> REF_ELEANOR_PORTRAIT  (input: -)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T004 IMAGE   -> REF_ELEANOR_FULL  (input: REF_ELEANOR_PORTRAIT)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T005 IMAGE   -> REF_ROBERT_PORTRAIT  (input: -)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T006 IMAGE   -> REF_ROBERT_FULL  (input: REF_ROBERT_PORTRAIT)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T007 IMAGE   -> REF_VICTORIA_PORTRAIT  (input: -)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T008 IMAGE   -> REF_VICTORIA_FULL  (input: REF_VICTORIA_PORTRAIT)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T009 IMAGE   -> REF_ANDREA_FULL_HOME  (input: REF_ANDREA_PORTRAIT)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T010 IMAGE   -> REF_MAMA_PORTRAIT  (input: -)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T011 IMAGE   -> REF_MAMA_FULL  (input: REF_MAMA_PORTRAIT)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T012 IMAGE   -> FRM_S1_MASTER  (input: REF_ELEANOR_PORTRAIT)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T013 VIDEO   -> VID_001  (input: FRM_S1_MASTER)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T014 EXTRACT -> FRM_S1_WIDE  (input: VID_001)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T015 VIDEO   -> VID_002  (input: FRM_S1_WIDE)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T016 EXTRACT -> FRM_S1_ELEANOR_CU  (input: VID_002)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T017 VIDEO   -> VID_003  (input: FRM_S1_WIDE)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T018 VIDEO   -> VID_004  (input: FRM_S1_WIDE)
+2026-07-19 13:36:32,116 | INFO    | [DRY] T019 VIDEO   -> VID_005  (input: FRM_S1_ELEANOR_CU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T020 IMAGE   -> FRM_S1_ANDREA  (input: FRM_S1_WIDE, REF_ANDREA_FULL_JANITOR)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T021 VIDEO   -> VID_006  (input: FRM_S1_ANDREA)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T022 IMAGE   -> FRM_S1_ROBERT_FAR  (input: FRM_S1_ANDREA, REF_ROBERT_FULL)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T023 VIDEO   -> VID_007  (input: FRM_S1_ROBERT_FAR)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T024 EXTRACT -> FRM_S1_DUO  (input: VID_007)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T025 VIDEO   -> VID_008  (input: FRM_S1_DUO)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T026 EXTRACT -> FRM_S1_DUO_CLOSE  (input: VID_008)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T027 VIDEO   -> VID_009  (input: FRM_S1_DUO_CLOSE)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T028 IMAGE   -> FRM_S2_MASTER  (input: REF_ROBERT_PORTRAIT, REF_ANDREA_PORTRAIT)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T029 VIDEO   -> VID_010  (input: FRM_S2_MASTER)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T030 EXTRACT -> FRM_S2_WIDE  (input: VID_010)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T031 VIDEO   -> VID_011  (input: FRM_S2_WIDE)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T032 EXTRACT -> FRM_S2_ROBERT_MCU  (input: VID_011)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T033 VIDEO   -> VID_012  (input: FRM_S2_WIDE)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T034 EXTRACT -> FRM_S2_ANDREA_MCU  (input: VID_012)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T035 VIDEO   -> VID_013  (input: FRM_S2_ROBERT_MCU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T036 VIDEO   -> VID_014  (input: FRM_S2_ANDREA_MCU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T037 VIDEO   -> VID_015  (input: FRM_S2_ROBERT_MCU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T038 VIDEO   -> VID_016  (input: FRM_S2_WIDE)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T039 IMAGE   -> FRM_S3_MASTER  (input: REF_VICTORIA_PORTRAIT)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T040 IMAGE   -> FRM_S3_ELEANOR_DOOR  (input: FRM_S3_MASTER, REF_ELEANOR_PORTRAIT)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T041 VIDEO   -> VID_017  (input: FRM_S3_ELEANOR_DOOR)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T042 EXTRACT -> FRM_S3_DUO  (input: VID_017)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T043 VIDEO   -> VID_018  (input: FRM_S3_DUO)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T044 EXTRACT -> FRM_S3_DUO_SERIOUS  (input: VID_018)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T045 VIDEO   -> VID_019  (input: FRM_S3_DUO_SERIOUS)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T046 EXTRACT -> FRM_S3_ELEANOR_MCU  (input: VID_019)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T047 VIDEO   -> VID_020  (input: FRM_S3_ELEANOR_MCU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T048 VIDEO   -> VID_021  (input: FRM_S3_DUO_SERIOUS)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T049 EXTRACT -> FRM_S3_VICTORIA_MCU  (input: VID_021)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T050 VIDEO   -> VID_022  (input: FRM_S3_VICTORIA_MCU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T051 VIDEO   -> VID_023  (input: FRM_S3_VICTORIA_MCU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T052 VIDEO   -> VID_024  (input: FRM_S3_VICTORIA_MCU)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T053 IMAGE   -> FRM_S4_MASTER  (input: REF_ANDREA_FULL_HOME)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T054 IMAGE   -> FRM_S4_ARRIVAL  (input: FRM_S4_MASTER, REF_ELEANOR_PORTRAIT, REF_VICTORIA_PORTRAIT)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T055 VIDEO   -> VID_025  (input: FRM_S4_ARRIVAL)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T056 EXTRACT -> FRM_S4_ARRIVED  (input: VID_025)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T057 IMAGE   -> FRM_S4_TALK  (input: FRM_S4_ARRIVED, REF_ANDREA_PORTRAIT, REF_ELEANOR_PORTRAIT, REF_VICTORIA_PORTRAIT)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T058 VIDEO   -> VID_026  (input: FRM_S4_TALK)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T059 VIDEO   -> VID_027  (input: FRM_S4_TALK)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T060 IMAGE   -> FRM_S4_MAMA  (input: FRM_S4_TALK, REF_MAMA_PORTRAIT)
+2026-07-19 13:36:32,117 | INFO    | [DRY] T061 VIDEO   -> VID_028  (input: FRM_S4_MAMA)
+2026-07-19 20:57:54,324 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-19 20:57:54,325 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-19 20:57:54,675 | INFO    | Nối vào Chrome thật qua CDP: http://localhost:9222
+2026-07-19 20:57:56,900 | INFO    | T012 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 08:42:58,938 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 08:42:58,938 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 08:42:59,215 | INFO    | Nối vào Chrome thật qua CDP: http://localhost:9222
+2026-07-20 08:43:00,919 | INFO    | T012 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 08:44:05,092 | INFO    | T012 FRM_S1_MASTER — DONE (assets/FRM_S1_MASTER.png)
+2026-07-20 08:44:05,093 | WARNING | Không nối được Grok qua CDP (It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.) — chạy thủ công.
+2026-07-20 08:44:05,096 | WARNING | Người dùng thoát. Trạng thái đã lưu — chạy lại để tiếp tục.
+2026-07-20 08:44:05,127 | INFO    | Tất cả task trong phạm vi đã DONE.
+2026-07-20 08:47:22,805 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 08:47:22,805 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 08:47:22,805 | INFO    | T012 FRM_S1_MASTER — DONE, bỏ qua
+2026-07-20 08:47:23,543 | INFO    | Nối CDP dùng chung: http://localhost:9222
+2026-07-20 08:47:28,757 | INFO    | Grok session sẵn sàng.
+2026-07-20 08:47:28,757 | INFO    | T013 [AUTO] Grok tạo video từ FRM_S1_MASTER.png
+2026-07-20 08:47:40,815 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 08:57:41,989 | WARNING | T013 Grok auto lỗi: Hết thời gian chờ Grok render video. — chuyển thủ công.
+2026-07-20 08:57:42,004 | WARNING | Người dùng thoát. Trạng thái đã lưu — chạy lại để tiếp tục.
+2026-07-20 08:57:42,036 | INFO    | Tất cả task trong phạm vi đã DONE.
+2026-07-20 09:24:04,516 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 09:24:04,517 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 09:24:04,517 | INFO    | T012 FRM_S1_MASTER — DONE, bỏ qua
+2026-07-20 09:24:05,209 | INFO    | Nối CDP dùng chung: http://localhost:9222
+2026-07-20 09:24:10,356 | INFO    | Grok session sẵn sàng.
+2026-07-20 09:24:10,356 | INFO    | T013 [AUTO] Grok tạo video từ FRM_S1_MASTER.png
+2026-07-20 09:24:22,268 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:25:17,422 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:25:19,233 | INFO    | T013 nhận video AUTO (10.0s)
+2026-07-20 09:25:19,237 | INFO    | T013 VID_001 — DONE (assets/VID_001.mp4)
+2026-07-20 09:25:22,694 | INFO    | T014 chọn frame cand_7.0s.png
+2026-07-20 09:25:22,699 | INFO    | T014 FRM_S1_WIDE — DONE (assets/FRM_S1_WIDE.png)
+2026-07-20 09:25:22,700 | INFO    | T015 [AUTO] Grok tạo video từ FRM_S1_WIDE.png
+2026-07-20 09:25:33,958 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:26:24,049 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:26:25,781 | INFO    | T015 nhận video AUTO (10.0s)
+2026-07-20 09:26:25,788 | INFO    | T015 VID_002 — DONE (assets/VID_002.mp4)
+2026-07-20 09:26:25,788 | INFO    | T017 [AUTO] Grok tạo video từ FRM_S1_WIDE.png
+2026-07-20 09:26:37,102 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:27:22,183 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:27:23,899 | INFO    | T017 nhận video AUTO (10.0s)
+2026-07-20 09:27:23,906 | INFO    | T017 VID_003 — DONE (assets/VID_003.mp4)
+2026-07-20 09:27:23,906 | INFO    | T018 [AUTO] Grok tạo video từ FRM_S1_WIDE.png
+2026-07-20 09:27:35,752 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:28:20,828 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:28:22,174 | INFO    | T018 nhận video AUTO (10.0s)
+2026-07-20 09:28:22,183 | INFO    | T018 VID_004 — DONE (assets/VID_004.mp4)
+2026-07-20 09:28:22,213 | INFO    | Tất cả task trong phạm vi đã DONE.
+2026-07-20 09:50:13,602 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 09:50:13,602 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 09:50:13,602 | INFO    | T012 FRM_S1_MASTER — DONE, bỏ qua
+2026-07-20 09:50:14,376 | INFO    | Nối CDP dùng chung: http://localhost:9222
+2026-07-20 09:50:19,163 | INFO    | Grok session sẵn sàng.
+2026-07-20 09:50:19,163 | INFO    | T013 [AUTO] Grok tạo video từ FRM_S1_MASTER.png
+2026-07-20 09:50:30,702 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:51:30,792 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:51:33,336 | INFO    | T013 nhận video AUTO (10.0s)
+2026-07-20 09:51:33,341 | INFO    | T013 VID_001 — DONE (assets/VID_001.mp4)
+2026-07-20 09:51:33,644 | INFO    | T014 cắt frame FRM_S1_WIDE ở giây 7.5 (nguồn VID_001.mp4)
+2026-07-20 09:51:33,647 | INFO    | T014 FRM_S1_WIDE — DONE (assets/FRM_S1_WIDE.png)
+2026-07-20 09:51:33,648 | INFO    | T015 [AUTO] Grok tạo video từ FRM_S1_WIDE.png
+2026-07-20 09:51:45,022 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:52:55,137 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:52:55,813 | INFO    | T015 nhận video AUTO (10.0s)
+2026-07-20 09:52:55,824 | INFO    | T015 VID_002 — DONE (assets/VID_002.mp4)
+2026-07-20 09:52:55,825 | INFO    | T017 [AUTO] Grok tạo video từ FRM_S1_WIDE.png
+2026-07-20 09:53:07,133 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:53:57,218 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:53:59,161 | INFO    | T017 nhận video AUTO (10.0s)
+2026-07-20 09:53:59,169 | INFO    | T017 VID_003 — DONE (assets/VID_003.mp4)
+2026-07-20 09:53:59,170 | INFO    | T018 [AUTO] Grok tạo video từ FRM_S1_WIDE.png
+2026-07-20 09:54:10,479 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 09:54:55,548 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 09:54:56,062 | INFO    | T018 nhận video AUTO (10.0s)
+2026-07-20 09:54:56,071 | INFO    | T018 VID_004 — DONE (assets/VID_004.mp4)
+2026-07-20 09:54:56,111 | INFO    | Tất cả task trong phạm vi đã DONE.
+2026-07-20 10:43:41,271 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 10:43:41,271 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 10:43:42,172 | INFO    | Nối CDP dùng chung: http://localhost:9222
+2026-07-20 10:43:43,546 | INFO    | T007 [AUTO] tạo ảnh, đính 0 ảnh tham chiếu
+2026-07-20 10:44:17,473 | INFO    | T007 REF_VICTORIA_PORTRAIT — DONE (assets/REF_VICTORIA_PORTRAIT.png)
+2026-07-20 10:44:17,474 | INFO    | T039 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 10:46:23,738 | WARNING | T039 auto lỗi (Hết thời gian chờ ChatGPT sinh ảnh.) — chuyển thủ công.
+2026-07-20 10:46:23,740 | WARNING | Người dùng thoát. Trạng thái đã lưu — chạy lại để tiếp tục.
+2026-07-20 10:46:23,761 | INFO    | Tất cả task trong phạm vi đã DONE.
+2026-07-20 10:49:18,096 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 10:49:18,096 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 10:49:18,982 | INFO    | Nối CDP dùng chung: http://localhost:9222
+2026-07-20 10:49:20,521 | INFO    | T039 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 10:51:26,553 | ERROR   | T039 lỗi executor: Hết thời gian chờ ChatGPT sinh ảnh.
+2026-07-20 10:51:26,556 | INFO    | T039 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 10:53:32,721 | ERROR   | T039 lỗi executor: Hết thời gian chờ ChatGPT sinh ảnh.
+2026-07-20 10:53:32,724 | INFO    | T039 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 10:55:38,646 | ERROR   | T039 lỗi executor: Hết thời gian chờ ChatGPT sinh ảnh.
+2026-07-20 10:55:38,651 | ERROR   | T040 FRM_S3_ELEANOR_DOOR — thiếu input: FRM_S3_MASTER → FAILED
+2026-07-20 10:55:38,652 | ERROR   | T041 VID_017 — thiếu input: FRM_S3_ELEANOR_DOOR → FAILED
+2026-07-20 10:55:38,654 | ERROR   | T042 FRM_S3_DUO — thiếu input: VID_017 → FAILED
+2026-07-20 10:55:38,655 | ERROR   | T043 VID_018 — thiếu input: FRM_S3_DUO → FAILED
+2026-07-20 10:55:38,656 | ERROR   | T044 FRM_S3_DUO_SERIOUS — thiếu input: VID_018 → FAILED
+2026-07-20 10:55:38,658 | ERROR   | T045 VID_019 — thiếu input: FRM_S3_DUO_SERIOUS → FAILED
+2026-07-20 10:55:38,659 | ERROR   | T046 FRM_S3_ELEANOR_MCU — thiếu input: VID_019 → FAILED
+2026-07-20 10:55:38,660 | ERROR   | T047 VID_020 — thiếu input: FRM_S3_ELEANOR_MCU → FAILED
+2026-07-20 10:55:38,661 | ERROR   | T048 VID_021 — thiếu input: FRM_S3_DUO_SERIOUS → FAILED
+2026-07-20 10:55:38,689 | WARNING | Hoàn tất với 10 task FAILED. Xem `status` / sửa rồi chạy lại.
+2026-07-20 11:06:24,220 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 11:06:24,220 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 11:06:25,058 | INFO    | Nối CDP dùng chung: http://localhost:9222
+2026-07-20 11:06:26,465 | INFO    | T039 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 11:07:34,870 | INFO    | T039 FRM_S3_MASTER — DONE (assets/FRM_S3_MASTER.png)
+2026-07-20 11:07:34,873 | INFO    | T040 [AUTO] tạo ảnh, đính 2 ảnh tham chiếu
+2026-07-20 11:09:22,996 | INFO    | T040 FRM_S3_ELEANOR_DOOR — DONE (assets/FRM_S3_ELEANOR_DOOR.png)
+2026-07-20 11:09:27,662 | INFO    | Grok session sẵn sàng.
+2026-07-20 11:09:27,662 | INFO    | T041 [AUTO] Grok tạo video từ FRM_S3_ELEANOR_DOOR.png
+2026-07-20 11:09:39,228 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 11:10:24,329 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 11:10:26,139 | INFO    | T041 nhận video AUTO (10.0s)
+2026-07-20 11:10:26,145 | INFO    | T041 VID_017 — DONE (assets/VID_017.mp4)
+2026-07-20 11:10:26,465 | INFO    | T042 cắt frame FRM_S3_DUO ở giây 7.5 (nguồn VID_017.mp4)
+2026-07-20 11:10:26,468 | INFO    | T042 FRM_S3_DUO — DONE (assets/FRM_S3_DUO.png)
+2026-07-20 11:10:26,468 | INFO    | T043 [AUTO] Grok tạo video từ FRM_S3_DUO.png
+2026-07-20 11:10:37,790 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 11:11:22,886 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 11:11:23,494 | INFO    | T043 nhận video AUTO (10.0s)
+2026-07-20 11:11:23,499 | INFO    | T043 VID_018 — DONE (assets/VID_018.mp4)
+2026-07-20 11:11:23,817 | INFO    | T044 cắt frame FRM_S3_DUO_SERIOUS ở giây 7.5 (nguồn VID_018.mp4)
+2026-07-20 11:11:23,820 | INFO    | T044 FRM_S3_DUO_SERIOUS — DONE (assets/FRM_S3_DUO_SERIOUS.png)
+2026-07-20 11:11:23,821 | INFO    | T045 [AUTO] Grok tạo video từ FRM_S3_DUO_SERIOUS.png
+2026-07-20 11:11:35,126 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 11:12:25,206 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 11:12:25,924 | INFO    | T045 nhận video AUTO (10.0s)
+2026-07-20 11:12:25,931 | INFO    | T045 VID_019 — DONE (assets/VID_019.mp4)
+2026-07-20 11:12:26,248 | INFO    | T046 cắt frame FRM_S3_ELEANOR_MCU ở giây 7.5 (nguồn VID_019.mp4)
+2026-07-20 11:12:26,251 | INFO    | T046 FRM_S3_ELEANOR_MCU — DONE (assets/FRM_S3_ELEANOR_MCU.png)
+2026-07-20 11:12:26,252 | INFO    | T047 [AUTO] Grok tạo video từ FRM_S3_ELEANOR_MCU.png
+2026-07-20 11:12:37,613 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 11:13:27,716 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 11:13:28,902 | INFO    | T047 nhận video AUTO (10.0s)
+2026-07-20 11:13:28,905 | INFO    | T047 VID_020 — DONE (assets/VID_020.mp4)
+2026-07-20 11:13:28,906 | INFO    | T048 [AUTO] Grok tạo video từ FRM_S3_DUO_SERIOUS.png
+2026-07-20 11:13:40,066 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 11:14:25,155 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 11:14:25,834 | INFO    | T048 nhận video AUTO (10.0s)
+2026-07-20 11:14:25,837 | INFO    | T048 VID_021 — DONE (assets/VID_021.mp4)
+2026-07-20 11:14:25,863 | INFO    | Tất cả task trong phạm vi đã DONE.
+2026-07-20 12:42:31,227 | INFO    | Pipeline: ../PIPELINE-BANHMI-VID001-028.txt  (61 task)
+2026-07-20 12:42:31,228 | INFO    | Project : /Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.project
+2026-07-20 12:42:32,200 | INFO    | Nối CDP dùng chung: http://localhost:9222
+2026-07-20 12:42:33,796 | INFO    | T001 [AUTO] tạo ảnh, đính 0 ảnh tham chiếu
+2026-07-20 12:43:54,407 | INFO    | T001 REF_ANDREA_PORTRAIT — DONE (assets/REF_ANDREA_PORTRAIT.png)
+2026-07-20 12:43:54,409 | INFO    | T002 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 12:45:13,709 | INFO    | T002 REF_ANDREA_FULL_JANITOR — DONE (assets/REF_ANDREA_FULL_JANITOR.png)
+2026-07-20 12:45:13,710 | INFO    | T003 [AUTO] tạo ảnh, đính 0 ảnh tham chiếu
+2026-07-20 12:46:20,305 | INFO    | T003 REF_ELEANOR_PORTRAIT — DONE (assets/REF_ELEANOR_PORTRAIT.png)
+2026-07-20 12:46:20,307 | INFO    | T004 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 12:47:02,097 | ERROR   | T004 lỗi executor: ChatGPT kết thúc lượt nhưng không sinh ảnh (có thể HẾT LƯỢT tạo ảnh trong ngày / bị từ chối).
+2026-07-20 12:47:02,098 | INFO    | T004 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 12:47:48,447 | INFO    | T004 REF_ELEANOR_FULL — DONE (assets/REF_ELEANOR_FULL.png)
+2026-07-20 12:47:48,448 | INFO    | T005 [AUTO] tạo ảnh, đính 0 ảnh tham chiếu
+2026-07-20 12:48:54,985 | INFO    | T005 REF_ROBERT_PORTRAIT — DONE (assets/REF_ROBERT_PORTRAIT.png)
+2026-07-20 12:48:54,987 | INFO    | T006 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 12:50:19,457 | INFO    | T006 REF_ROBERT_FULL — DONE (assets/REF_ROBERT_FULL.png)
+2026-07-20 12:50:19,458 | INFO    | T007 REF_VICTORIA_PORTRAIT — DONE, bỏ qua
+2026-07-20 12:50:19,458 | INFO    | T008 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 12:50:59,619 | INFO    | T008 REF_VICTORIA_FULL — DONE (assets/REF_VICTORIA_FULL.png)
+2026-07-20 12:50:59,620 | INFO    | T009 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 12:51:45,636 | INFO    | T009 REF_ANDREA_FULL_HOME — DONE (assets/REF_ANDREA_FULL_HOME.png)
+2026-07-20 12:51:45,637 | INFO    | T010 [AUTO] tạo ảnh, đính 0 ảnh tham chiếu
+2026-07-20 12:52:16,298 | INFO    | T010 REF_MAMA_PORTRAIT — DONE (assets/REF_MAMA_PORTRAIT.png)
+2026-07-20 12:52:16,298 | INFO    | T011 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 12:53:16,879 | INFO    | T011 REF_MAMA_FULL — DONE (assets/REF_MAMA_FULL.png)
+2026-07-20 12:53:16,881 | INFO    | T012 FRM_S1_MASTER — DONE, bỏ qua
+2026-07-20 12:53:16,881 | INFO    | T013 VID_001 — DONE, bỏ qua
+2026-07-20 12:53:16,882 | INFO    | T014 FRM_S1_WIDE — DONE, bỏ qua
+2026-07-20 12:53:16,882 | INFO    | T015 VID_002 — DONE, bỏ qua
+2026-07-20 12:53:17,967 | INFO    | T016 cắt frame FRM_S1_ELEANOR_CU ở giây 7.5 (nguồn VID_002.mp4)
+2026-07-20 12:53:17,974 | INFO    | T016 FRM_S1_ELEANOR_CU — DONE (assets/FRM_S1_ELEANOR_CU.png)
+2026-07-20 12:53:17,976 | INFO    | T017 VID_003 — DONE, bỏ qua
+2026-07-20 12:53:17,976 | INFO    | T018 VID_004 — DONE, bỏ qua
+2026-07-20 12:53:23,131 | INFO    | Grok session sẵn sàng.
+2026-07-20 12:53:23,132 | INFO    | T019 [AUTO] Grok tạo video từ FRM_S1_ELEANOR_CU.png
+2026-07-20 12:53:35,537 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 12:54:20,638 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 12:54:22,760 | INFO    | T019 nhận video AUTO (10.0s)
+2026-07-20 12:54:22,764 | INFO    | T019 VID_005 — DONE (assets/VID_005.mp4)
+2026-07-20 12:54:22,765 | INFO    | T020 [AUTO] tạo ảnh, đính 2 ảnh tham chiếu
+2026-07-20 12:57:13,612 | INFO    | T020 FRM_S1_ANDREA — DONE (assets/FRM_S1_ANDREA.png)
+2026-07-20 12:57:13,613 | INFO    | T021 [AUTO] Grok tạo video từ FRM_S1_ANDREA.png
+2026-07-20 12:57:25,641 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 12:58:10,750 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 12:58:12,504 | INFO    | T021 nhận video AUTO (10.0s)
+2026-07-20 12:58:12,507 | INFO    | T021 VID_006 — DONE (assets/VID_006.mp4)
+2026-07-20 12:58:12,507 | INFO    | T022 [AUTO] tạo ảnh, đính 2 ảnh tham chiếu
+2026-07-20 12:59:36,352 | INFO    | T022 FRM_S1_ROBERT_FAR — DONE (assets/FRM_S1_ROBERT_FAR.png)
+2026-07-20 12:59:36,353 | INFO    | T023 [AUTO] Grok tạo video từ FRM_S1_ROBERT_FAR.png
+2026-07-20 12:59:47,654 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:00:37,752 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:00:39,894 | INFO    | T023 nhận video AUTO (10.0s)
+2026-07-20 13:00:39,897 | INFO    | T023 VID_007 — DONE (assets/VID_007.mp4)
+2026-07-20 13:00:40,196 | INFO    | T024 cắt frame FRM_S1_DUO ở giây 7.5 (nguồn VID_007.mp4)
+2026-07-20 13:00:40,198 | INFO    | T024 FRM_S1_DUO — DONE (assets/FRM_S1_DUO.png)
+2026-07-20 13:00:40,198 | INFO    | T025 [AUTO] Grok tạo video từ FRM_S1_DUO.png
+2026-07-20 13:00:52,173 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:01:42,268 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:01:44,476 | INFO    | T025 nhận video AUTO (10.0s)
+2026-07-20 13:01:44,481 | INFO    | T025 VID_008 — DONE (assets/VID_008.mp4)
+2026-07-20 13:01:44,787 | INFO    | T026 cắt frame FRM_S1_DUO_CLOSE ở giây 7.5 (nguồn VID_008.mp4)
+2026-07-20 13:01:44,789 | INFO    | T026 FRM_S1_DUO_CLOSE — DONE (assets/FRM_S1_DUO_CLOSE.png)
+2026-07-20 13:01:44,790 | INFO    | T027 [AUTO] Grok tạo video từ FRM_S1_DUO_CLOSE.png
+2026-07-20 13:01:56,588 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:02:41,726 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:02:42,632 | INFO    | T027 nhận video AUTO (10.0s)
+2026-07-20 13:02:42,636 | INFO    | T027 VID_009 — DONE (assets/VID_009.mp4)
+2026-07-20 13:02:42,638 | INFO    | T028 [AUTO] tạo ảnh, đính 2 ảnh tham chiếu
+2026-07-20 13:03:56,767 | INFO    | T028 FRM_S2_MASTER — DONE (assets/FRM_S2_MASTER.png)
+2026-07-20 13:03:56,768 | INFO    | T029 [AUTO] Grok tạo video từ FRM_S2_MASTER.png
+2026-07-20 13:04:08,653 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:04:53,765 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:04:54,228 | INFO    | T029 nhận video AUTO (10.0s)
+2026-07-20 13:04:54,230 | INFO    | T029 VID_010 — DONE (assets/VID_010.mp4)
+2026-07-20 13:04:54,521 | INFO    | T030 cắt frame FRM_S2_WIDE ở giây 7.5 (nguồn VID_010.mp4)
+2026-07-20 13:04:54,524 | INFO    | T030 FRM_S2_WIDE — DONE (assets/FRM_S2_WIDE.png)
+2026-07-20 13:04:54,525 | INFO    | T031 [AUTO] Grok tạo video từ FRM_S2_WIDE.png
+2026-07-20 13:05:06,390 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:05:51,506 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:05:53,483 | INFO    | T031 nhận video AUTO (10.0s)
+2026-07-20 13:05:53,487 | INFO    | T031 VID_011 — DONE (assets/VID_011.mp4)
+2026-07-20 13:05:53,776 | INFO    | T032 cắt frame FRM_S2_ROBERT_MCU ở giây 7.5 (nguồn VID_011.mp4)
+2026-07-20 13:05:53,778 | INFO    | T032 FRM_S2_ROBERT_MCU — DONE (assets/FRM_S2_ROBERT_MCU.png)
+2026-07-20 13:05:53,779 | INFO    | T033 [AUTO] Grok tạo video từ FRM_S2_WIDE.png
+2026-07-20 13:06:05,630 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:06:50,750 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:06:51,721 | INFO    | T033 nhận video AUTO (10.0s)
+2026-07-20 13:06:51,725 | INFO    | T033 VID_012 — DONE (assets/VID_012.mp4)
+2026-07-20 13:06:52,019 | INFO    | T034 cắt frame FRM_S2_ANDREA_MCU ở giây 7.5 (nguồn VID_012.mp4)
+2026-07-20 13:06:52,021 | INFO    | T034 FRM_S2_ANDREA_MCU — DONE (assets/FRM_S2_ANDREA_MCU.png)
+2026-07-20 13:06:52,022 | INFO    | T035 [AUTO] Grok tạo video từ FRM_S2_ROBERT_MCU.png
+2026-07-20 13:07:03,254 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:07:48,358 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:07:48,905 | INFO    | T035 nhận video AUTO (10.0s)
+2026-07-20 13:07:48,910 | INFO    | T035 VID_013 — DONE (assets/VID_013.mp4)
+2026-07-20 13:07:48,910 | INFO    | T036 [AUTO] Grok tạo video từ FRM_S2_ANDREA_MCU.png
+2026-07-20 13:08:00,702 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:08:55,901 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:08:57,158 | INFO    | T036 nhận video AUTO (10.0s)
+2026-07-20 13:08:57,161 | INFO    | T036 VID_014 — DONE (assets/VID_014.mp4)
+2026-07-20 13:08:57,162 | INFO    | T037 [AUTO] Grok tạo video từ FRM_S2_ROBERT_MCU.png
+2026-07-20 13:09:08,385 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:09:48,471 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:09:49,120 | INFO    | T037 nhận video AUTO (10.0s)
+2026-07-20 13:09:49,158 | INFO    | T037 VID_015 — DONE (assets/VID_015.mp4)
+2026-07-20 13:09:49,159 | INFO    | T038 [AUTO] Grok tạo video từ FRM_S2_WIDE.png
+2026-07-20 13:10:00,993 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:10:51,123 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:10:51,792 | INFO    | T038 nhận video AUTO (10.0s)
+2026-07-20 13:10:51,797 | INFO    | T038 VID_016 — DONE (assets/VID_016.mp4)
+2026-07-20 13:10:51,797 | INFO    | T039 FRM_S3_MASTER — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T040 FRM_S3_ELEANOR_DOOR — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T041 VID_017 — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T042 FRM_S3_DUO — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T043 VID_018 — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T044 FRM_S3_DUO_SERIOUS — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T045 VID_019 — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T046 FRM_S3_ELEANOR_MCU — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T047 VID_020 — DONE, bỏ qua
+2026-07-20 13:10:51,797 | INFO    | T048 VID_021 — DONE, bỏ qua
+2026-07-20 13:10:52,090 | INFO    | T049 cắt frame FRM_S3_VICTORIA_MCU ở giây 7.5 (nguồn VID_021.mp4)
+2026-07-20 13:10:52,092 | INFO    | T049 FRM_S3_VICTORIA_MCU — DONE (assets/FRM_S3_VICTORIA_MCU.png)
+2026-07-20 13:10:52,092 | INFO    | T050 [AUTO] Grok tạo video từ FRM_S3_VICTORIA_MCU.png
+2026-07-20 13:11:03,700 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:11:48,826 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:11:51,176 | INFO    | T050 nhận video AUTO (10.0s)
+2026-07-20 13:11:51,180 | INFO    | T050 VID_022 — DONE (assets/VID_022.mp4)
+2026-07-20 13:11:51,180 | INFO    | T051 [AUTO] Grok tạo video từ FRM_S3_VICTORIA_MCU.png
+2026-07-20 13:12:03,100 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:12:53,226 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:12:55,112 | INFO    | T051 nhận video AUTO (10.0s)
+2026-07-20 13:12:55,116 | INFO    | T051 VID_023 — DONE (assets/VID_023.mp4)
+2026-07-20 13:12:55,116 | INFO    | T052 [AUTO] Grok tạo video từ FRM_S3_VICTORIA_MCU.png
+2026-07-20 13:13:06,531 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:13:51,681 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:13:52,135 | INFO    | T052 nhận video AUTO (10.0s)
+2026-07-20 13:13:52,139 | INFO    | T052 VID_024 — DONE (assets/VID_024.mp4)
+2026-07-20 13:13:52,140 | INFO    | T053 [AUTO] tạo ảnh, đính 1 ảnh tham chiếu
+2026-07-20 13:15:13,023 | INFO    | T053 FRM_S4_MASTER — DONE (assets/FRM_S4_MASTER.png)
+2026-07-20 13:15:13,026 | INFO    | T054 [AUTO] tạo ảnh, đính 3 ảnh tham chiếu
+2026-07-20 13:16:36,395 | INFO    | T054 FRM_S4_ARRIVAL — DONE (assets/FRM_S4_ARRIVAL.png)
+2026-07-20 13:16:36,399 | INFO    | T055 [AUTO] Grok tạo video từ FRM_S4_ARRIVAL.png
+2026-07-20 13:16:48,344 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:17:38,459 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:17:40,688 | INFO    | T055 nhận video AUTO (10.0s)
+2026-07-20 13:17:40,693 | INFO    | T055 VID_025 — DONE (assets/VID_025.mp4)
+2026-07-20 13:17:41,025 | INFO    | T056 cắt frame FRM_S4_ARRIVED ở giây 7.5 (nguồn VID_025.mp4)
+2026-07-20 13:17:41,027 | INFO    | T056 FRM_S4_ARRIVED — DONE (assets/FRM_S4_ARRIVED.png)
+2026-07-20 13:17:41,027 | INFO    | T057 [AUTO] tạo ảnh, đính 4 ảnh tham chiếu
+2026-07-20 13:19:36,467 | INFO    | T057 FRM_S4_TALK — DONE (assets/FRM_S4_TALK.png)
+2026-07-20 13:19:36,469 | INFO    | T058 [AUTO] Grok tạo video từ FRM_S4_TALK.png
+2026-07-20 13:19:48,547 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:20:38,676 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:20:40,905 | INFO    | T058 nhận video AUTO (10.0s)
+2026-07-20 13:20:40,911 | INFO    | T058 VID_026 — DONE (assets/VID_026.mp4)
+2026-07-20 13:20:40,911 | INFO    | T059 [AUTO] Grok tạo video từ FRM_S4_TALK.png
+2026-07-20 13:20:52,618 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:21:42,740 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:21:43,592 | INFO    | T059 nhận video AUTO (10.0s)
+2026-07-20 13:21:43,598 | INFO    | T059 VID_027 — DONE (assets/VID_027.mp4)
+2026-07-20 13:21:43,599 | INFO    | T060 [AUTO] tạo ảnh, đính 2 ảnh tham chiếu
+2026-07-20 13:22:51,473 | INFO    | T060 FRM_S4_MAMA — DONE (assets/FRM_S4_MAMA.png)
+2026-07-20 13:22:51,474 | INFO    | T061 [AUTO] Grok tạo video từ FRM_S4_MAMA.png
+2026-07-20 13:23:03,437 | INFO    | Grok: đã submit, chờ render...
+2026-07-20 13:23:53,553 | INFO    | Grok: video xong (https://assets.grok.com/users/77870337-8850-4d53-af9d-5e77d9ee5b73/gen...), đang tải
+2026-07-20 13:23:56,209 | INFO    | T061 nhận video AUTO (10.0s)
+2026-07-20 13:23:56,215 | INFO    | T061 VID_028 — DONE (assets/VID_028.mp4)
+2026-07-20 13:23:56,259 | INFO    | Tất cả task trong phạm vi đã DONE.

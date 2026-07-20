@@ -1,0 +1,19 @@
+# Môi trường Python (tạo lại trên máy mới)
+**/.venv/
+**/__pycache__/
+*.pyc
+
+# Phiên đăng nhập trình duyệt
+**/.chatgpt_profile/
+grok_test/
+
+# File tạm / trùng lặp (giữ assets/ là bản chuẩn)
+**/tries/
+**/candidates/
+**/inbox/
+
+# Rác hệ thống
+.DS_Store
+
+# File chat thô (chứa mật khẩu/2FA đã dán)
+*.jsonl

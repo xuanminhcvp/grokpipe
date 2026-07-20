@@ -1,0 +1,1302 @@
+╔══════════════════════════════════════════════════════════════╗
+║  PIPELINE SẢN XUẤT VIDEO GROK — "Ổ BÁNH MÌ $3.50"           ║
+║  Phạm vi: VID_001 → VID_028  (SRT 00:00:00 → 00:05:13)      ║
+╚══════════════════════════════════════════════════════════════╝
+
+CÁCH ĐỌC FILE NÀY (cho cả người và tool)
+----------------------------------------
+• Mỗi task là một block, mở đầu bằng dòng:
+      === [Txxx] LOẠI -> MÃ_KẾT_QUẢ | tên gợi nhớ ===
+  LOẠI = IMAGE (tạo ảnh) | VIDEO (tạo video) | EXTRACT (cắt frame từ video)
+• Dưới dòng mở đầu là các trường "KEY : value", mỗi dòng một trường.
+• Prompt (nếu có) nằm giữa hai dòng:  --- PROMPT ---  và  --- HẾT PROMPT ---
+• EXTRACT không có prompt — tool tự cắt frame theo tài liệu hướng dẫn tool.
+• Chạy TUẦN TỰ từ trên xuống: mọi input (BASE_IMAGE / REF_IMAGES / START_FRAME
+  / SOURCE_VIDEO) đều đã được tạo bởi task đứng trước.
+• Quy ước mã: REF_* = ảnh nhân vật · FRM_* = frame khởi đầu video · VID_* = video.
+  Mã scene: S1 siêu thị · S2 văn phòng quản lý · S3 phòng làm việc Sterling
+  · S4 trước cửa nhà Andrea.
+
+MỤC LỤC PIPELINE (61 task)
+--------------------------
+  T001-T011  IMAGE    11 ảnh nhân vật (REF): Andrea(3), Eleanor(2), Robert(2),
+                      Victoria(2), Mama(2)
+  ─ SCENE 1: Siêu thị ─
+  T012       IMAGE    FRM_S1_MASTER      Scene Master quầy thanh toán
+  T013       VIDEO    VID_001            Mở màn, thu ngân lẩm bẩm
+  T014       EXTRACT  FRM_S1_WIDE        ← VID_001
+  T015       VIDEO    VID_002            "Bà cần tránh sang một bên"
+  T016       EXTRACT  FRM_S1_ELEANOR_CU  ← VID_002
+  T017       VIDEO    VID_003            "Ba phút đã trôi qua"
+  T018       VIDEO    VID_004            Khách bàn tán sau lưng
+  T019       VIDEO    VID_005            Khoảng lặng nhục nhã
+  T020       IMAGE    FRM_S1_ANDREA      Keyframe: thêm Andrea
+  T021       VIDEO    VID_006            "Ổ bánh mì bao nhiêu vậy?"
+  T022       IMAGE    FRM_S1_ROBERT_FAR  Keyframe: Robert từ xa
+  T023       VIDEO    VID_007            "Tiền của tôi, Robert" + trao bánh
+  T024       EXTRACT  FRM_S1_DUO         ← VID_007
+  T025       VIDEO    VID_008            "Tôi biết bà đang đói"
+  T026       EXTRACT  FRM_S1_DUO_CLOSE   ← VID_008
+  T027       VIDEO    VID_009            "Không bao giờ quên cái tên đó"
+  ─ SCENE 2: Văn phòng quản lý ─
+  T028       IMAGE    FRM_S2_MASTER      Scene Master văn phòng
+  T029       VIDEO    VID_010            "Cô biết vì sao mình ở đây?"
+  T030       EXTRACT  FRM_S2_WIDE        ← VID_010
+  T031       VIDEO    VID_011            Bản luận tội (push-in Robert)
+  T032       EXTRACT  FRM_S2_ROBERT_MCU  ← VID_011
+  T033       VIDEO    VID_012            Tờ giấy đình chỉ → "What?"
+  T034       EXTRACT  FRM_S2_ANDREA_MCU  ← VID_012
+  T035       VIDEO    VID_013            Đọc luật + "Grandstand?"
+  T036       VIDEO    VID_014            "Đó là làm người"
+  T037       VIDEO    VID_015            "Luật là luật" + "Please"
+  T038       VIDEO    VID_016            "Quyết định là cuối cùng"
+  ─ SCENE 3: Dinh thự Sterling ─
+  T039       IMAGE    FRM_S3_MASTER      Scene Master phòng làm việc
+  T040       IMAGE    FRM_S3_ELEANOR_DOOR Keyframe: Eleanor ở cửa
+  T041       VIDEO    VID_017            "Mẹ vào được không?"
+  T042       EXTRACT  FRM_S3_DUO         ← VID_017
+  T043       VIDEO    VID_018            "Mẹ đã không thể trả tiền"
+  T044       EXTRACT  FRM_S3_DUO_SERIOUS ← VID_018
+  T045       VIDEO    VID_019            "Siêu thị nào?" → kể về Andrea
+  T046       EXTRACT  FRM_S3_ELEANOR_MCU ← VID_019
+  T047       VIDEO    VID_020            "Con bé không biết mẹ là ai"
+  T048       VIDEO    VID_021            "Tên con bé là gì?"
+  T049       EXTRACT  FRM_S3_VICTORIA_MCU ← VID_021
+  T050       VIDEO    VID_022            "Không phải chuyện viết séc"
+  T051       VIDEO    VID_023            "Con bé cũng đang đói" → "I'll find her"
+  T052       VIDEO    VID_024            Cuộc gọi cho Marcus
+  ─ SCENE 4: Trước cửa nhà Andrea ─
+  T053       IMAGE    FRM_S4_MASTER      Scene Master cửa nhà Pilsen
+  T054       IMAGE    FRM_S4_ARRIVAL     Keyframe: hai mẹ con từ xa
+  T055       VIDEO    VID_025            "Ơn trời, tìm được cô rồi"
+  T056       EXTRACT  FRM_S4_ARRIVED     ← VID_025 (chỉ làm nền keyframe)
+  T057       IMAGE    FRM_S4_TALK        Keyframe hội thoại (ANCHOR scene 4)
+  T058       VIDEO    VID_026            "Tôi là Eleanor Sterling"
+  T059       VIDEO    VID_027            "Bữa ăn đắt giá nhất đời tôi"
+  T060       IMAGE    FRM_S4_MAMA        Keyframe: Mama ló ra ở cửa
+  T061       VIDEO    VID_028            "Mời vào nhà, xin mời vào"
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  PHASE A — ẢNH NHÂN VẬT (REF)                                │
+│  Tạo bằng ChatGPT. Portrait trước, full-body tham chiếu      │
+│  portrait để khóa khuôn mặt.                                 │
+└──────────────────────────────────────────────────────────────┘
+
+=== [T001] IMAGE -> REF_ANDREA_PORTRAIT | chân dung Andrea ===
+BASE_IMAGE : NONE
+REF_IMAGES : NONE
+--- PROMPT ---
+Tạo ảnh 16:9. Ảnh tĩnh photorealistic, chân dung cận mặt từ ngực trở lên, ống kính 85mm, độ sâu trường ảnh mỏng. Một phụ nữ Latina 27 tuổi, tóc đen buộc đuôi ngựa thấp, vài sợi lòa xòa trước trán, mắt nâu ấm áp thoáng mệt mỏi, môi khép nhẹ, không trang điểm, biểu cảm trung tính hơi buồn. Mặc áo polo xanh navy có logo nhỏ "Harvest Market" bên ngực trái, thẻ nhân viên đeo trước ngực. Nền siêu thị mờ nét. Ánh sáng đèn huỳnh quang trung tính, tự nhiên. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T002] IMAGE -> REF_ANDREA_FULL_JANITOR | Andrea toàn thân đồng phục lao công ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_ANDREA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng chính xác của nhân vật. Tạo ảnh tĩnh photorealistic toàn thân của đúng người phụ nữ này — giữ nguyên khuôn mặt, kiểu tóc đuôi ngựa thấp, áo polo xanh navy logo "Harvest Market" và thẻ nhân viên. Bổ sung phần thân dưới: quần vải xám đậm, giày sneaker trắng cũ. Dáng nhỏ nhắn, đứng thẳng tự nhiên giữa lối đi siêu thị, tay cầm cây lau nhà, dãy kệ hàng out nét phía sau. Ống kính 35mm, ánh sáng huỳnh quang trung tính, phong cách điện ảnh. Không đổi mặt, không đổi trang phục phần trên. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T003] IMAGE -> REF_ELEANOR_PORTRAIT | chân dung Eleanor ===
+BASE_IMAGE : NONE
+REF_IMAGES : NONE
+--- PROMPT ---
+Tạo ảnh 16:9. Ảnh tĩnh photorealistic, chân dung cận mặt từ ngực trở lên, ống kính 85mm, độ sâu trường ảnh mỏng. Một phụ nữ da trắng 75 tuổi, tóc bạc trắng búi thấp gọn gàng, gương mặt phúc hậu nhiều nếp nhăn, mắt xanh xám sáng và tinh anh, biểu cảm bối rối phảng phất xấu hổ. Mặc áo khoác dạ màu be thanh lịch nhưng giản dị, khăn lụa xám nhạt quàng cổ. Nền quầy siêu thị mờ nét. Ánh sáng huỳnh quang trung tính. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T004] IMAGE -> REF_ELEANOR_FULL | Eleanor toàn thân ôm bánh mì ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_ELEANOR_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng chính xác của nhân vật. Tạo ảnh tĩnh photorealistic toàn thân của đúng bà cụ này — giữ nguyên khuôn mặt, tóc bạc búi thấp, áo khoác dạ be và khăn lụa xám nhạt. Bổ sung phần thân dưới: quần vải sẫm màu, giày da thấp. Dáng người mảnh, lưng hơi còng nhẹ, đứng trước quầy thanh toán siêu thị, hai tay ôm một ổ bánh mì baguette trong túi giấy trước ngực, dáng vẻ bối rối. Ống kính 35mm, nền quầy thanh toán hơi out nét, ánh sáng huỳnh quang trung tính, phong cách điện ảnh. Không đổi mặt, không đổi trang phục phần trên. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T005] IMAGE -> REF_ROBERT_PORTRAIT | chân dung Robert ===
+BASE_IMAGE : NONE
+REF_IMAGES : NONE
+--- PROMPT ---
+Tạo ảnh 16:9. Ảnh tĩnh photorealistic, chân dung cận mặt từ ngực trở lên, ống kính 85mm, độ sâu trường ảnh mỏng. Một người đàn ông da trắng 45 tuổi, tóc nâu ngắn thưa hơi hói phía trước, mặt đầy, cằm bạnh, mắt nâu lạnh, biểu cảm nghiêm nghị thiếu kiên nhẫn kiểu công chức. Mặc sơ mi xanh nhạt dài tay, cà vạt xám đậm, bảng tên "MANAGER" cài ngực trái. Nền siêu thị mờ nét. Ánh sáng huỳnh quang trung tính. Không chữ ngoài bảng tên, không watermark.
+--- HẾT PROMPT ---
+
+=== [T006] IMAGE -> REF_ROBERT_FULL | Robert toàn thân ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_ROBERT_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng chính xác của nhân vật. Tạo ảnh tĩnh photorealistic toàn thân của đúng người đàn ông này — giữ nguyên khuôn mặt, tóc nâu thưa hơi hói, sơ mi xanh nhạt, cà vạt xám đậm và bảng tên "MANAGER". Bổ sung phần thân dưới: quần âu đen, thắt lưng da, giày da đen, bộ đàm nhỏ gài thắt lưng. Dáng người đậm, đứng khoanh tay giữa lối đi siêu thị, kệ hàng out nét phía sau. Ống kính 35mm, ánh sáng huỳnh quang trung tính, phong cách điện ảnh. Không đổi mặt, không đổi trang phục phần trên. Không chữ ngoài bảng tên, không watermark.
+--- HẾT PROMPT ---
+
+=== [T007] IMAGE -> REF_VICTORIA_PORTRAIT | chân dung Victoria ===
+BASE_IMAGE : NONE
+REF_IMAGES : NONE
+--- PROMPT ---
+Tạo ảnh 16:9. Ảnh tĩnh photorealistic, chân dung cận mặt từ ngực trở lên, ống kính 85mm, độ sâu trường ảnh mỏng. Một phụ nữ da trắng 50 tuổi, khí chất lãnh đạo, tóc nâu sẫm cắt bob gọn ngang vai, mắt xanh xám, đường nét sắc sảo nhưng ấm, trang điểm nhẹ tinh tế. Mặc áo blouse lụa màu ngà, khoác ngoài blazer xám than may đo, đeo hoa tai ngọc trai nhỏ. Biểu cảm điềm tĩnh, chăm chú. Nền phòng làm việc gỗ sang trọng mờ nét. Ánh sáng ban ngày ấm từ cửa sổ. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T008] IMAGE -> REF_VICTORIA_FULL | Victoria toàn thân ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_VICTORIA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng chính xác của nhân vật. Tạo ảnh tĩnh photorealistic toàn thân của đúng người phụ nữ này — giữ nguyên khuôn mặt, tóc bob nâu sẫm, blouse lụa ngà và blazer xám than. Bổ sung phần thân dưới: quần âu đen ống đứng, giày cao gót da đen thấp. Dáng cao, đứng thẳng tự tin bên bàn làm việc gỗ trong phòng làm việc tại gia sang trọng, một tay đặt nhẹ trên mặt bàn, kệ sách và cửa sổ lớn out nét phía sau. Ống kính 35mm, ánh sáng ban ngày ấm, phong cách điện ảnh. Không đổi mặt, không đổi trang phục phần trên. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T009] IMAGE -> REF_ANDREA_FULL_HOME | Andrea toàn thân đồ ở nhà ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_ANDREA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng chính xác của nhân vật. Tạo ảnh tĩnh photorealistic toàn thân của đúng người phụ nữ này — giữ nguyên khuôn mặt và tóc đen buộc đuôi ngựa thấp. Thay trang phục thành đồ ở nhà giản dị: áo thun cotton xám nhạt, cardigan mỏng màu ghi khoác ngoài, quần jeans, dép đi trong nhà. Dáng nhỏ nhắn, đứng ở ngưỡng cửa gỗ của một ngôi nhà nhỏ, một tay đặt trên mép cửa. Ống kính 35mm, ánh sáng buổi sáng tự nhiên, phong cách điện ảnh. Không đổi mặt, không đổi kiểu tóc. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T010] IMAGE -> REF_MAMA_PORTRAIT | chân dung Mama ===
+BASE_IMAGE : NONE
+REF_IMAGES : NONE
+--- PROMPT ---
+Tạo ảnh 16:9. Ảnh tĩnh photorealistic, chân dung cận mặt từ ngực trở lên, ống kính 85mm, độ sâu trường ảnh mỏng. Một phụ nữ Latina 58 tuổi, dáng vẻ hơi yếu vì bệnh, tóc đen điểm bạc búi thấp, gương mặt phúc hậu nhiều nếp nhăn mảnh, mắt nâu ấm, nụ cười hiền dịu mệt mỏi. Mặc áo cardigan len màu nâu ấm ngoài váy nhà hoa nhí giản dị, khăn choàng mỏng trên vai. Nền cửa nhà gỗ mờ nét. Ánh sáng buổi sáng dịu. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T011] IMAGE -> REF_MAMA_FULL | Mama toàn thân ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_MAMA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng chính xác của nhân vật. Tạo ảnh tĩnh photorealistic toàn thân của đúng người phụ nữ này — giữ nguyên khuôn mặt, tóc đen điểm bạc búi thấp, cardigan len nâu, váy nhà hoa nhí, khăn choàng vai. Bổ sung: dép vải đi trong nhà. Dáng nhỏ, hơi gầy, lưng hơi còng nhẹ, đứng trong khung cửa gỗ, một tay vịn nhẹ khung cửa. Ống kính 35mm, ánh sáng buổi sáng dịu, phong cách điện ảnh. Không đổi mặt, không đổi trang phục phần trên. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  SCENE 1 — SIÊU THỊ, QUẦY THANH TOÁN  (VID_001 → VID_009)   │
+│  Trục khóa: quầy bên PHẢI khung, hàng khách bên TRÁI.        │
+│  Camera luôn ở phía khách, không vượt ra sau quầy.           │
+└──────────────────────────────────────────────────────────────┘
+
+=== [T012] IMAGE -> FRM_S1_MASTER | Scene Master quầy thanh toán ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_ELEANOR_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng của bà cụ trong cảnh. Tạo ảnh tĩnh photorealistic, phong cách điện ảnh, khung wide shot ống kính 24mm, góc máy ngang tầm mắt nhìn chéo vào quầy thanh toán số 4 của siêu thị Harvest Market. Bố cục: bên phải khung hình là quầy thanh toán với máy tính tiền, máy quét mã vạch và băng chuyền; sau quầy là nữ thu ngân 35 tuổi tóc nâu buộc đuôi ngựa cao, mặc áo polo xanh lá đồng phục siêu thị, bảng tên nhỏ, biểu cảm thiếu kiên nhẫn. Trước quầy là bà cụ trong ảnh tham chiếu — tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám nhạt — đứng ôm ổ bánh mì baguette trong túi giấy, dáng bối rối. Phía sau bà là hàng khách chờ: đứng đầu là một phụ nữ trung niên áo khoác đỏ đô khoanh tay và một người đàn ông áo khoác xanh navy đứng cạnh xe đẩy; sau họ thêm hai ba khách khác với giỏ hàng. Nền xa là các dãy kệ hàng, biển hiệu lối đi màu xanh lá, vài khách đi lại mờ nét. Ánh sáng đèn huỳnh quang trung tính, buổi sáng. Không khí đời thường tự nhiên như một frame phim tĩnh. Không chữ lớn, không watermark.
+--- HẾT PROMPT ---
+
+=== [T013] VIDEO -> VID_001 | Mở màn, thu ngân lẩm bẩm ===
+START_FRAME : FRM_S1_MASTER
+DURATION    : 10s
+SRT_RANGE   : 00:00:00 --> 00:00:10
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Bố cục khóa: quầy thanh toán bên phải khung, hàng khách bên trái. Camera luôn ở phía khách, không vượt ra sau quầy.
+
+Nhận diện khóa:
+- Bà cụ = tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám, ôm ổ bánh mì trong túi giấy, đứng trước quầy.
+- Thu ngân = nữ 35 tuổi, tóc nâu đuôi ngựa cao, áo polo xanh lá có bảng tên, sau quầy bên phải.
+- Hàng khách: phụ nữ áo khoác đỏ đô khoanh tay, đàn ông áo khoác xanh navy cạnh xe đẩy — giữ nguyên vị trí.
+
+SHOT 1 — 0–5s
+
+Wide shot đúng khung frame bắt đầu, camera tĩnh. Bà cụ áo be nhìn xuống, ngón tay lần túi áo khoác tìm ví một cách vô vọng. Thu ngân nhìn bà rồi liếc đồng hồ, thở ra chán chường.
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium shot nữ thu ngân áo polo xanh lá từ góc chéo phía trước quầy, cùng phía trục. Cô gõ nhẹ ngón tay lên mặt quầy, mắt nhìn xuống máy tính tiền rồi lẩm bẩm một mình, không nhìn ai:
+
+Cashier — flat, muttering to herself:
+"Another day, another dollar."
+
+Nói xong cô ngẩng lên nhìn thẳng bà cụ áo be, ánh mắt bắt đầu mất kiên nhẫn.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh.
+--- HẾT PROMPT ---
+
+=== [T014] EXTRACT -> FRM_S1_WIDE | frame wide làm việc của Scene 1 ===
+SOURCE_VIDEO : VID_001
+FRAME_CẦN_CÓ : Khung wide thấy đủ bố cục — thu ngân sau quầy, bà cụ ôm bánh mì trước quầy, hàng khách phía sau.
+
+=== [T015] VIDEO -> VID_002 | "Bà cần tránh sang một bên" ===
+START_FRAME : FRM_S1_WIDE
+DURATION    : 10s
+SRT_RANGE   : 00:00:10 --> 00:00:21
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên toàn bộ nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.
+
+Nhận diện khóa:
+- Bà cụ = tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám, ôm ổ bánh mì trong túi giấy, giữa khung trước quầy.
+- Thu ngân = nữ 35 tuổi, tóc nâu đuôi ngựa cao, áo polo xanh lá có bảng tên, sau quầy bên phải khung.
+- Hàng khách sau bà cụ: phụ nữ áo khoác đỏ đô khoanh tay, đàn ông áo khoác xanh navy cạnh xe đẩy — giữ nguyên vị trí.
+
+SHOT 1 — 0–5s
+
+Wide shot đúng khung frame bắt đầu, camera tĩnh hơi push-in nhẹ. Nữ thu ngân áo polo xanh lá nhìn thẳng vào mặt bà cụ, một tay đặt trên mặt quầy, nói với giọng dồn ép có kiểm soát:
+
+Cashier — impatient, firm:
+"Ma'am, if you can't pay, you need to step aside. There are other customers waiting."
+
+Cô hất nhẹ cằm về phía hàng khách. Bà cụ áo be khẽ cứng vai, tay siết túi giấy chặt hơn.
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: camera đặt sau vai phải nữ thu ngân, chụp qua vai — vai và một phần đầu thu ngân thành tiền cảnh out nét ở rìa phải khung, lấy nét vào medium close-up bà cụ áo khoác be phía bên kia quầy. Bà ngước mắt nhìn thẳng về phía thu ngân, chớp mắt nhanh, giọng run nhẹ nhưng cố giữ lịch sự:
+
+Eleanor — flustered, apologetic:
+"I'm so sorry — I know I have my wallet... I must have left it at home."
+
+Tay bà vô thức sờ lại túi áo khoác. Sau lưng bà, hàng khách chờ out nét, người phụ nữ áo đỏ đô vẫn khoanh tay.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Vai người out nét ở tiền cảnh Shot 2 chính là nữ thu ngân áo polo xanh lá — không biến thành người khác. Camera chậm, điện ảnh.
+--- HẾT PROMPT ---
+
+=== [T016] EXTRACT -> FRM_S1_ELEANOR_CU | cận bà cụ, vai thu ngân mờ ===
+SOURCE_VIDEO : VID_002
+FRAME_CẦN_CÓ : Cận bà cụ rõ mặt, tay ôm bánh mì đúng vị trí; vai thu ngân out nét ở rìa phải khung.
+
+=== [T017] VIDEO -> VID_003 | "Ba phút đã trôi qua" ===
+START_FRAME : FRM_S1_WIDE
+DURATION    : 10s
+SRT_RANGE   : 00:00:21 --> 00:00:31
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên toàn bộ nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.
+
+Nhận diện khóa:
+- Bà cụ = tóc bạc búi thấp, áo khoác dạ be, ôm ổ bánh mì trong túi giấy, giữa khung trước quầy.
+- Thu ngân = nữ 35 tuổi, tóc nâu đuôi ngựa cao, áo polo xanh lá có bảng tên, sau quầy bên phải khung.
+- Hàng khách sau bà cụ: phụ nữ áo khoác đỏ đô, đàn ông áo khoác xanh navy cạnh xe đẩy — giữ nguyên vị trí.
+
+SHOT 1 — 0–5s
+
+Wide shot đúng khung frame bắt đầu, camera tĩnh. Thoại lần lượt, tách bạch, không chồng tiếng. Bà cụ áo be hơi nghiêng người về phía quầy, mắt nhìn thẳng thu ngân, giọng khẩn khoản:
+
+Eleanor — pleading, quiet:
+"Please... just give me a moment."
+
+Ngừng một nhịp. Thu ngân nhìn thẳng lại bà, đáp giọng đều và lạnh:
+
+Cashier — cold, clipped:
+"I've already given you three minutes."
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium close-up nữ thu ngân áo polo xanh lá từ phía trước quầy, hơi chéo, cùng phía trục — rìa trái khung là vai áo be của bà cụ out nét. Thu ngân mắt vẫn nhìn thẳng về phía bà cụ, chìa tay về phía ổ bánh mì, lòng bàn tay ngửa, dứt khoát từng chữ:
+
+Cashier — final, demanding:
+"If you don't have money, I need you to return the bread and let the next customer through."
+
+Ở rìa khung, bàn tay già của bà cụ siết chặt túi giấy hơn, không đưa ra.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái Shot 2 chính là bà cụ áo be — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T018] VIDEO -> VID_004 | Khách bàn tán sau lưng ===
+START_FRAME : FRM_S1_WIDE
+DURATION    : 10s
+SRT_RANGE   : 00:00:31 --> 00:00:39
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên toàn bộ nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.
+
+Nhận diện khóa:
+- Phụ nữ áo khoác đỏ đô = khách đầu hàng, tóc nâu sẫm, khoanh tay.
+- Đàn ông áo khoác xanh navy = khách cạnh xe đẩy, ngay sau cô ấy.
+- Bà cụ = tóc bạc, áo khoác be, ôm bánh mì trước quầy phía trước.
+- Thu ngân = áo polo xanh lá, sau quầy phía xa.
+
+Một shot liền 10 giây, không chuyển cảnh. Từ khung wide, camera push-in chậm và mượt vào hàng khách, dừng lại ở medium shot hai người đầu hàng. Thoại lần lượt, tách bạch, không chồng tiếng.
+
+Người phụ nữ áo khoác đỏ đô nghiêng đầu về phía người đàn ông áo xanh navy, mặt quay sang anh ta, liếc nhanh sang quầy thanh toán với ánh mắt phán xét rồi hạ giọng nói với anh:
+
+Woman in the burgundy jacket — whispering, dismissive:
+"Probably trying to get something for free."
+
+Người đàn ông áo navy nghe xong nhếch môi rất nhẹ, mắt vẫn nhìn về phía bà cụ phía trước, rồi quay sang người phụ nữ áo đỏ đô, lắc đầu, thở hắt ra và nói nhỏ với cô:
+
+Man in the navy jacket — cold, judgmental:
+"Shouldn't shop if you can't pay. Wasting everyone's time."
+
+Người phụ nữ áo đỏ đô khẽ gật đầu đồng tình. Phía trước, out nét, bà cụ áo be cúi đầu ôm chặt ổ bánh mì.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Hai người nói nhỏ với nhau, không nhìn camera, không nói trực tiếp vào bà cụ. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T019] VIDEO -> VID_005 | Khoảng lặng nhục nhã (không thoại) ===
+START_FRAME : FRM_S1_ELEANOR_CU
+DURATION    : 10s
+SRT_RANGE   : 00:00:39 --> 00:00:46
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, ánh sáng.
+
+Nhận diện khóa:
+- Bà cụ = tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám, ôm ổ bánh mì trong túi giấy — nhân vật chính, luôn sắc nét.
+- Người out nét ở tiền cảnh bên phải là nữ thu ngân áo polo xanh lá — giữ nguyên trạng thái out nét suốt video, không lấy nét, không quay camera sang.
+- Nền sau lưng bà cụ: hàng khách chờ out nét, trong đó có phụ nữ áo khoác đỏ đô — giữ nguyên, không rõ dần lên.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium close-up bà cụ đúng khung frame bắt đầu, camera push-in cực chậm.
+
+Không ai nói gì. Những lời bàn tán vừa nãy như còn treo trong không khí. Bà cụ hạ ánh mắt xuống ổ bánh mì trong tay, chớp mắt chậm, khóe miệng run rất nhẹ. Bà hít một hơi khẽ, vai nhô lên rồi hạ xuống, đầu cúi thấp dần, ôm ổ bánh mì sát vào ngực hơn. Hai bàn tay già siết quanh túi giấy.
+
+Âm thanh: KHÔNG có thoại. Chỉ được phép có một hơi thở khẽ nghẹn của bà cụ. Không âm nền, không room tone, không tiếng động môi trường, không nhạc.
+
+Không narrator. Không phụ đề. Camera chỉ ở trên bà cụ suốt 10 giây. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T020] IMAGE -> FRM_S1_ANDREA | Keyframe: thêm Andrea vào cảnh ===
+BASE_IMAGE : FRM_S1_WIDE
+REF_IMAGES : REF_ANDREA_FULL_JANITOR
+--- PROMPT ---
+Tạo ảnh 16:9. Tạo MỘT ẢNH TĨNH mới, không phải video. Dùng ảnh nền đính kèm (frame góc rộng quầy thanh toán siêu thị) làm bối cảnh chính và giữ nguyên 100%: nữ thu ngân áo polo xanh lá sau quầy, bà cụ tóc bạc áo khoác be ôm ổ bánh mì trước quầy, hàng khách chờ phía sau (phụ nữ áo khoác đỏ đô khoanh tay, đàn ông áo khoác xanh navy cạnh xe đẩy), dãy kệ hàng, ánh sáng huỳnh quang, bố cục và góc máy.
+
+Dùng ảnh tham chiếu thứ hai làm khuôn mặt và nhân dạng của nhân vật MỚI cần thêm: Andrea — nữ lao công Latina 27 tuổi, tóc đen đuôi ngựa thấp, áo polo xanh navy logo "Harvest Market", quần xám, thẻ nhân viên.
+
+Thêm Andrea bước vào từ phía lối đi bên trái, dừng lại đứng sát cạnh bên trái bà cụ, hơi quay người 3/4 về phía quầy, cả hai khuôn mặt Andrea và bà cụ cùng rõ, ánh mắt Andrea hướng về nữ thu ngân. Đặt một xe đẩy lao công nhỏ có cây lau nhà dựng ở nền phía sau Andrea.
+
+Giữ nguyên tất cả người cũ, không xóa, không thay thế, không nhân bản ai. Không đổi góc máy. Không làm diễn biến tiến xa hơn — chỉ tạo trạng thái mở đầu: Andrea vừa bước tới cạnh bà cụ. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T021] VIDEO -> VID_006 | "Ổ bánh mì bao nhiêu vậy?" ===
+START_FRAME : FRM_S1_ANDREA
+DURATION    : 10s
+SRT_RANGE   : 00:00:46 --> 00:00:56
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Bố cục khóa (trái sang phải): hàng khách — Andrea — bà cụ — quầy và thu ngân bên phải. Camera luôn ở phía khách nhìn vào quầy, không vượt sang phía sau quầy.
+
+Nhận diện khóa:
+- Andrea = nữ lao công trẻ, áo polo xanh navy "Harvest Market", tóc đen đuôi ngựa thấp, đứng sát cạnh bên trái bà cụ.
+- Bà cụ = tóc bạc, áo khoác be, ôm ổ bánh mì trong túi giấy.
+- Thu ngân = áo polo xanh lá, sau quầy phía xa bên phải.
+
+SHOT 1 — 0–5s
+
+Wide shot đúng khung frame bắt đầu, camera tĩnh. Thoại lần lượt, tách bạch. Andrea nhìn thẳng về phía nữ thu ngân, giọng bình thản, ấm:
+
+Andrea — calm, warm:
+"Miss, how much is the bread?"
+
+Ngừng một nhịp. Thu ngân quay mặt sang nhìn Andrea, hơi bất ngờ, đáp giọng đều:
+
+Cashier — flat:
+"It's three-fifty."
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi sang góc gần hơn, GIỮ NGUYÊN phía máy (phía khách): medium two-shot Andrea và bà cụ đứng cạnh nhau, cả hai mặt cùng rõ ở góc 3/4 hướng về quầy bên phải khung. Thu ngân nằm ngoài khung bên phải.
+
+Andrea rút mấy tờ tiền lẻ nhàu và ít đồng xu từ túi quần, mắt nhìn về phía quầy, chìa tay đặt tiền xuống, ánh mắt điềm tĩnh thoáng nét dễ tổn thương khi buông những đồng cuối cùng. Bà cụ quay mặt sang nhìn Andrea, sững sờ. Từ ngoài khung bên phải, giọng thu ngân vọng lại ngỡ ngàng:
+
+Cashier (off-screen) — incredulous:
+"Are you serious?"
+
+Andrea khẽ gật đầu về phía quầy, không rút tay lại.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Camera không vượt sang phía sau quầy. Thu ngân chỉ có giọng, không lên hình trong Shot 2. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T022] IMAGE -> FRM_S1_ROBERT_FAR | Keyframe: Robert xuất hiện từ xa ===
+BASE_IMAGE : FRM_S1_ANDREA
+REF_IMAGES : REF_ROBERT_FULL
+--- PROMPT ---
+Tạo ảnh 16:9. Tạo MỘT ẢNH TĨNH mới, không phải video. Dùng ảnh nền đính kèm (frame góc rộng quầy có Andrea) làm bối cảnh chính, giữ nguyên 100%: Andrea lao công áo polo xanh navy đứng cạnh bà cụ áo khoác be ôm bánh mì, nữ thu ngân áo polo xanh lá sau quầy, hàng khách, kệ hàng, ánh sáng, bố cục, góc máy.
+
+Dùng ảnh tham chiếu thứ hai làm khuôn mặt và nhân dạng của nhân vật MỚI: Robert — quản lý 45 tuổi, tóc nâu thưa hơi hói, sơ mi xanh nhạt, cà vạt xám đậm, bảng tên "MANAGER", bộ đàm gài thắt lưng.
+
+Thêm Robert Ở XA trong hậu cảnh, phía lối đi bên phải giữa các dãy kệ, đang BƯỚC HƯỚNG VỀ phía quầy, người còn cách nhóm vài bước, đầu hơi nghiêng nhìn về phía Andrea và bà cụ với vẻ chú ý của người quản lý vừa phát hiện có chuyện. Robert nhỏ hơn trong khung do ở xa, hơi out nét nhẹ.
+
+Giữ nguyên tất cả người cũ và vị trí của họ, không xóa, không thay thế, không nhân bản ai. Không đổi góc máy. Chỉ tạo trạng thái: Robert vừa xuất hiện từ xa và đang tiến tới, CHƯA nhập nhóm. Không chữ ngoài bảng tên, không watermark.
+--- HẾT PROMPT ---
+
+=== [T023] VIDEO -> VID_007 | "Tiền của tôi, Robert" + trao bánh ===
+START_FRAME : FRM_S1_ROBERT_FAR
+DURATION    : 10s
+SRT_RANGE   : 00:00:56 --> 00:01:07
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng.
+
+Nhận diện khóa:
+- Andrea = lao công áo polo xanh navy, tóc đen đuôi ngựa, cạnh bà cụ.
+- Bà cụ = tóc bạc, áo khoác be, ôm ổ bánh mì trong túi giấy.
+- Robert = quản lý sơ mi xanh nhạt, cà vạt xám đậm, bảng tên MANAGER, xuất phát ở xa phía lối đi bên phải.
+- Thu ngân = áo polo xanh lá, sau quầy.
+
+SHOT 1 — 0–5s
+
+Medium-wide đúng khung frame bắt đầu, camera tĩnh. Robert sải bước từ hậu cảnh tiến lại gần, dừng chân bên phải Andrea, rõ mặt dần khi tới nơi. Anh quay mặt về phía Andrea, nghiêng người về cô, hạ giọng cảnh cáo:
+
+Robert — low, warning:
+"Andrea, you don't have to—"
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi sang góc gần hơn cùng phía máy: medium two-shot Andrea và bà cụ, Robert đứng out nét ở rìa phải khung. Andrea quay mặt sang phía Robert, nhìn thẳng anh, đáp giọng điềm tĩnh mà dứt khoát:
+
+Andrea — calm, firm:
+"It's my money, Robert. My choice."
+
+Rồi Andrea quay người lại phía bà cụ, nhìn vào mắt bà, dịu dàng đặt bàn tay lên đôi tay đang ôm bánh của bà, giọng ấm:
+
+Andrea — gently, eyes on Eleanor:
+"Here you go, ma'am."
+
+Bà cụ ôm ổ bánh sát ngực, đôi tay run, mắt ngước nhìn thẳng Andrea sững sờ.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Robert ở rìa Shot 2 giữ out nét, đúng là quản lý áo sơ mi xanh nhạt — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T024] EXTRACT -> FRM_S1_DUO | two-shot Andrea và bà cụ ===
+SOURCE_VIDEO : VID_007
+FRAME_CẦN_CÓ : Two-shot Andrea và bà cụ cùng rõ mặt, bà cụ đang ôm bánh mì; Robert out nét rìa phải.
+
+=== [T025] VIDEO -> VID_008 | "Tôi biết bà đang đói" ===
+START_FRAME : FRM_S1_DUO
+DURATION    : 10s
+SRT_RANGE   : 00:01:07 --> 00:01:18
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng.
+
+Nhận diện khóa:
+- Andrea = lao công áo polo xanh navy "Harvest Market", tóc đen đuôi ngựa.
+- Bà cụ = tóc bạc, áo khoác be, ôm ổ bánh mì trong túi giấy.
+- Robert = quản lý bảng tên MANAGER, ở rìa khung out nét — không nói, không rõ dần lên.
+
+Một shot liền 10 giây, không chuyển cảnh. Two-shot Andrea và bà cụ đúng khung frame bắt đầu, camera push-in chậm, mượt vào sát hai người, để Robert và quầy trôi ra ngoài khung.
+
+Thoại nói lần lượt, tách bạch, mỗi thời điểm chỉ một người nói, có nhịp ngắt ngắn ở giữa, không chồng tiếng.
+
+Đầu tiên, bà cụ ngước nhìn thẳng vào mắt Andrea, giọng nghẹn pha khó tin, nói:
+
+Eleanor — moved, disbelief:
+"Young lady, you don't even know me."
+
+Bà cụ dứt lời, ngừng một nhịp. Sau đó Andrea nhìn lại vào mắt bà, khẽ mỉm cười, ánh mắt dịu dàng, đáp giọng nhẹ mà chắc:
+
+Andrea — gentle, steady:
+"I know you're hungry. And I know that nobody should have to feel ashamed because they forgot their wallet."
+
+Andrea nói xong, mắt bà cụ ngân ngấn, môi khẽ run.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh.
+--- HẾT PROMPT ---
+
+=== [T026] EXTRACT -> FRM_S1_DUO_CLOSE | two-shot cận hơn ===
+SOURCE_VIDEO : VID_008
+FRAME_CẦN_CÓ : Two-shot cận, hai mặt cùng rõ, bà cụ mắt ngân ngấn.
+
+=== [T027] VIDEO -> VID_009 | "Không bao giờ quên cái tên đó" ===
+START_FRAME : FRM_S1_DUO_CLOSE
+DURATION    : 10s
+SRT_RANGE   : 00:01:18 --> 00:01:27
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, ánh sáng.
+
+Nhận diện khóa:
+- Andrea = lao công áo polo xanh navy, tóc đen đuôi ngựa.
+- Bà cụ = tóc bạc, áo khoác be, ôm ổ bánh mì.
+
+SHOT 1 — 0–5s
+
+Two-shot cận đúng khung frame bắt đầu, camera tĩnh. Thoại lần lượt, tách bạch, có nhịp ngắt ở giữa, không chồng tiếng.
+
+Đầu tiên bà cụ nhìn thẳng vào mắt Andrea, giọng khẩn thiết, hỏi:
+
+Eleanor — earnest:
+"What's your name?"
+
+Bà cụ hỏi xong, ngừng một nhịp. Sau đó Andrea nhìn lại bà, đáp giọng nhẹ, hơi ngại ngùng:
+
+Andrea — softly:
+"Andrea Cruz."
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium close-up bà cụ tóc bạc áo khoác be, rìa khung là vai áo xanh navy của Andrea out nét. Chỉ một mình bà cụ nói. Bà nhìn thẳng vào mắt Andrea, mắt ngân ngấn nước, khóe môi run, gật đầu chậm, nói từng chữ như khắc vào lòng:
+
+Eleanor — holding back tears, solemn:
+"Andrea... I will never forget that name. Never."
+
+Bà siết ổ bánh mì vào ngực, ánh mắt tràn đầy biết ơn vẫn hướng về Andrea.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời; có thể nghe một hơi thở nghẹn khẽ của bà cụ. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa khung Shot 2 là Andrea — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera gần như tĩnh, điện ảnh.
+--- HẾT PROMPT ---
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  SCENE 2 — VĂN PHÒNG QUẢN LÝ  (VID_010 → VID_016)           │
+│  Trục khóa: Andrea ngồi bên TRÁI, Robert sau bàn bên PHẢI.   │
+│  Camera không vượt ra sau bàn.                               │
+└──────────────────────────────────────────────────────────────┘
+
+=== [T028] IMAGE -> FRM_S2_MASTER | Scene Master văn phòng quản lý ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_ROBERT_PORTRAIT, REF_ANDREA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng hai ảnh tham chiếu làm khuôn mặt và nhân dạng chính xác của hai nhân vật. Tạo ảnh tĩnh photorealistic, phong cách điện ảnh, khung medium-wide ống kính 35mm, góc máy ngang tầm mắt, nhìn chéo vào một văn phòng quản lý siêu thị nhỏ, chật và thực dụng.
+
+Bố cục: bên phải khung là bàn làm việc có màn hình máy tính, vài tập hồ sơ và MỘT TỜ GIẤY THÔNG BÁO đặt ngay ngắn trên mặt bàn; Robert — quản lý 45 tuổi, tóc nâu thưa hơi hói, sơ mi xanh nhạt, cà vạt xám đậm, bảng tên "MANAGER" — ngồi sau bàn, hai tay đan trên mặt bàn, biểu cảm nghiêm, lạnh. Bên trái khung, Andrea — nữ lao công Latina 27 tuổi, áo polo xanh navy "Harvest Market", tóc đen đuôi ngựa, thẻ nhân viên — ngồi trên ghế đối diện bàn, lưng thẳng, hai tay đặt trên đùi, vẻ căng thẳng phòng thủ. Cả hai khuôn mặt cùng rõ, góc 3/4, nhìn về phía nhau.
+
+Sau lưng Robert: tường có bảng ghim lịch làm việc và vài tờ thông báo; một cửa sổ kính có rèm lá sách nhìn ra khu bán hàng mờ nét. Ánh sáng đèn huỳnh quang trắng trung tính, hơi ngột ngạt. Không khí căng, tĩnh. Không chữ lớn ngoài bảng tên, không watermark.
+--- HẾT PROMPT ---
+
+=== [T029] VIDEO -> VID_010 | "Cô biết vì sao mình ở đây?" ===
+START_FRAME : FRM_S2_MASTER
+DURATION    : 10s
+SRT_RANGE   : 00:01:41 --> 00:01:52
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Bố cục khóa: Andrea ngồi bên trái khung, Robert sau bàn bên phải. Camera luôn ở phía này, không vượt ra sau bàn.
+
+Nhận diện khóa:
+- Andrea = nữ lao công áo polo xanh navy "Harvest Market", tóc đen đuôi ngựa, ngồi ghế bên trái.
+- Robert = quản lý sơ mi xanh nhạt, cà vạt xám đậm, bảng tên MANAGER, ngồi sau bàn bên phải.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium-wide đúng khung frame bắt đầu, camera tĩnh, chỉ trôi vào cực chậm.
+
+Hai giây đầu im lặng: Robert nhìn thẳng Andrea, gõ nhẹ một ngón tay lên tập hồ sơ. Andrea ngồi thẳng, hai tay siết nhẹ trên đùi, mắt nhìn lại Robert. Thoại nói lần lượt, tách bạch, không chồng tiếng.
+
+Robert lên tiếng trước, mắt không rời Andrea, giọng đều, thủ tục:
+
+Robert — flat, procedural:
+"Andrea. Do you know why you're here?"
+
+Robert dứt lời, ngừng một nhịp. Andrea nhìn xuống rồi ngước lên nhìn thẳng Robert, đáp khẽ, giọng lo lắng:
+
+Andrea — quiet, wary:
+"The bread... the bread."
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh, không khí ngột ngạt.
+--- HẾT PROMPT ---
+
+=== [T030] EXTRACT -> FRM_S2_WIDE | frame wide làm việc của Scene 2 ===
+SOURCE_VIDEO : VID_010
+FRAME_CẦN_CÓ : Medium-wide hai người cùng rõ mặt đang đối chất, tờ giấy vẫn trên bàn.
+
+=== [T031] VIDEO -> VID_011 | Bản luận tội (push-in Robert) ===
+START_FRAME : FRM_S2_WIDE
+DURATION    : 10s
+SRT_RANGE   : 00:01:52 --> 00:02:00
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Nhận diện khóa:
+- Robert = quản lý sơ mi xanh nhạt, cà vạt xám đậm, bảng tên MANAGER, sau bàn bên phải.
+- Andrea = lao công áo polo xanh navy, tóc đen đuôi ngựa, ngồi bên trái — trong video này chỉ lắng nghe, không nói.
+
+Một shot liền 10 giây, không chuyển cảnh. Từ khung medium-wide, camera push-in chậm và đều về phía Robert, kết thúc ở medium close-up Robert sau bàn; Andrea trôi dần ra rìa trái khung thành mảng out nét.
+
+Chỉ một mình Robert nói, mắt nhìn thẳng về phía Andrea, giọng đều như đọc biên bản, không lên giọng:
+
+Robert — cold, listing charges:
+"You interfered with a customer transaction. You inserted yourself into a situation that was none of your business. You used your position as an employee to override a management decision."
+
+Trong lúc Robert nói, ở rìa trái out nét, bàn tay Andrea siết chặt dần trên đùi.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái là Andrea — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T032] EXTRACT -> FRM_S2_ROBERT_MCU | cận Robert, vai Andrea mờ ===
+SOURCE_VIDEO : VID_011
+FRAME_CẦN_CÓ : Medium close-up Robert rõ mặt, miệng khép; vai Andrea out nét rìa trái.
+
+=== [T033] VIDEO -> VID_012 | Tờ giấy đình chỉ → "What?" ===
+START_FRAME : FRM_S2_WIDE
+DURATION    : 10s
+SRT_RANGE   : 00:02:00 --> 00:02:08
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Bố cục khóa: Andrea bên trái, Robert sau bàn bên phải. Camera không vượt ra sau bàn.
+
+Nhận diện khóa:
+- Robert = quản lý sơ mi xanh nhạt, cà vạt xám đậm, bảng tên MANAGER.
+- Andrea = lao công áo polo xanh navy, tóc đen đuôi ngựa.
+
+SHOT 1 — 0–5s
+
+Medium-wide đúng khung frame bắt đầu, camera tĩnh. Robert mắt nhìn thẳng Andrea, cầm tờ giấy thông báo trên bàn, đẩy chậm qua mặt bàn về phía cô, giọng dứt khoát:
+
+Robert — firm, final:
+"This is a notice of indefinite suspension, effective immediately."
+
+Tờ giấy dừng lại ở nửa bàn phía Andrea. Andrea nhìn xuống tờ giấy.
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium close-up Andrea, cùng phía trục — rìa phải khung là vai sơ mi xanh nhạt của Robert out nét. Andrea nhìn tờ giấy rồi ngẩng phắt lên nhìn thẳng về phía Robert, mắt mở to, giọng bật ra không tin nổi:
+
+Andrea — stunned, breathless:
+"What?"
+
+Ngừng một nhịp. Từ ngoài khung bên phải, giọng Robert tiếp tục, đều và lạnh:
+
+Robert (off-screen) — flat:
+"You violated company policy."
+
+Andrea chớp mắt nhanh, hơi thở gấp lên, tay bấu vào mép ghế.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa phải Shot 2 là Robert — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T034] EXTRACT -> FRM_S2_ANDREA_MCU | cận Andrea, vai Robert mờ ===
+SOURCE_VIDEO : VID_012
+FRAME_CẦN_CÓ : Medium close-up Andrea rõ mặt, biểu cảm sốc; vai Robert out nét rìa phải.
+
+=== [T035] VIDEO -> VID_013 | Đọc luật + "Grandstand?" ===
+START_FRAME : FRM_S2_ROBERT_MCU
+DURATION    : 10s
+SRT_RANGE   : 00:02:08 --> 00:02:18
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng.
+
+Nhận diện khóa:
+- Robert = quản lý sơ mi xanh nhạt, cà vạt xám đậm, bảng tên MANAGER — nhân vật chính trong khung, sắc nét.
+- Người out nét rìa trái là Andrea, lao công áo polo xanh navy — giữ nguyên out nét, không lấy nét, không quay camera sang; cuối video cô chỉ có giọng.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium close-up Robert đúng khung frame bắt đầu, camera gần như tĩnh.
+
+Robert mắt nhìn thẳng về phía Andrea, đọc quy định như đọc thuộc lòng, mỗi câu một nhịp gõ ngón tay xuống bàn, giọng máy móc:
+
+Robert — mechanical, reciting:
+"Employees do not interfere with cashier operations. Employees do not create scenes that distract from the shopping experience. Employees do not grandstand."
+
+Robert vừa dứt chữ cuối, ngừng một nhịp — rồi từ rìa trái out nét, giọng Andrea bật lên, run vì phẫn nộ:
+
+Andrea (off-screen) — voice shaking, incredulous:
+"Grandstand? Robert—"
+
+Mắt Robert hơi nheo lại trước phản ứng đó.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái là Andrea — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T036] VIDEO -> VID_014 | "Đó là làm người" ===
+START_FRAME : FRM_S2_ANDREA_MCU
+DURATION    : 10s
+SRT_RANGE   : 00:02:18 --> 00:02:27
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, ánh sáng.
+
+Nhận diện khóa:
+- Andrea = lao công áo polo xanh navy "Harvest Market", tóc đen đuôi ngựa — nhân vật chính trong khung, sắc nét.
+- Người out nét rìa phải là Robert, sơ mi xanh nhạt — giữ nguyên out nét, không lấy nét, không quay camera sang, trong video này không nói.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium close-up Andrea đúng khung frame bắt đầu, camera push-in rất chậm.
+
+Chỉ một mình Andrea nói. Cô ngồi nhô người về phía trước, mắt ướt nhưng ánh nhìn hướng thẳng về phía Robert không cụp xuống, giọng run mà rắn, dồn dập rồi chậm lại ở câu cuối:
+
+Andrea — trembling but firm, righteous:
+"That woman was humiliated. She was about to be escorted out by security for forgetting her wallet. I bought her a loaf of bread. That's not grandstanding — that's being human."
+
+Nói xong cô thở ra một hơi run, vẫn giữ ánh mắt về phía Robert.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời; một hơi thở run của Andrea ở cuối. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa phải là Robert — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh.
+--- HẾT PROMPT ---
+
+=== [T037] VIDEO -> VID_015 | "Luật là luật" + "Please" ===
+START_FRAME : FRM_S2_ROBERT_MCU
+DURATION    : 10s
+SRT_RANGE   : 00:02:27 --> 00:02:37
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng.
+
+Nhận diện khóa:
+- Robert = quản lý sơ mi xanh nhạt, cà vạt xám đậm, bảng tên MANAGER — trong khung, sắc nét.
+- Người out nét rìa trái là Andrea, lao công áo polo xanh navy — giữ nguyên out nét, không lấy nét; cuối video cô chỉ có giọng.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium close-up Robert, camera gần như tĩnh.
+
+Robert nói trước, mắt hướng về phía Andrea nhưng lần đầu có một thoáng chùng xuống — ánh mắt hơi tránh đi ở giữa câu rồi quay lại nhìn cô:
+
+Robert — flat, with a flicker of guilt:
+"Being human is not in the employee handbook. I'm sorry, Andrea. I like you — you're a good worker. But the rules are the rules."
+
+Robert dứt lời, ngừng một nhịp. Từ rìa trái out nét, giọng Andrea vọng lên, nhỏ và vỡ:
+
+Andrea (off-screen) — small, breaking:
+"Please."
+
+Nghe tiếng đó, hàm Robert khẽ siết, mắt cụp xuống tập hồ sơ một giây rồi ngẩng lên lại — sự áy náy bị đè xuống.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái là Andrea — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T038] VIDEO -> VID_016 | "Quyết định là cuối cùng" ===
+START_FRAME : FRM_S2_WIDE
+DURATION    : 10s
+SRT_RANGE   : 00:02:37 --> 00:02:47
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục. Tờ giấy đình chỉ nằm ở nửa bàn phía Andrea.
+
+Bố cục khóa: Andrea bên trái, Robert sau bàn bên phải. Camera không vượt ra sau bàn.
+
+Nhận diện khóa:
+- Andrea = lao công áo polo xanh navy, tóc đen đuôi ngựa, ngồi bên trái.
+- Robert = quản lý sơ mi xanh nhạt, cà vạt xám đậm, bảng tên MANAGER, sau bàn bên phải.
+
+SHOT 1 — 0–5s
+
+Từ khung medium-wide, camera push-in nhanh nhẹ vào medium close-up Andrea. Cô nhô người về phía trước, hai tay bám mép bàn, mắt nhìn thẳng Robert cầu cứu, giọng vỡ ra, van xin:
+
+Andrea — desperate, pleading:
+"My mother — she needs her medication. If I lose this job, I don't know how I will—"
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium close-up Robert cùng phía trục, rìa trái khung là vai Andrea out nét. Robert khép tập hồ sơ lại — một cử chỉ kết thúc — rồi nói, giọng đều, mắt tránh không nhìn thẳng vào Andrea:
+
+Robert — final, avoiding her eyes:
+"The decision is final. You can pick up your final check on Friday."
+
+Robert dứt lời, im lặng một nhịp. Ở rìa trái out nét, vai Andrea chùng hẳn xuống.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái Shot 2 là Andrea — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera điện ảnh, kết thúc trong không khí nặng nề.
+--- HẾT PROMPT ---
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  SCENE 3 — PHÒNG LÀM VIỆC DINH THỰ STERLING (VID_017→024)   │
+│  Trục khóa: cửa bên TRÁI khung, bàn + Victoria bên PHẢI.     │
+└──────────────────────────────────────────────────────────────┘
+
+=== [T039] IMAGE -> FRM_S3_MASTER | Scene Master phòng làm việc ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_VICTORIA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng của người phụ nữ trong cảnh. Tạo ảnh tĩnh photorealistic, phong cách điện ảnh, khung wide shot ống kính 28mm, góc máy ngang tầm mắt, nhìn vào một phòng làm việc tại gia sang trọng kiểu cổ điển trong dinh thự.
+
+Bố cục: bên trái khung là cánh cửa gỗ đôi cao đang khép hờ dẫn ra hành lang; giữa phòng là hai ghế bành bọc da và một bàn trà nhỏ; bên phải khung là bàn làm việc gỗ óc chó lớn với đèn bàn, laptop gập hờ và vài tài liệu — Victoria, phụ nữ 50 tuổi tóc bob nâu sẫm, blouse lụa ngà, blazer xám than, đang ngồi sau bàn đọc tài liệu, dáng thư thái. Tường là kệ sách gỗ cao kín sách; cửa sổ lớn khung gỗ nhìn ra khu vườn, nắng gần trưa ấm hắt vào tạo khối mềm. Thảm trải sàn màu trầm, không khí tĩnh lặng, giàu có nhưng ấm cúng. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T040] IMAGE -> FRM_S3_ELEANOR_DOOR | Keyframe: Eleanor ở cửa ===
+BASE_IMAGE : FRM_S3_MASTER
+REF_IMAGES : REF_ELEANOR_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Tạo MỘT ẢNH TĨNH mới, không phải video. Dùng ảnh nền đính kèm (frame phòng làm việc góc rộng) làm bối cảnh chính, giữ nguyên 100%: Victoria tóc bob nâu sẫm, blazer xám than ngồi sau bàn làm việc bên phải, hai ghế bành, kệ sách, cửa sổ, ánh sáng, bố cục và góc máy.
+
+Dùng ảnh tham chiếu thứ hai làm khuôn mặt nhân vật MỚI: Eleanor — phụ nữ 75 tuổi, tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám nhạt.
+
+Thêm Eleanor Ở CỬA GỖ BÊN TRÁI khung: cánh cửa hé rộng hơn, bà đứng ở ngưỡng cửa, một tay còn đặt trên nắm cửa, người mới bước nửa bước vào phòng, ánh mắt hướng về phía Victoria — trạng thái vừa gõ cửa xin vào, CHƯA đi vào trong phòng. Victoria vẫn ngồi sau bàn, vừa ngẩng đầu lên khỏi tài liệu nhìn về phía cửa.
+
+Giữ nguyên người cũ và vị trí, không xóa, không thay thế, không nhân bản ai. Không đổi góc máy. Chỉ tạo trạng thái mở đầu. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T041] VIDEO -> VID_017 | "Mẹ vào được không?" ===
+START_FRAME : FRM_S3_ELEANOR_DOOR
+DURATION    : 10s
+SRT_RANGE   : 00:03:07 --> 00:03:17
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Bố cục khóa: cửa bên trái khung, bàn làm việc và Victoria bên phải. Camera một phía suốt video.
+
+Nhận diện khóa:
+- Eleanor = phụ nữ 75 tuổi, tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám, đứng ở cửa bên trái.
+- Victoria = phụ nữ 50 tuổi, tóc bob nâu sẫm, blouse lụa ngà, blazer xám than, ngồi sau bàn bên phải.
+
+SHOT 1 — 0–5s
+
+Wide shot đúng khung frame bắt đầu, camera tĩnh. Thoại lần lượt, tách bạch, không chồng tiếng.
+
+Eleanor đứng ở ngưỡng cửa, mắt nhìn về phía Victoria, gọi khẽ trước:
+
+Eleanor — gentle:
+"Victoria? May I come in?"
+
+Ngừng một nhịp. Victoria ngẩng lên khỏi tài liệu, quay mặt về phía mẹ ở cửa, gương mặt sáng lên nụ cười ấm, đáp:
+
+Victoria — warm, brightening:
+"Of course, Mom."
+
+Eleanor bước vào phòng trong im lặng, đi chậm về phía bàn làm việc, mắt vẫn hướng về con gái.
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium two-shot — Eleanor vừa đi tới đứng trước bàn làm việc, Victoria ngồi sau bàn, cả hai khuôn mặt cùng rõ ở góc 3/4, nhìn về phía nhau, cùng phía trục cũ. Victoria gấp tài liệu lại, mắt nhìn mẹ, hỏi tiếp giọng thư thái:
+
+Victoria — casual, fond:
+"How was your morning?"
+
+Ngừng một nhịp. Eleanor đặt nhẹ tay lên lưng ghế bành, nhìn con gái, giọng có gì đó khác thường:
+
+Eleanor — measured, a shade quieter:
+"I had an interesting experience at the grocery store."
+
+Nét mặt Victoria thoáng chú ý.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh, ấm.
+--- HẾT PROMPT ---
+
+=== [T042] EXTRACT -> FRM_S3_DUO | two-shot hai mẹ con ===
+SOURCE_VIDEO : VID_017
+FRAME_CẦN_CÓ : Two-shot Eleanor đứng trước bàn và Victoria sau bàn, hai mặt cùng rõ góc 3/4.
+
+=== [T043] VIDEO -> VID_018 | "Mẹ đã không thể trả tiền" ===
+START_FRAME : FRM_S3_DUO
+DURATION    : 10s
+SRT_RANGE   : 00:03:17 --> 00:03:28
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Nhận diện khóa:
+- Eleanor = tóc bạc, áo khoác be, khăn xám, đứng trước bàn.
+- Victoria = tóc bob nâu sẫm, blazer xám than, ngồi sau bàn.
+
+Một shot liền 10 giây, không chuyển cảnh. Two-shot đúng khung frame bắt đầu, camera push-in rất chậm. Thoại lần lượt, tách bạch, không chồng tiếng.
+
+Victoria nhìn mẹ, hỏi trước, giọng còn nhẹ nhõm:
+
+Victoria — light, curious:
+"Did you?"
+
+Ngừng một nhịp. Eleanor nhìn lại con gái, kể, giọng bình thản nhưng càng nói càng chùng xuống:
+
+Eleanor — steady, then quieter:
+"I forgot my wallet. I was standing at the register with a loaf of bread, and I couldn't pay. The cashier was going to have security remove me. In front of everyone."
+
+Nghe đến đó, nụ cười của Victoria tắt hẳn, lưng cô rời khỏi tựa ghế, người nhô về phía trước, mắt không rời mẹ.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh.
+--- HẾT PROMPT ---
+
+=== [T044] EXTRACT -> FRM_S3_DUO_SERIOUS | two-shot nghiêm lại ===
+SOURCE_VIDEO : VID_018
+FRAME_CẦN_CÓ : Two-shot hai mẹ con, không khí nghiêm, hai mặt cùng rõ.
+
+=== [T045] VIDEO -> VID_019 | "Siêu thị nào?" → kể về Andrea ===
+START_FRAME : FRM_S3_DUO_SERIOUS
+DURATION    : 10s
+SRT_RANGE   : 00:03:28 --> 00:03:39
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Nhận diện khóa:
+- Victoria = tóc bob nâu sẫm, blazer xám than, sau bàn.
+- Eleanor = tóc bạc, áo khoác be, trước bàn.
+
+SHOT 1 — 0–4s
+
+Two-shot đúng khung frame bắt đầu, camera tĩnh. Victoria đứng bật dậy khỏi ghế trong im lặng, mắt nhìn thẳng mẹ, giọng sắc lên vì giận thay mẹ:
+
+Victoria — sharp, protective anger:
+"Which store? I'll have—"
+
+Eleanor nhìn con gái, giơ nhẹ một bàn tay lên chặn lại, lắc đầu chậm.
+
+Transition: quick cut.
+
+SHOT 2 — 4–10s
+
+Đổi góc: medium close-up Eleanor, cùng phía trục — rìa phải khung là vai blazer xám than của Victoria out nét. Eleanor mắt vẫn hướng về phía con gái, nói tiếp, giọng dịu hẳn xuống, ánh mắt sáng lên khi nhớ lại:
+
+Eleanor — soft, wondering:
+"A young woman stepped in. A janitor. She had three dollars in her pocket — her last three dollars, I suspect — and she used them to buy my bread."
+
+Khóe môi bà thoáng run vì xúc động.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa phải Shot 2 là Victoria — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T046] EXTRACT -> FRM_S3_ELEANOR_MCU | cận Eleanor, vai Victoria mờ ===
+SOURCE_VIDEO : VID_019
+FRAME_CẦN_CÓ : Medium close-up Eleanor rõ mặt; vai Victoria out nét rìa phải.
+
+=== [T047] VIDEO -> VID_020 | "Con bé không biết mẹ là ai" ===
+START_FRAME : FRM_S3_ELEANOR_MCU
+DURATION    : 10s
+SRT_RANGE   : 00:03:39 --> 00:03:49
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, ánh sáng.
+
+Nhận diện khóa:
+- Eleanor = tóc bạc, áo khoác be, khăn xám — trong khung, sắc nét.
+- Người out nét rìa phải là Victoria, blazer xám than — giữ nguyên out nét, không lấy nét, không quay camera sang; giọng cô vọng từ ngoài vùng nét.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium close-up Eleanor, camera push-in rất chậm. Thoại lần lượt, tách bạch, không chồng tiếng.
+
+Eleanor mắt hướng về phía con gái, kể trước, giọng chậm, nhấn từng lời:
+
+Eleanor — quiet, moved:
+"When I asked why, she said... 'I know you're hungry.' She didn't know who I was."
+
+Ngừng một nhịp dài. Từ rìa phải out nét, giọng Victoria lặp lại, chậm, như đang thấm từng chữ:
+
+Victoria (off-screen) — slow, absorbing:
+"She didn't know who you were."
+
+Eleanor khẽ gật đầu, mắt ngân ngấn, vẫn nhìn về phía con gái, nói tiếp:
+
+Eleanor — softly:
+"She just saw an old woman in trouble... and decided to help."
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời; có thể nghe một hơi thở nghẹn rất khẽ của Eleanor giữa hai câu. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa phải là Victoria — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T048] VIDEO -> VID_021 | "Tên con bé là gì?" ===
+START_FRAME : FRM_S3_DUO_SERIOUS
+DURATION    : 10s
+SRT_RANGE   : 00:03:49 --> 00:03:57
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục. Victoria đang đứng sau bàn.
+
+Nhận diện khóa:
+- Victoria = tóc bob nâu sẫm, blouse lụa ngà, blazer xám than, đứng sau bàn bên phải.
+- Eleanor = tóc bạc, áo khoác be, đứng trước bàn bên trái.
+
+SHOT 1 — 0–5s
+
+Two-shot đúng khung frame bắt đầu, camera tĩnh. Thoại lần lượt, tách bạch.
+
+Victoria nhìn thẳng mẹ, hỏi trước, giọng đã trầm xuống, nghiêm túc:
+
+Victoria — low, intent:
+"What's her name?"
+
+Ngừng một nhịp. Eleanor nhìn lại con gái, đáp, rành rọt từng chữ như trao một món quà:
+
+Eleanor — deliberate:
+"Andrea. Andrea Cruz."
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium close-up Victoria, cùng phía trục — rìa trái khung là vai áo khoác be của Eleanor out nét. Victoria nhìn ra cửa sổ một giây rồi quay lại nhìn thẳng vào mắt mẹ, ánh mắt đã có quyết định, giọng chắc:
+
+Victoria — resolved:
+"I want to find her. I want to thank her properly."
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái Shot 2 là Eleanor — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T049] EXTRACT -> FRM_S3_VICTORIA_MCU | cận Victoria, vai Eleanor mờ ===
+SOURCE_VIDEO : VID_021
+FRAME_CẦN_CÓ : Medium close-up Victoria rõ mặt, biểu cảm quyết tâm; vai Eleanor out nét rìa trái.
+
+=== [T050] VIDEO -> VID_022 | "Không phải chuyện viết séc" ===
+START_FRAME : FRM_S3_VICTORIA_MCU
+DURATION    : 10s
+SRT_RANGE   : 00:03:58 --> 00:04:08
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, ánh sáng.
+
+Nhận diện khóa:
+- Victoria = tóc bob nâu sẫm, blouse lụa ngà, blazer xám than — trong khung, sắc nét.
+- Người out nét rìa trái là Eleanor, áo khoác be — giữ nguyên out nét, không lấy nét, không quay camera sang, trong video này không nói.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium close-up Victoria, camera gần như tĩnh.
+
+Chỉ một mình Victoria nói. Cô bước chậm một bước dọc theo bàn, ánh mắt vẫn hướng thẳng về phía mẹ, giọng dồn dần:
+
+Victoria — building intensity:
+"Mom, I know what you're going to say. You're going to say I should write a check and be done with it. But that's not what this is about. That girl spent her last three dollars on a stranger. Do you understand what that means?"
+
+Câu hỏi cuối buông ra chậm, mắt cô sáng rực, vẫn nhìn mẹ.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái là Eleanor — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T051] VIDEO -> VID_023 | "Con bé cũng đang đói" → "I'll find her" ===
+START_FRAME : FRM_S3_VICTORIA_MCU
+DURATION    : 10s
+SRT_RANGE   : 00:04:08 --> 00:04:20
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, ánh sáng.
+
+Nhận diện khóa:
+- Victoria = tóc bob nâu sẫm, blazer xám than — trong khung, sắc nét.
+- Người out nét rìa trái là Eleanor, áo khoác be — giữ nguyên out nét, không nói.
+
+Một shot liền, không chuyển cảnh. Medium close-up Victoria, camera push-in rất chậm.
+
+Chỉ một mình Victoria nói, mắt nhìn thẳng về phía mẹ, giọng chậm lại, mỗi câu một nhịp nặng hơn:
+
+Victoria — quiet force, each line landing heavier:
+"It means she was hungry too. It means she probably needed that money for something essential. And she gave it away anyway. Without hesitation. Without expectation."
+
+Cô ngừng lại một nhịp dài, hít vào một hơi nghe rõ, rồi nói câu cuối ngắn và chắc như một lời thề:
+
+Victoria — final, decisive:
+"I'll find her."
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời; một hơi hít vào của Victoria trước câu cuối. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái là Eleanor — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh.
+--- HẾT PROMPT ---
+
+=== [T052] VIDEO -> VID_024 | Cuộc gọi cho Marcus ===
+START_FRAME : FRM_S3_VICTORIA_MCU
+DURATION    : 10s
+SRT_RANGE   : 00:04:20 --> 00:04:29
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng.
+
+Nhận diện khóa:
+- Victoria = tóc bob nâu sẫm, blazer xám than — trong khung, sắc nét.
+- Người out nét rìa trái là Eleanor, áo khoác be — giữ nguyên out nét, không nói, không rõ dần lên.
+- Marcus = KHÔNG xuất hiện trên hình và KHÔNG có tiếng — cuộc gọi chỉ nghe một chiều từ Victoria.
+
+Một shot liền 10 giây, không chuyển cảnh. Medium close-up Victoria, camera gần như tĩnh.
+
+Victoria rút điện thoại di động từ túi blazer, bấm số và đưa lên tai — mọi thao tác diễn ra không tiếng, mắt nhìn về phía trước tập trung. Một nhịp chờ ngắn. Chỉ một mình Victoria nói, giọng chuyển hẳn sang chế độ CEO: nhanh, gọn, dứt khoát:
+
+Victoria — brisk, commanding:
+"Marcus. I need you to arrange something. A meeting, tomorrow. And Marcus — have the car ready. I'm going to Pilsen."
+
+Cô hạ điện thoại, quay mặt nhìn về phía mẹ, ánh mắt đã sáng như đã thấy đích.
+
+Âm thanh: CHỈ có thoại của Victoria bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không có tiếng đầu dây bên kia, không tiếng bấm máy, không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật — tuyệt đối không hiện người ở đầu dây bên kia. Camera điện ảnh, kết thúc scene trong khí thế quyết đoán.
+--- HẾT PROMPT ---
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  SCENE 4 — TRƯỚC CỬA NHÀ ANDREA, PILSEN (VID_025 → VID_028) │
+│  Trục khóa: cửa nhà + bậc thềm bên PHẢI, lối đi bên TRÁI.    │
+└──────────────────────────────────────────────────────────────┘
+
+=== [T053] IMAGE -> FRM_S4_MASTER | Scene Master cửa nhà Pilsen ===
+BASE_IMAGE : NONE
+REF_IMAGES : REF_ANDREA_FULL_HOME
+--- PROMPT ---
+Tạo ảnh 16:9. Dùng ảnh tham chiếu làm khuôn mặt và nhân dạng của người phụ nữ trong cảnh. Tạo ảnh tĩnh photorealistic, phong cách điện ảnh, khung wide shot ống kính 28mm, ngang tầm mắt, nhìn chéo vào mặt tiền một ngôi nhà nhỏ giản dị kiểu khu lao động Pilsen, Chicago: nhà gạch một tầng cũ, cửa gỗ sơn xám bạc màu, vài bậc thềm bê tông, lan can sắt đơn sơ, chậu cây nhỏ cạnh cửa.
+
+Bố cục: cửa nhà và bậc thềm ở bên phải khung — Andrea, nữ Latina 27 tuổi, tóc đen đuôi ngựa, áo thun xám nhạt, cardigan ghi, quần jeans, đứng ở ngưỡng cửa đang mở, một tay đặt trên mép cửa, ánh mắt hướng ra lối đi phía trước như vừa nghe tiếng ai đến. Bên trái khung là vỉa hè và lối đi ngắn dẫn vào nhà, vài ngôi nhà hàng xóm và hàng cây mờ nét ở nền xa. Ánh sáng buổi sáng tự nhiên, trong trẻo. Không khí đời thường, yên tĩnh. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T054] IMAGE -> FRM_S4_ARRIVAL | Keyframe: hai mẹ con từ xa ===
+BASE_IMAGE : FRM_S4_MASTER
+REF_IMAGES : REF_ELEANOR_PORTRAIT, REF_VICTORIA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Tạo MỘT ẢNH TĨNH mới, không phải video. Dùng ảnh nền đính kèm (frame trước cửa nhà góc rộng) làm bối cảnh chính, giữ nguyên 100%: Andrea áo thun xám và cardigan ghi đứng ở ngưỡng cửa bên phải, ngôi nhà gạch, bậc thềm, lối đi, ánh sáng buổi sáng, bố cục và góc máy.
+
+Dùng hai ảnh tham chiếu làm khuôn mặt hai nhân vật MỚI:
+- Eleanor — phụ nữ 75 tuổi, tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám.
+- Victoria — phụ nữ 50 tuổi, tóc bob nâu sẫm, blouse lụa ngà, blazer xám than, quần âu đen.
+
+Thêm hai người Ở XA phía bên trái khung, trên vỉa hè đầu lối đi dẫn vào nhà, đang BƯỚC HƯỚNG VỀ phía cửa — Eleanor đi trước một bước, Victoria đi cạnh mẹ, cả hai còn cách bậc thềm vài bước chân, CHƯA tới nơi. Ở nền xa sau lưng họ có một chiếc xe sedan đen sang trọng đỗ sát lề đường.
+
+Giữ nguyên Andrea và mọi thứ cũ, không xóa, không thay thế, không nhân bản ai. Không đổi góc máy. Chỉ tạo trạng thái mở đầu: hai vị khách vừa xuất hiện và đang tiến vào. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T055] VIDEO -> VID_025 | "Ơn trời, tìm được cô rồi" ===
+START_FRAME : FRM_S4_ARRIVAL
+DURATION    : 10s
+SRT_RANGE   : 00:04:37 --> 00:04:44
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Bố cục khóa: cửa nhà và Andrea bên phải khung, lối đi bên trái. Camera một phía suốt video.
+
+Nhận diện khóa:
+- Andrea = nữ Latina trẻ, áo thun xám nhạt, cardigan ghi, tóc đuôi ngựa, đứng ở ngưỡng cửa bên phải.
+- Eleanor = tóc bạc búi thấp, áo khoác be, khăn xám, đang đi tới từ bên trái.
+- Victoria = tóc bob nâu sẫm, blazer xám than, đi cạnh Eleanor.
+
+Một shot liền 10 giây, không chuyển cảnh. Wide shot đúng khung frame bắt đầu, camera tĩnh. Thoại lần lượt, tách bạch, không chồng tiếng.
+
+Eleanor và Victoria bước tới gần bậc thềm. Eleanor ngẩng lên nhận ra Andrea ở cửa, gương mặt bừng sáng, bà dừng chân dưới thềm, mắt nhìn thẳng lên Andrea và nói trước, giọng mừng rỡ:
+
+Eleanor — overjoyed, warm:
+"Andrea! Thank God we found you."
+
+Ngừng một nhịp. Andrea sững người ở ngưỡng cửa, tay vẫn trên mép cửa, mắt mở to nhìn xuống hai vị khách sang trọng, lắp bắp:
+
+Andrea — confused, stammering:
+"Ma'am...? I don't understand."
+
+Victoria đứng cạnh mẹ, im lặng, mắt nhìn Andrea với ánh nhìn ấm.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường — bước chân không tiếng.
+
+Không nhạc. Không narrator. Không phụ đề. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera tĩnh, điện ảnh, ánh sáng buổi sáng trong trẻo.
+--- HẾT PROMPT ---
+
+=== [T056] EXTRACT -> FRM_S4_ARRIVED | nền cho keyframe hội thoại ===
+SOURCE_VIDEO : VID_025
+FRAME_CẦN_CÓ : Wide: Eleanor và Victoria đã đứng dưới thềm, Andrea ở cửa. GHI CHÚ: frame này chỉ làm NỀN cho keyframe hội thoại T057, không dùng làm frame bắt đầu video hội thoại (mặt xa, nhỏ).
+
+=== [T057] IMAGE -> FRM_S4_TALK | Keyframe hội thoại — ANCHOR Scene 4 ===
+BASE_IMAGE : FRM_S4_ARRIVED
+REF_IMAGES : REF_ANDREA_PORTRAIT, REF_ELEANOR_PORTRAIT, REF_VICTORIA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Tạo MỘT ẢNH TĨNH mới, không phải video. Dùng ảnh nền đính kèm (trước cửa nhà gạch, hai vị khách trên lối đi, Andrea ở ngưỡng cửa) làm bối cảnh: giữ nguyên ngôi nhà gạch, cửa gỗ xám đang mở, bậc thềm, lan can sắt, chậu cây, cây xanh và xe sedan đen ở nền xa, ánh sáng buổi sáng.
+
+Dùng ba ảnh tham chiếu làm khuôn mặt chính xác của ba nhân vật:
+- Andrea = nữ Latina 27 tuổi, tóc đen đuôi ngựa, áo thun xám nhạt, cardigan ghi, quần jeans.
+- Eleanor = phụ nữ 75 tuổi, tóc bạc búi thấp, áo khoác dạ be, khăn lụa xám.
+- Victoria = phụ nữ 50 tuổi, tóc bob nâu sẫm, blouse lụa ngà, blazer xám than.
+
+Dựng lại nhóm ở khoảng cách hội thoại, khung MEDIUM SHOT: Andrea đã bước xuống hết bậc thềm, đứng trên lối đi ngay chân thềm bên phải khung, đối diện hai vị khách; Eleanor đứng giữa, cách Andrea một sải tay; Victoria đứng cạnh mẹ bên trái. Cả ba khuôn mặt đều RÕ NÉT ở góc 3/4, ánh mắt hướng vào nhau như đang bắt đầu trò chuyện. Biểu cảm: Andrea bối rối ngỡ ngàng, Eleanor ấm áp mừng rỡ, Victoria điềm tĩnh quan sát. Cánh cửa nhà vẫn mở sau lưng Andrea.
+
+Giữ đúng trang phục từng người theo ảnh tham chiếu. Không thêm người khác. Không chữ, không watermark. Ánh sáng và tông màu khớp ảnh nền.
+--- HẾT PROMPT ---
+
+=== [T058] VIDEO -> VID_026 | "Tôi là Eleanor Sterling" ===
+START_FRAME : FRM_S4_TALK
+DURATION    : 10s
+SRT_RANGE   : 00:04:44 --> 00:04:55
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Nhận diện khóa:
+- Eleanor = tóc bạc, áo khoác be, khăn xám, đứng giữa.
+- Victoria = tóc bob nâu sẫm, blazer xám than, cạnh Eleanor bên trái.
+- Andrea = áo thun xám, cardigan ghi, tóc đuôi ngựa, đứng chân thềm bên phải, đối diện hai vị khách.
+
+SHOT 1 — 0–5s
+
+Medium three-shot đúng khung frame bắt đầu, camera tĩnh. Eleanor nhìn thẳng vào mắt Andrea, đặt một tay lên ngực, giọng trang trọng mà ấm; khi nói đến tên con gái, bà nghiêng đầu về phía Victoria:
+
+Eleanor — warm, formal:
+"I'm Eleanor Sterling. And this is my daughter, Victoria. I believe you've heard of her."
+
+Victoria nhìn Andrea, khẽ gật đầu chào. Mắt Andrea mở lớn dần, nhìn từ Eleanor sang Victoria.
+
+Transition: quick cut.
+
+SHOT 2 — 5–10s
+
+Đổi góc: medium close-up Andrea, cùng phía trục — rìa trái khung là vai áo khoác be của Eleanor out nét. Andrea nhìn thẳng về phía hai người, hai tay níu nhẹ vạt cardigan, lắp bắp như không tin vào tai mình:
+
+Andrea — overwhelmed, stammering:
+"I... I bought you bread. That's all. Just bread."
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái Shot 2 là Eleanor — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.
+--- HẾT PROMPT ---
+
+=== [T059] VIDEO -> VID_027 | "Bữa ăn đắt giá nhất đời tôi" ===
+START_FRAME : FRM_S4_TALK
+DURATION    : 10s
+SRT_RANGE   : 00:04:55 --> 00:05:04
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Nhận diện khóa:
+- Eleanor = tóc bạc, áo khoác be, khăn xám, đứng giữa.
+- Andrea = áo thun xám, cardigan ghi, đứng chân thềm bên phải, đối diện Eleanor.
+- Victoria = blazer xám than — trong video này không nói, trôi dần ra rìa khung khi camera vào gần.
+
+Một shot liền 10 giây, không chuyển cảnh. Từ khung three-shot, camera push-in chậm và mượt, khuôn hình khép dần vào hai người Eleanor và Andrea đứng đối diện nhìn thẳng vào mắt nhau; Victoria trôi dần ra rìa trái thành mảng out nét.
+
+Chỉ một mình Eleanor nói. Bà nhìn thẳng vào mắt Andrea, giọng chậm rãi, trang trọng, từng chữ nặng dần:
+
+Eleanor — solemn, from the heart:
+"Yes. And that bread was the most expensive meal anyone has ever bought me. Because it cost you everything you had."
+
+Andrea nghe xong đứng lặng, mắt vẫn nhìn Eleanor, môi hé ra không nói nên lời, mắt bắt đầu ngân ngấn.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời; có thể nghe một hơi thở nghẹn rất khẽ của Andrea ở cuối. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa trái là Victoria — không biến thành người khác, không rõ dần lên. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera chậm, điện ảnh.
+--- HẾT PROMPT ---
+
+=== [T060] IMAGE -> FRM_S4_MAMA | Keyframe: Mama ló ra ở cửa ===
+BASE_IMAGE : FRM_S4_TALK
+REF_IMAGES : REF_MAMA_PORTRAIT
+--- PROMPT ---
+Tạo ảnh 16:9. Tạo MỘT ẢNH TĨNH mới, không phải video. Dùng ảnh nền đính kèm (frame hội thoại ba người trước cửa nhà) làm bối cảnh chính, giữ nguyên 100%: Andrea áo thun xám và cardigan ghi đứng chân thềm bên phải, Eleanor áo khoác be và Victoria blazer xám than đứng đối diện, ngôi nhà gạch, cửa gỗ đang mở, bậc thềm, ánh sáng buổi sáng, bố cục và góc máy.
+
+Dùng ảnh tham chiếu thứ hai làm khuôn mặt nhân vật MỚI: Mama — phụ nữ Latina 58 tuổi, tóc đen điểm bạc búi thấp, cardigan len nâu, váy nhà hoa nhí, khăn choàng vai, dáng hơi yếu.
+
+Thêm Mama XUẤT HIỆN TỪ TRONG NHÀ: bà đứng trong khung cửa mở phía sau và chếch trên nhóm, hơi khuất trong bóng hiên, một tay vịn khung cửa, người mới nhô ra một nửa như vừa nghe tiếng khách lạ và bước ra xem — CHƯA bước hẳn ra ngoài.
+
+Giữ nguyên tất cả người cũ và vị trí, không xóa, không thay thế, không nhân bản ai. Không đổi góc máy. Chỉ tạo trạng thái mở đầu: Mama vừa ló ra sau lưng con gái. Không chữ, không watermark.
+--- HẾT PROMPT ---
+
+=== [T061] VIDEO -> VID_028 | "Mời vào nhà, xin mời vào" ===
+START_FRAME : FRM_S4_MAMA
+DURATION    : 10s
+SRT_RANGE   : 00:05:05 --> 00:05:13
+--- PROMPT ---
+Bắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, trang phục, bối cảnh, đạo cụ, ánh sáng, bố cục.
+
+Nhận diện khóa:
+- Andrea = áo thun xám, cardigan ghi, đứng chân thềm bên phải.
+- Mama = phụ nữ lớn tuổi Latina, cardigan len nâu, khăn choàng vai, trong khung cửa mở phía sau và chếch trên Andrea.
+- Eleanor = tóc bạc, áo khoác be, đứng đối diện Andrea.
+- Victoria = tóc bob nâu sẫm, blazer xám than, cạnh Eleanor.
+
+SHOT 1 — 0–4s
+
+Medium shot đúng khung frame bắt đầu, camera tĩnh. Andrea nghe tiếng mẹ ở cửa, XOAY NGƯỜI hẳn về phía sau, ngẩng lên NHÌN THẲNG VÀO MẶT MẸ trong khung cửa. Mắt vẫn hướng về mẹ, cô đưa một tay giới thiệu về phía Eleanor đang đứng sau lưng mình, giọng còn hơi run:
+
+Andrea — softly, still moved, eyes on her mother:
+"Mama, this is Eleanor. The woman I told you about."
+
+Nói đến "the woman I told you about", ánh mắt Andrea lướt nhanh sang Eleanor một nhịp rồi quay lại nhìn mẹ. Mama từ khung cửa nhìn xuống con gái, rồi chuyển ánh mắt sang hai vị khách. Eleanor và Victoria cùng ngẩng nhìn lên phía Mama.
+
+Transition: quick cut.
+
+SHOT 2 — 4–10s
+
+Đổi góc: medium close-up Mama ở khung cửa, cùng phía trục — rìa dưới khung là vai cardigan ghi của Andrea out nét. Mama bước hẳn ra một bước lên thềm, ÁNH MẮT NHÌN THẲNG VÀO ELEANOR VÀ VICTORIA phía dưới lối đi — tuyệt đối không nhìn vào camera. Gương mặt hiền hậu nở nụ cười ấm, hai tay dang nhẹ về phía hai vị khách, giọng chân chất hiếu khách:
+
+Mama — warm, welcoming, eyes on the guests:
+"Come inside. Please, come inside."
+
+Bà gật đầu mời về phía Eleanor, rồi liếc sang Victoria với ánh mắt lấp lánh, tay vẫy nhẹ ra hiệu vào nhà.
+
+Âm thanh: CHỈ có thoại nhân vật bằng tiếng Anh giọng Mỹ (American English), rõ lời. Không âm nền, không room tone, không tiếng động môi trường.
+
+Không nhạc. Không narrator. Không phụ đề. Người out nét rìa khung Shot 2 là Andrea — không biến thành người khác. Không thêm, xóa, thay thế hoặc nhân bản nhân vật. Camera điện ảnh, kết thúc scene trong không khí ấm áp.
+--- HẾT PROMPT ---
+
+╔══════════════════════════════════════════════════════════════╗
+║  HẾT FILE — VID_001 → VID_028 (00:00:00 → 00:05:13)         ║
+║  Tiếp theo: Scene 4B phòng khách (VID_029...) — file riêng. ║
+╚══════════════════════════════════════════════════════════════╝

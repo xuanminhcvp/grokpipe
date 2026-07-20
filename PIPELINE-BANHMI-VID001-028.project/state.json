@@ -1,0 +1,554 @@
+{
+  "updated_at": "2026-07-20 13:23:56",
+  "tasks": {
+    "T001": {
+      "task_id": "T001",
+      "output_id": "REF_ANDREA_PORTRAIT",
+      "status": "DONE",
+      "output_path": "assets/REF_ANDREA_PORTRAIT.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:43:54",
+      "note": "1 lần"
+    },
+    "T002": {
+      "task_id": "T002",
+      "output_id": "REF_ANDREA_FULL_JANITOR",
+      "status": "DONE",
+      "output_path": "assets/REF_ANDREA_FULL_JANITOR.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:45:13",
+      "note": "1 lần"
+    },
+    "T003": {
+      "task_id": "T003",
+      "output_id": "REF_ELEANOR_PORTRAIT",
+      "status": "DONE",
+      "output_path": "assets/REF_ELEANOR_PORTRAIT.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:46:20",
+      "note": "1 lần"
+    },
+    "T004": {
+      "task_id": "T004",
+      "output_id": "REF_ELEANOR_FULL",
+      "status": "DONE",
+      "output_path": "assets/REF_ELEANOR_FULL.png",
+      "attempts": 2,
+      "updated_at": "2026-07-20 12:47:48",
+      "note": "2 lần"
+    },
+    "T005": {
+      "task_id": "T005",
+      "output_id": "REF_ROBERT_PORTRAIT",
+      "status": "DONE",
+      "output_path": "assets/REF_ROBERT_PORTRAIT.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:48:54",
+      "note": "1 lần"
+    },
+    "T006": {
+      "task_id": "T006",
+      "output_id": "REF_ROBERT_FULL",
+      "status": "DONE",
+      "output_path": "assets/REF_ROBERT_FULL.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:50:19",
+      "note": "1 lần"
+    },
+    "T007": {
+      "task_id": "T007",
+      "output_id": "REF_VICTORIA_PORTRAIT",
+      "status": "DONE",
+      "output_path": "assets/REF_VICTORIA_PORTRAIT.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 10:44:17",
+      "note": "1 lần"
+    },
+    "T008": {
+      "task_id": "T008",
+      "output_id": "REF_VICTORIA_FULL",
+      "status": "DONE",
+      "output_path": "assets/REF_VICTORIA_FULL.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:50:59",
+      "note": "1 lần"
+    },
+    "T009": {
+      "task_id": "T009",
+      "output_id": "REF_ANDREA_FULL_HOME",
+      "status": "DONE",
+      "output_path": "assets/REF_ANDREA_FULL_HOME.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:51:45",
+      "note": "1 lần"
+    },
+    "T010": {
+      "task_id": "T010",
+      "output_id": "REF_MAMA_PORTRAIT",
+      "status": "DONE",
+      "output_path": "assets/REF_MAMA_PORTRAIT.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:52:16",
+      "note": "1 lần"
+    },
+    "T011": {
+      "task_id": "T011",
+      "output_id": "REF_MAMA_FULL",
+      "status": "DONE",
+      "output_path": "assets/REF_MAMA_FULL.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:53:16",
+      "note": "1 lần"
+    },
+    "T012": {
+      "task_id": "T012",
+      "output_id": "FRM_S1_MASTER",
+      "status": "DONE",
+      "output_path": "assets/FRM_S1_MASTER.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 08:44:05",
+      "note": "1 lần"
+    },
+    "T013": {
+      "task_id": "T013",
+      "output_id": "VID_001",
+      "status": "DONE",
+      "output_path": "assets/VID_001.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 09:51:33",
+      "note": "1 lần"
+    },
+    "T014": {
+      "task_id": "T014",
+      "output_id": "FRM_S1_WIDE",
+      "status": "DONE",
+      "output_path": "assets/FRM_S1_WIDE.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 09:51:33",
+      "note": "1 lần"
+    },
+    "T015": {
+      "task_id": "T015",
+      "output_id": "VID_002",
+      "status": "DONE",
+      "output_path": "assets/VID_002.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 09:52:55",
+      "note": "1 lần"
+    },
+    "T016": {
+      "task_id": "T016",
+      "output_id": "FRM_S1_ELEANOR_CU",
+      "status": "DONE",
+      "output_path": "assets/FRM_S1_ELEANOR_CU.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:53:17",
+      "note": "1 lần"
+    },
+    "T017": {
+      "task_id": "T017",
+      "output_id": "VID_003",
+      "status": "DONE",
+      "output_path": "assets/VID_003.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 09:53:59",
+      "note": "1 lần"
+    },
+    "T018": {
+      "task_id": "T018",
+      "output_id": "VID_004",
+      "status": "DONE",
+      "output_path": "assets/VID_004.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 09:54:56",
+      "note": "1 lần"
+    },
+    "T019": {
+      "task_id": "T019",
+      "output_id": "VID_005",
+      "status": "DONE",
+      "output_path": "assets/VID_005.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:54:22",
+      "note": "1 lần"
+    },
+    "T020": {
+      "task_id": "T020",
+      "output_id": "FRM_S1_ANDREA",
+      "status": "DONE",
+      "output_path": "assets/FRM_S1_ANDREA.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:57:13",
+      "note": "1 lần"
+    },
+    "T021": {
+      "task_id": "T021",
+      "output_id": "VID_006",
+      "status": "DONE",
+      "output_path": "assets/VID_006.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:58:12",
+      "note": "1 lần"
+    },
+    "T022": {
+      "task_id": "T022",
+      "output_id": "FRM_S1_ROBERT_FAR",
+      "status": "DONE",
+      "output_path": "assets/FRM_S1_ROBERT_FAR.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 12:59:36",
+      "note": "1 lần"
+    },
+    "T023": {
+      "task_id": "T023",
+      "output_id": "VID_007",
+      "status": "DONE",
+      "output_path": "assets/VID_007.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:00:39",
+      "note": "1 lần"
+    },
+    "T024": {
+      "task_id": "T024",
+      "output_id": "FRM_S1_DUO",
+      "status": "DONE",
+      "output_path": "assets/FRM_S1_DUO.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:00:40",
+      "note": "1 lần"
+    },
+    "T025": {
+      "task_id": "T025",
+      "output_id": "VID_008",
+      "status": "DONE",
+      "output_path": "assets/VID_008.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:01:44",
+      "note": "1 lần"
+    },
+    "T026": {
+      "task_id": "T026",
+      "output_id": "FRM_S1_DUO_CLOSE",
+      "status": "DONE",
+      "output_path": "assets/FRM_S1_DUO_CLOSE.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:01:44",
+      "note": "1 lần"
+    },
+    "T027": {
+      "task_id": "T027",
+      "output_id": "VID_009",
+      "status": "DONE",
+      "output_path": "assets/VID_009.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:02:42",
+      "note": "1 lần"
+    },
+    "T028": {
+      "task_id": "T028",
+      "output_id": "FRM_S2_MASTER",
+      "status": "DONE",
+      "output_path": "assets/FRM_S2_MASTER.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:03:56",
+      "note": "1 lần"
+    },
+    "T029": {
+      "task_id": "T029",
+      "output_id": "VID_010",
+      "status": "DONE",
+      "output_path": "assets/VID_010.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:04:54",
+      "note": "1 lần"
+    },
+    "T030": {
+      "task_id": "T030",
+      "output_id": "FRM_S2_WIDE",
+      "status": "DONE",
+      "output_path": "assets/FRM_S2_WIDE.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:04:54",
+      "note": "1 lần"
+    },
+    "T031": {
+      "task_id": "T031",
+      "output_id": "VID_011",
+      "status": "DONE",
+      "output_path": "assets/VID_011.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:05:53",
+      "note": "1 lần"
+    },
+    "T032": {
+      "task_id": "T032",
+      "output_id": "FRM_S2_ROBERT_MCU",
+      "status": "DONE",
+      "output_path": "assets/FRM_S2_ROBERT_MCU.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:05:53",
+      "note": "1 lần"
+    },
+    "T033": {
+      "task_id": "T033",
+      "output_id": "VID_012",
+      "status": "DONE",
+      "output_path": "assets/VID_012.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:06:51",
+      "note": "1 lần"
+    },
+    "T034": {
+      "task_id": "T034",
+      "output_id": "FRM_S2_ANDREA_MCU",
+      "status": "DONE",
+      "output_path": "assets/FRM_S2_ANDREA_MCU.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:06:52",
+      "note": "1 lần"
+    },
+    "T035": {
+      "task_id": "T035",
+      "output_id": "VID_013",
+      "status": "DONE",
+      "output_path": "assets/VID_013.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:07:48",
+      "note": "1 lần"
+    },
+    "T036": {
+      "task_id": "T036",
+      "output_id": "VID_014",
+      "status": "DONE",
+      "output_path": "assets/VID_014.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:08:57",
+      "note": "1 lần"
+    },
+    "T037": {
+      "task_id": "T037",
+      "output_id": "VID_015",
+      "status": "DONE",
+      "output_path": "assets/VID_015.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:09:49",
+      "note": "1 lần"
+    },
+    "T038": {
+      "task_id": "T038",
+      "output_id": "VID_016",
+      "status": "DONE",
+      "output_path": "assets/VID_016.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:10:51",
+      "note": "1 lần"
+    },
+    "T039": {
+      "task_id": "T039",
+      "output_id": "FRM_S3_MASTER",
+      "status": "DONE",
+      "output_path": "assets/FRM_S3_MASTER.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:07:34",
+      "note": "1 lần"
+    },
+    "T040": {
+      "task_id": "T040",
+      "output_id": "FRM_S3_ELEANOR_DOOR",
+      "status": "DONE",
+      "output_path": "assets/FRM_S3_ELEANOR_DOOR.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:09:22",
+      "note": "1 lần"
+    },
+    "T041": {
+      "task_id": "T041",
+      "output_id": "VID_017",
+      "status": "DONE",
+      "output_path": "assets/VID_017.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:10:26",
+      "note": "1 lần"
+    },
+    "T042": {
+      "task_id": "T042",
+      "output_id": "FRM_S3_DUO",
+      "status": "DONE",
+      "output_path": "assets/FRM_S3_DUO.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:10:26",
+      "note": "1 lần"
+    },
+    "T043": {
+      "task_id": "T043",
+      "output_id": "VID_018",
+      "status": "DONE",
+      "output_path": "assets/VID_018.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:11:23",
+      "note": "1 lần"
+    },
+    "T044": {
+      "task_id": "T044",
+      "output_id": "FRM_S3_DUO_SERIOUS",
+      "status": "DONE",
+      "output_path": "assets/FRM_S3_DUO_SERIOUS.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:11:23",
+      "note": "1 lần"
+    },
+    "T045": {
+      "task_id": "T045",
+      "output_id": "VID_019",
+      "status": "DONE",
+      "output_path": "assets/VID_019.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:12:25",
+      "note": "1 lần"
+    },
+    "T046": {
+      "task_id": "T046",
+      "output_id": "FRM_S3_ELEANOR_MCU",
+      "status": "DONE",
+      "output_path": "assets/FRM_S3_ELEANOR_MCU.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:12:26",
+      "note": "1 lần"
+    },
+    "T047": {
+      "task_id": "T047",
+      "output_id": "VID_020",
+      "status": "DONE",
+      "output_path": "assets/VID_020.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:13:28",
+      "note": "1 lần"
+    },
+    "T048": {
+      "task_id": "T048",
+      "output_id": "VID_021",
+      "status": "DONE",
+      "output_path": "assets/VID_021.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 11:14:25",
+      "note": "1 lần"
+    },
+    "T049": {
+      "task_id": "T049",
+      "output_id": "FRM_S3_VICTORIA_MCU",
+      "status": "DONE",
+      "output_path": "assets/FRM_S3_VICTORIA_MCU.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:10:52",
+      "note": "1 lần"
+    },
+    "T050": {
+      "task_id": "T050",
+      "output_id": "VID_022",
+      "status": "DONE",
+      "output_path": "assets/VID_022.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:11:51",
+      "note": "1 lần"
+    },
+    "T051": {
+      "task_id": "T051",
+      "output_id": "VID_023",
+      "status": "DONE",
+      "output_path": "assets/VID_023.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:12:55",
+      "note": "1 lần"
+    },
+    "T052": {
+      "task_id": "T052",
+      "output_id": "VID_024",
+      "status": "DONE",
+      "output_path": "assets/VID_024.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:13:52",
+      "note": "1 lần"
+    },
+    "T053": {
+      "task_id": "T053",
+      "output_id": "FRM_S4_MASTER",
+      "status": "DONE",
+      "output_path": "assets/FRM_S4_MASTER.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:15:13",
+      "note": "1 lần"
+    },
+    "T054": {
+      "task_id": "T054",
+      "output_id": "FRM_S4_ARRIVAL",
+      "status": "DONE",
+      "output_path": "assets/FRM_S4_ARRIVAL.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:16:36",
+      "note": "1 lần"
+    },
+    "T055": {
+      "task_id": "T055",
+      "output_id": "VID_025",
+      "status": "DONE",
+      "output_path": "assets/VID_025.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:17:40",
+      "note": "1 lần"
+    },
+    "T056": {
+      "task_id": "T056",
+      "output_id": "FRM_S4_ARRIVED",
+      "status": "DONE",
+      "output_path": "assets/FRM_S4_ARRIVED.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:17:41",
+      "note": "1 lần"
+    },
+    "T057": {
+      "task_id": "T057",
+      "output_id": "FRM_S4_TALK",
+      "status": "DONE",
+      "output_path": "assets/FRM_S4_TALK.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:19:36",
+      "note": "1 lần"
+    },
+    "T058": {
+      "task_id": "T058",
+      "output_id": "VID_026",
+      "status": "DONE",
+      "output_path": "assets/VID_026.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:20:40",
+      "note": "1 lần"
+    },
+    "T059": {
+      "task_id": "T059",
+      "output_id": "VID_027",
+      "status": "DONE",
+      "output_path": "assets/VID_027.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:21:43",
+      "note": "1 lần"
+    },
+    "T060": {
+      "task_id": "T060",
+      "output_id": "FRM_S4_MAMA",
+      "status": "DONE",
+      "output_path": "assets/FRM_S4_MAMA.png",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:22:51",
+      "note": "1 lần"
+    },
+    "T061": {
+      "task_id": "T061",
+      "output_id": "VID_028",
+      "status": "DONE",
+      "output_path": "assets/VID_028.mp4",
+      "attempts": 1,
+      "updated_at": "2026-07-20 13:23:56",
+      "note": "1 lần"
+    }
+  }
+}

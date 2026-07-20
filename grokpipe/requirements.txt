@@ -1,0 +1,12 @@
+# Lõi (parser, state, runner, cắt frame, cổng thủ công) KHÔNG cần gì ngoài
+# Python 3.10+ và ffmpeg/ffprobe cài sẵn trong PATH.
+#
+# Các gói dưới đây là TÙY CHỌN — thiếu thì tool tự xuống chế độ thủ công:
+
+# Tự động điều khiển ChatGPT (tạo ảnh). Sau khi cài, chạy: playwright install chromium
+playwright>=1.40 ; python_version < "4.0"
+
+# Chấm điểm frame khi cắt (mặt/mắt/độ nét). Nếu bản Python quá mới chưa có wheel,
+# cứ bỏ qua — tool vẫn cắt frame và cho bạn chọn tay.
+opencv-python>=4.8 ; python_version < "3.14"
+numpy>=1.24 ; python_version < "3.14"
