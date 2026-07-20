@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/may1/.claude/skills/srt-to-grok-video && echo \"created\")",
+      "Bash(python3 -m pip --version)",
+      "Bash(ffmpeg -version)",
+      "Bash(sw_vers)",
+      "Bash(python3 -m grokpipe parse \"/Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.txt\")",
+      "Bash(echo \"===EXIT $?===\")",
+      "Bash(python3 -m grokpipe run \"/Users/may1/Desktop/minh/PIPELINE-BANHMI-VID001-028.txt\" --dry-run)",
+      "Bash(export GROKPIPE_NO_OPEN=1)",
+      "Bash(python3 -m grokpipe run __TRACKED_VAR__/mini.txt --manual-image)",
+      "Bash(echo \"=== EXIT $? ===\")",
+      "Bash(python3 -m compileall -q grokpipe)",
+      "Bash(python3 -m venv .venv)",
+      "Bash(./.venv/bin/python -m pip install -q --upgrade pip)",
+      "Bash(./.venv/bin/python -m pip install -q \"playwright>=1.40\")",
+      "Bash(./.venv/bin/python -c \"import playwright; print\\('playwright', playwright.__version__\\)\")",
+      "Bash(./.venv/bin/python -c \"import playwright; print\\('playwright OK'\\)\")"
+    ]
+  }
+}
