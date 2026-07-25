@@ -17,3 +17,15 @@ grok_test/
 
 # File chat thô (chứa mật khẩu/2FA đã dán)
 *.jsonl
+_claude/chat-export/
+
+# Ảnh/video sinh ra (nặng — chỉ giữ code, không đẩy media lên git)
+PHIM-HEIRESS/assets/
+PHIM-HEIRESS/versions/
+PHIM-HEIRESS/videos/
+*.project/assets/
+*.project/assets_v1_16x9/
+*.project/assets_v2_fullbody_23/
+*.project/run.log
+*.project/state.json
+Nhân vật/
