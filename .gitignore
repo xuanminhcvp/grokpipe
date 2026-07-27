@@ -24,6 +24,11 @@ PHIM-HEIRESS/assets/
 PHIM-HEIRESS/versions/
 PHIM-HEIRESS/videos/
 *.project/assets/
+*.project/videos/
+*.project/versions/
+*.project/quarantine/
+*.project/.thumbs/
+*.project/.snapshots/
 *.project/assets_v1_16x9/
 *.project/assets_v2_fullbody_23/
 *.project/run.log
