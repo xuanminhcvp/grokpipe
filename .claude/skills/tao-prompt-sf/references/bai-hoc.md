@@ -785,3 +785,66 @@ với những thứ mang tính nhịp điệu — khoảng lặng, nhịp nghỉ
 tác dụng đảo chiều**: khoảng lặng đặt đúng chỗ làm câu chuyện nặng thêm, đặt tràn lan thì làm nó
 loãng ra. Cần hỏi lại người dựng một tỉ lệ mục tiêu trước khi làm hàng loạt.
 
+
+## Bài học 36 — 2026-07-28: Chuyển động không có tác nhân — lỗi phi vật lý trong nhịp không thoại
+
+Nhịp mở phim `V-S1-B1` là mặt tiền siêu thị lúc sáng sớm. Tôi viết vào prompt video: *"một chiếc
+xe đẩy lăn chậm vào khung ở tiền cảnh"*. User bác: *"SF không thấy có người nào mà xe đẩy chạy
+qua, trông sẽ rất giả"*. Mở ảnh SF đã render ra xem thì đúng — tiền cảnh là bãi đỗ xe trống
+hoàn toàn, dãy xe đẩy xếp chồng đứng yên cạnh cửa, người chỉ là vài bóng nhỏ ở xa. Một chiếc xe
+đẩy tự lăn ngang bãi xe vắng là chuyện không thể có.
+
+Nguyên nhân: khi viết nhịp không thoại tôi sợ khung hình đứng im quá nên nhồi thêm chuyển động
+cho "có sự sống", và nhồi bằng cách cho **vật vô tri tự động đậy**. Rà lại cả 43 nhịp thì còn
+một cái nữa cùng loại: *"trang giấy khẽ lật vì luồng gió"* trong căn bếp đóng kín lúc hai giờ
+sáng — gió ở đâu ra?
+
+**Nguyên tắc rút ra:** mỗi chuyển động phải có tác nhân **nhìn thấy được trong khung**, chỉ ba
+nguồn hợp lệ: người có thật trong ảnh SF (kể cả bóng mờ ở xa), lực tự nhiên đang hiện diện (gió
+mà phải thấy lá lay/rèm động, trọng lực, nắng dịch), hoặc máy móc đang chạy (xe có tài xế, đèn
+hẹn giờ, màn hình tự tắt).
+
+**Và phải đối chiếu với ẢNH ĐÃ RENDER, không phải với mô tả trong prompt SF.** Prompt SF của
+khung này có ghi "hai ba khách hàng mờ nét đi vào" nên trên giấy tờ thì chuyển động nào cũng có
+vẻ hợp lý — nhưng ảnh thật lại vắng ở đúng chỗ tôi đặt chuyển động. Viết prompt video mà chỉ đọc
+prompt SF là viết mù.
+
+Bài học meta: nỗi sợ "khung hình chán" đẩy tôi tới chỗ thêm chuyển động bằng mọi giá. Nhưng một
+mặt tiền yên ắng với nắng dịch chậm và tán lá lay thì thật hơn nhiều so với một khung nhồi vật
+thể tự di chuyển. Khi thấy trống, thêm chuyển động của **ánh sáng** — đừng thêm **vật**.
+
+## Bài học 37 — 2026-07-28: Nhạc nền — quyết VAI TRÒ trước, viết prompt sau
+
+Tôi viết 43 bộ prompt nhạc Suno cho các nhịp không thoại. User nghe rồi bác: *"prompt nhạc chưa
+hay lắm... prompt suno tôi gửi bạn chỉ là mẫu thôi, còn việc bạn phải cảm nhận đoạn có nên dùng
+nhạc như thế nào, cao trào hay không"* — và chốt tỉ lệ **75% có lời, 25% không lời**.
+
+Hai lỗi:
+
+**1. Bám mẫu thay vì cảm nhận đoạn.** User đưa một prompt mẫu, tôi lấy đó làm khuôn rồi thay
+tính từ cho từng cảnh: cảnh buồn thì "somber", cảnh vui thì "hopeful". Kết quả là 43 bản nhạc
+cùng một dáng, và mọi cao trào bằng nhau — nghĩa là không có cao trào nào.
+
+**2. Gần như toàn nhạc không lời.** Với drama nhân quả, nhạc có lời (soul/gospel/folk giọng nữ
+trầm ấm) tạo được sự đồng hành mà nhạc không lời khó có. Tôi né vì sợ lời hát cạnh tranh với
+thoại — nhưng đây là các nhịp KHÔNG THOẠI, chẳng có gì để cạnh tranh cả.
+
+**Nguyên tắc rút ra: bước đầu tiên không phải viết prompt, mà là quyết VAI TRÒ của nhạc trong
+đoạn đó** — ĐẨY (cho nhạc chiếm sân khấu, chỉ dành cho một hai đỉnh của cả phim), NÂNG (đi cùng
+nhân vật, có đà nhưng không lấn), KÌM (nhạc nhỏ hơn cả cảm xúc đang diễn ra — khi nhân vật đang
+gồng để không gãy, nhạc mà gãy hộ là hỏng), NGHỈ (gần như không nhạc, để khán giả thở). Viết vai
+trò ra thành một câu kèm lý do, rồi mới viết prompt.
+
+Giữ khoảng **25% không lời** cho đúng những chỗ lời hát sẽ nói hộ quá nhiều: khoảnh khắc sinh tử
+đang diễn ra, nhân vật vỡ ra trong im lặng khi không ai nhìn, những khung riêng tư nhất, và các
+nhịp NGHỈ.
+
+Về chất lượng prompt: thứ tạo khác biệt không phải danh sách nhạc cụ mà là **cấu trúc theo thời
+gian** — mở bằng gì, thêm gì ở giữa, đỉnh ở đâu, và nhất là **cú rút** (*"rồi tất cả cắt đi chỉ
+còn giọng và piano"*). Với nhạc có lời thì tả **cách hát** (close to the mic, almost spoken,
+cracked at the edges) và **chủ đề lời kèm điều cấm** (*không đắc thắng, không tự thương thân*),
+để Suno tự viết lyrics nhưng đúng hướng.
+
+Bài học meta: khi user đưa một ví dụ, đó là **mẫu về ĐỊNH DẠNG, không phải mẫu về NỘI DUNG**.
+Lấy ví dụ làm khuôn rồi thay tính từ là cách nhanh nhất để tạo ra 43 thứ giống hệt nhau. Việc
+thật sự cần làm là nghe từng đoạn trong đầu và hỏi nó cần gì.

@@ -22,6 +22,7 @@ Chỉ dùng thư viện chuẩn (Playwright chỉ cần khi bấm Tạo ảnh).
 from __future__ import annotations
 
 import atexit
+import datetime
 import subprocess
 import json
 import logging
@@ -743,6 +744,54 @@ def _auto_status() -> dict:
         return {k: v.get("stat", {}) for k, v in AUTO.items()}
 
 
+
+# ───────────────────────── LƯU BẢN HÀNG NGÀY ────────────────────────────────
+# macOS chặn launchd/cron truy cập thư mục Desktop, nên việc chạy theo lịch được
+# gắn vào chính board — tiến trình vốn đã mở suốt lúc làm việc.
+# Qua 23:00 mà hôm nay chưa có bản nào thì lưu; board tắt cả ngày thì lần mở
+# tiếp theo sẽ lưu bù, không mất ngày nào.
+
+LUU_GIO = 23          # giờ trong ngày để chốt bản
+_luu_lock = threading.Lock()
+
+
+def _ngay_da_luu() -> set:
+    snap = os.path.join(BOARD.dir, ".snapshots")
+    if not os.path.isdir(snap):
+        return set()
+    return {n[:10] for n in os.listdir(snap) if len(n) >= 10}
+
+
+def _chay_luu_ban(ghi_chu: str) -> tuple[bool, str]:
+    sh = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "luu-ban.sh")
+    if not os.path.isfile(sh):
+        return False, "không tìm thấy luu-ban.sh"
+    with _luu_lock:
+        try:
+            r = subprocess.run(["/bin/bash", sh, ghi_chu], capture_output=True, text=True,
+                               timeout=600, cwd=os.path.dirname(sh))
+            ok = r.returncode == 0
+            return ok, (r.stdout or r.stderr).strip()[-400:]
+        except Exception as e:
+            return False, str(e)[:200]
+
+
+def _luu_ban_runner():
+    while True:
+        try:
+            now = datetime.datetime.now()
+            hom_nay = now.strftime("%Y-%m-%d")
+            if hom_nay not in _ngay_da_luu():
+                # qua giờ chốt HÔM NAY, hoặc board vừa mở mà hôm qua bị lỡ
+                if now.hour >= LUU_GIO:
+                    ok, msg = _chay_luu_ban("bản tự động cuối ngày")
+                    _LOG.info("[luu-ban] %s — %s", "xong" if ok else "LỖI",
+                              msg.replace("\n", " · "))
+        except Exception as e:
+            _LOG.warning("[luu-ban] lỗi: %s", e)
+        time.sleep(600)        # 10 phút một lần
+
+
 def _accounts_status() -> list[dict]:
     """Trạng thái từng tài khoản cho giao diện."""
     out = []
@@ -1454,6 +1503,15 @@ button.ai.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .shot.vnew{border-left:3px solid var(--warn)}
 #vfilter.act{background:var(--acc);color:#fff;border-color:var(--acc)}
 #vbulk{background:var(--warn,#c77);color:#fff;border-color:var(--warn,#c77)}
+.music>summary{cursor:pointer;font-size:12px;color:var(--acc);padding:3px 0}
+.music .mopt{margin:5px 0 8px}
+.music .mrole{font-size:12px;line-height:1.5;margin:4px 0 9px;padding:7px 9px;
+  border-left:3px solid var(--acc);background:rgba(127,127,127,.07);border-radius:0 7px 7px 0}
+.music .mhead{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:3px}
+.music .mtext{width:100%;min-height:62px;font-size:11.5px;line-height:1.45;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:6px 8px;
+  border:1px solid var(--line,#ddd);border-radius:7px;background:var(--card,#fff);
+  color:inherit;resize:vertical}
 button.auto-b.on{background:#1f6f3f;color:#fff;border-color:#2a8a50;animation:autopulse 2s ease-in-out infinite}
 @keyframes autopulse{0%,100%{opacity:1}50%{opacity:.68}}
 #runall.on{background:var(--bad);border-color:var(--bad);color:#fff}
@@ -1928,6 +1986,27 @@ function newVidId(){
   return 'VID_'+String(mx+1).padStart(3,'0');
 }
 
+
+/* --- Prompt nhạc Suno cho nhịp không thoại: 2 lựa chọn, bấm để chép --- */
+function musicBox(sh){
+  const m=sh.music;
+  if(!m||!m.a)return '';
+  const opt=(tag)=>{
+    const val=m[tag]||'', kind=m[tag+'_kind']||'';
+    if(!val)return '';
+    return `<div class="mopt">
+      <div class="mhead"><b>${tag.toUpperCase()}</b>
+        <span class="hint">${esc(kind)}</span>
+        <span style="flex:1"></span>
+        <button class="sm" data-mcopy="${tag}" title="Chép prompt này để dán sang Suno">⧉ chép</button></div>
+      <textarea class="mtext" data-mk="${tag}" spellcheck="false">${esc(val)}</textarea>
+    </div>`;
+  };
+  const role = m.role?`<div class="mrole"><b>Vai trò nhạc:</b> ${esc(m.role)}</div>`:'';
+  return `<details class="music"><summary>🎵 Nhạc Suno — ${esc(m.emo||'')}</summary>
+    ${role}${opt('a')}${opt('b')}</details>`;
+}
+
 function shotRow(sc,sh,idx){
   const f=sfById(sh.sf);
   const opts=allSF().map(x=>x.f).filter(x=>!x.id.startsWith('REF_'));
@@ -1964,6 +2043,7 @@ function shotRow(sc,sh,idx){
       <textarea class="script" data-k="text" spellcheck="false" placeholder="Lời thoại / hành động trong kịch bản…">${esc(sh.text||'')}</textarea>
       <details><summary>Prompt video (sửa được)</summary>
         <textarea data-k="prompt" spellcheck="false" placeholder="Prompt gửi Grok…">${esc(sh.prompt||'')}</textarea></details>
+      ${musicBox(sh)}
     </div>
     <div class="v-side">
       <div class="vbox">
@@ -1989,6 +2069,16 @@ function shotRow(sc,sh,idx){
     </div>`;
   d.querySelector('.fr').onclick=()=>{if(f&&f.image){$('#lb-t').textContent=f.id+' — '+(f.label||'');
     $('#lb-i').src=f.image;lightbox.showModal()}};
+
+  d.querySelectorAll('[data-mcopy]').forEach(b=>b.onclick=async()=>{
+    const t=d.querySelector(`[data-mk="${b.dataset.mcopy}"]`);
+    try{await navigator.clipboard.writeText(t.value);
+      const o=b.textContent;b.textContent='✓ đã chép';setTimeout(()=>b.textContent=o,1400);
+    }catch(e){t.select();document.execCommand('copy')}
+  });
+  d.querySelectorAll('[data-mk]').forEach(t=>t.onchange=()=>{
+    sh.music=sh.music||{};sh.music[t.dataset.mk]=t.value;save();
+  });
   const vbox=d.querySelector('.vbox');
   vbox.ondragover=e=>{e.preventDefault();vbox.classList.add('drop')};
   vbox.ondragleave=()=>vbox.classList.remove('drop');
@@ -2504,6 +2594,7 @@ def main():
     # Supervisor tự mở/đóng luồng thợ theo trạng thái bật/tắt của từng tài khoản.
     threading.Thread(target=_supervisor, daemon=True).start()
     threading.Thread(target=_auto_runner, daemon=True).start()
+    threading.Thread(target=_luu_ban_runner, daemon=True).start()
     threading.Thread(target=_idle_sleeper, daemon=True).start()
     try:
         webbrowser.open(url)

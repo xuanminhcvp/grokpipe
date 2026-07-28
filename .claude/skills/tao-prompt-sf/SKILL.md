@@ -374,8 +374,16 @@ Form khác form thoại. Ba khối bắt buộc:
 
 1. `KHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi
    như đang nói.` — thiếu câu này model sẽ tự cho nhân vật lẩm bẩm.
-2. `Âm thanh: KHÔNG thoại, KHÔNG nhạc, KHÔNG hiệu ứng. Giữ clip IM LẶNG HOÀN TOÀN.` — để người
-   dựng ghép nhạc mà không phải chống ambient.
+2. **Âm thanh: cấm thoại và nhạc, nhưng CHO PHÉP tiếng môi trường.** Viết riêng cho từng nhịp
+   một bộ ambient/SFX có thật trong khung — tiếng siêu thị lao xao, nước chảy trong bồn rửa,
+   đồng hồ tích tắc, dế kêu, bước chân trên vỉa hè, chiếc bảng tên nhựa đặt xuống mặt bàn gỗ.
+   Kèm câu chốt: *giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ
+   để người dựng ghép nhạc lên trên.*
+   Ambient chọn theo đúng bối cảnh và theo CẢM XÚC: cùng một siêu thị, nhịp Derek quan sát thì
+   để tiếng máy quét bíp đều đặn dửng dưng, còn nhịp hai bàn tay trên sàn thì cho tiếng siêu
+   thị lùi hẳn ra xa, chỉ còn hơi thở gấp ở gần — thế giới thu lại quanh hai người.
+   *(Đừng bắt im lặng tuyệt đối: clip câm hoàn toàn nghe rất giả, và ambient nhẹ không cản trở
+   việc ghép nhạc.)*
 3. **Khối cảm xúc — quan trọng nhất, và là chỗ dễ viết sai nhất.**
 
 **Viết TRẠNG THÁI, không viết THAO TÁC.** Đây là điều dễ làm ngược nhất. Phản xạ tự nhiên là kê
@@ -402,6 +410,26 @@ Khung này giữ được cả hai: **ý đồ đạo diễn** nằm ở phần 
 thể hiện** để model tự quyết theo frame cụ thể. Chữ "gợi ý" và "điều chỉnh được" là cố ý — nó
 cho phép model bỏ một chi tiết nếu chi tiết đó không hợp với tư thế nhân vật trong ảnh.
 
+**MỌI CHUYỂN ĐỘNG PHẢI CÓ TÁC NHÂN NHÌN THẤY ĐƯỢC TRONG KHUNG.** Đây là lỗi rất dễ mắc khi
+viết nhịp không thoại, vì ta lo khung hình đứng im nên nhồi thêm chuyển động cho "có sự sống" —
+rồi cho vật vô tri tự động đậy. Xe đẩy tự lăn qua bãi đỗ xe trống, cửa tự mở khi không ai bước
+tới, trang giấy lật vì gió trong căn bếp đóng kín lúc hai giờ sáng: lên clip nhìn ra ngay là
+giả, và nó phá hỏng đúng cái hiện thực mà cả bộ prompt đang cố giữ.
+
+Trước khi viết mỗi chuyển động, hỏi: **cái gì làm nó động?** Chỉ ba nguồn hợp lệ:
+- **Người trong khung** — kể cả bóng người mờ ở xa, miễn là họ CÓ trong ảnh SF.
+- **Lực tự nhiên đang hiện diện** — gió (phải thấy được: lá lay, rèm động), trọng lực, nắng dịch.
+- **Máy móc đang chạy** — xe có tài xế, đèn hẹn giờ, màn hình tự tắt.
+
+Và điều quan trọng nhất: **đối chiếu với ẢNH SF ĐÃ RENDER, không phải với mô tả trong prompt SF.**
+Prompt SF có thể viết "vài khách hàng mờ nét đi vào" nhưng ảnh thật ra lại vắng tanh ở chỗ đó.
+Prompt video bám theo chữ mà không nhìn ảnh thì sinh ra chuyển động không có chỗ bấu víu. Khi
+nghi ngờ, mở ảnh ra xem có gì thật sự nằm trong khung.
+
+Khung tĩnh không phải là vấn đề. Một mặt tiền yên ắng với nắng dịch chậm và tán lá lay còn thật
+hơn nhiều so với một khung nhồi đầy vật thể tự di chuyển. Nếu thấy trống quá thì thêm chuyển
+động của ÁNH SÁNG, đừng thêm vật (bài học 36).
+
 **Với nhịp không có nhân vật** (dựng cảnh, toàn cảnh trống), đổi thành `KHÔNG KHÍ CẦN TẠO RA`
 và mô tả cảm giác cần có, rồi để model tự chọn chi tiết nào nên động: ánh sáng, gió, vật thể,
 dáng người ở xa.
@@ -414,6 +442,53 @@ cỡ cảnh này là vô nghĩa vì khán giả không nhìn thấy.
 cũng máy móc y như lạm dụng, và sẽ giết luôn những lần dùng đúng (người kiệt sức, người vừa
 trút được gánh nặng). Cách chữa là viết cảm xúc cho rõ và cho đủ khác nhau giữa các nhịp; khi
 mỗi nhịp có một trạng thái riêng biệt thì cách diễn tự khác nhau theo. Xem bài học 32 và 34.
+
+## Prompt nhạc nền Suno cho nhịp không thoại
+
+Nhịp không thoại nào cũng cần một hướng nhạc, vì clip im lặng thì nhạc chính là thứ dẫn cảm xúc.
+Mỗi nhịp viết **2 lựa chọn** cùng cảm xúc nhưng khác cách xử lý, để người dựng nghe rồi chọn.
+
+**Bước đầu tiên KHÔNG phải viết prompt — mà là quyết định VAI TRÒ của nhạc trong đoạn đó.**
+Đây là chỗ hay bị bỏ qua nhất: cứ thấy cảnh buồn là viết nhạc buồn, cảnh vui viết nhạc vui, kết
+quả là cả phim một màu và mọi cao trào đều bằng nhau. Bốn vai trò:
+
+- **ĐẨY** — cho nhạc chạy hẳn, chiếm sân khấu. Chỉ dành cho một hai đỉnh của cả phim. Dùng nhiều
+  là hết đỉnh.
+- **NÂNG** — đi cùng nhân vật, có đà nhưng không lấn. Hợp với các mốc chuyển chương.
+- **KÌM** — nhạc nhỏ hơn cả cảm xúc đang diễn ra. Nghịch lý nhưng đúng: khi nhân vật đang gồng
+  để không gãy, nhạc mà gãy hộ là hỏng.
+- **NGHỈ** — gần như không nhạc, chỉ một lớp mỏng. Cả phim đang dồn thì phải có chỗ cho khán giả
+  thở, nếu không đến cao trào họ đã kiệt.
+
+Viết vai trò này ra thành một câu **kèm lý do** trước khi viết prompt, và lưu cùng prompt để
+người dựng hiểu ý đồ.
+
+**Tỉ lệ có lời / không lời: khoảng 75% có lời, 25% không lời.** Nhạc có lời (soul, gospel, folk,
+neo-soul với giọng nữ trầm ấm hợp thể loại drama nhân quả này) tạo được sự đồng hành mà nhạc
+không lời khó có. Nhưng phải giữ lại một phần không lời cho những chỗ **lời hát sẽ nói hộ quá
+nhiều**:
+- khoảnh khắc sinh tử đang diễn ra (lời hát biến nó thành melodrama),
+- nhân vật vỡ ra trong im lặng khi không ai nhìn,
+- những khung riêng tư nhất (mẹ nhìn con ngủ),
+- nhịp NGHỈ.
+
+**Prompt Suno viết như thế nào cho ra nhạc hay:**
+- **BPM cụ thể** và mô tả nhịp (walking pace, half-time, laid-back backbeat).
+- **Cấu trúc theo thời gian**, không chỉ liệt kê nhạc cụ: mở bằng gì, thêm gì ở giữa, đỉnh ở
+  đâu, kết ra sao. Câu quan trọng nhất thường là câu tả **cú rút** — *"rồi tất cả cắt đi chỉ
+  còn giọng và piano"*.
+- **Giọng hát tả cụ thể** khi có lời: quãng giọng, chất giọng, cách hát (close to the mic,
+  almost spoken, cracked at the edges, single-tracked). Đừng chỉ ghi "female vocal".
+- **Chủ đề lời, không phải lyrics đầy đủ** — để Suno tự viết nhưng đúng hướng. Nêu cả giọng kể
+  (ngôi thứ nhất / thứ hai) và điều cấm: *không đắc thắng, không tự thương thân*.
+- **Mix và không khí**: warm analog, tape saturation, dry intimate, expansive high-contrast.
+- **Tag ở cuối** như prompt mẫu: các từ khóa thể loại và nhạc cụ, cách nhau bằng dấu phẩy.
+- **Kết mở hay kết đóng** — nói rõ. Nhịp giữa phim nên kết lửng; chỉ khung cuối phim mới được
+  resolve, và nên resolve trên hợp âm mở để khán giả mang cảm xúc ra khỏi phim.
+
+Hai lựa chọn A/B nên khác nhau ở **cách xử lý**, không phải khác ở mức độ to nhỏ: ví dụ A là
+soul ballad giọng nữ với Rhodes, B là folk-gospel giọng nam với organ — cùng một cảm xúc, hai
+thế giới âm thanh, nghe xong biết ngay mình muốn phim đi theo chất nào.
 
 ## Nguyên lý cốt lõi
 

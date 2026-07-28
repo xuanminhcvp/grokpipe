@@ -1,47 +1,13 @@
-# NHẠC NỀN SUNO — 43 nhịp không thoại
+# NHẠC NỀN SUNO — nhịp không thoại
 
-Mỗi nhịp 2 lựa chọn. **A** và **B** cùng cảm xúc, khác cách xử lý — chọn cái hợp bản dựng.
+**19 nhịp đang dùng** trong bản dựng · mỗi nhịp 2 lựa chọn.
+**A** và **B** cùng cảm xúc nhưng khác cách xử lý — chọn cái hợp bản dựng.
+
 Clip đều **im lặng hoàn toàn** nên nhạc phủ tự do, không phải né tiếng nền.
 
-> Mẹo: các nhịp liền nhau trong cùng một mạch cảm xúc có thể dùng chung một bản — xem mục *Gợi ý gộp* ở cuối.
+---
 
 ## SCENE 1: THE SAVEMORE GROCERY STORE
-
-### `V-S1-B1` · 6s — MỞ PHIM — mặt tiền SaveMore sáng sớm
-**Cảm xúc:** Bình thường trước biến cố — một ngày như mọi ngày
-
-**A** *(không lời)*
-```
-Warm ambient americana at 72 BPM with gentle, unhurried pulse; soft acoustic guitar fingerpicking over airy pad, light brushed snare enters mid-way, no climax, fading into open space, Calm neutral mix — ordinary, everyday, quietly hopeful, acoustic, guitar, ambient, soft
-```
-**B** *(không lời)*
-```
-Minimal piano morning at 68 BPM; single felt-piano motif repeating over faint room tone, sparse low strings underneath, never resolving, Gentle understated mix — plain, patient, before-anything-happens, piano, minimal, warm, sparse
-```
-
-### `V-S1-B2` · 6s — Derek đứng xa nhìn xuống — gieo trước cú đuổi việc
-**Cảm xúc:** Đe dọa ngầm — kẻ nắm quyền đang quan sát
-
-**A** *(không lời)*
-```
-Cinematic orchestral tension at 84 BPM with cold, stalking pulse; muted low strings and single ticking percussion, contrabass note swells slowly, no release, cut off abruptly, Dark restrained mix — watchful, predatory, unresolved, orchestral, low strings, tense, sparse
-```
-**B** *(không lời)*
-```
-Dark ambient dread at 70 BPM; sustained bass drone with metallic room resonance, faint high string harmonic creeping in, one distant percussive hit, Cold industrial mix — surveillance, judgement, quietly threatening, drone, ambient, dark, minimal
-```
-
-### `V-S1-B4` · 10s — TOÀN CẢNH — Maya quỳ dưới sàn, cả siêu thị vây quanh
-**Cảm xúc:** Cô lập giữa đám đông — thế giới vẫn chạy đều
-
-**A** *(không lời)*
-```
-Cinematic minimal isolation at 66 BPM; sparse piano notes with long decay over a wide reverb field, distant muffled crowd texture, no drums, no resolution, Lonely wide mix — small human in a large indifferent space, piano, ambient, spacious, cold
-```
-**B** *(không lời)*
-```
-Melancholic strings at 72 BPM with slow, drifting pulse; sustained high violin over deep cello drone, subtle glass-like textures floating past, never landing, Distant hollow mix — invisible, unnoticed, quietly heartbreaking, strings, ambient, sparse, melancholic
-```
 
 ### `V-S1-B3` · 6s — Bàn tay Helen nắm cổ tay Maya — kết cảnh
 **Cảm xúc:** Cứu người — căng thẳng chuyển sang ấm áp
@@ -95,18 +61,6 @@ Slow indie folk with vocals at 68 BPM; fragile female voice singing wordless leg
 
 ## SCENE 3: HOME
 
-### `V-S3-B1` · 6s — MỞ CẢNH — mặt tiền nhà thuê chiều muộn
-**Cảm xúc:** Về nhà mang theo tin xấu
-
-**A** *(không lời)*
-```
-Warm melancholic ambient at 66 BPM; soft synth pad with slow analog warmth, sparse piano notes drifting in, low strings holding underneath, no climax, Golden hour mix — coming home heavy, dusk, quiet dread, ambient, piano, warm, subdued
-```
-**B** *(không lời)*
-```
-Gentle acoustic dusk at 70 BPM; nylon guitar arpeggio over faint room ambience, single cello note swelling and receding, fading to silence, Intimate small mix — a modest home at the end of a hard day, guitar, cello, acoustic, tender
-```
-
 ### `V-S3-B2` · 6s — Maya rửa bát một mình — tay dừng lại
 **Cảm xúc:** Nén cảm xúc — dừng tay giữa việc nhà
 
@@ -117,6 +71,256 @@ Minimal piano at 60 BPM with long pauses; single felt-piano phrase repeating, a 
 **B** *(không lời)*
 ```
 Ambient strings at 64 BPM; sustained cello with slow bow pressure, faint high harmonics floating above, no rhythm, no resolution, Held-breath mix — grief pressed down, not released, cello, ambient, sparse, restrained
+```
+
+## SCENE 4: THE HOSPITAL
+
+### `V-S4-B2` · 6s — Helen quay nhìn ra cửa sổ đêm
+**Cảm xúc:** Suy tư — một quyết định vừa hình thành
+
+**A** *(không lời)*
+```
+Reflective piano at 64 BPM; warm upright piano with soft sustain, low strings entering gently under the melody, one quiet resolution at the end, Intimate thoughtful mix — an old woman deciding something, piano, strings, warm, reflective
+```
+**B** *(không lời)*
+```
+Ambient orchestral contemplation at 68 BPM; solo oboe line over sustained string bed, faint harp arpeggio, slow gentle lift then settle, Serene cinematic mix — clarity arriving quietly, oboe, orchestral, calm, thoughtful
+```
+
+## SCENE 5: MAYA'S FRONT PORCH
+
+### `V-S5-B1` · 6s — MỞ CẢNH — xe sang đỗ trước nhà bình dân
+**Cảm xúc:** Sự lạ lẫm — hai thế giới chạm nhau
+
+**A** *(không lời)*
+```
+Cinematic curiosity at 74 BPM with light suspended pulse; muted staccato strings over a soft synth bed, single piano note punctuating, tension without threat, Clean modern mix — something unexpected has arrived, strings, piano, modern, curious
+```
+**B** *(không lời)*
+```
+Minimal suspense at 70 BPM; sparse marimba pattern under sustained low strings, subtle air texture, one rising swell cut short, Bright-dark mix — an intrusion from another world, marimba, strings, minimal, intriguing
+```
+
+## SCENE 6: BLACKWELL TOWER
+
+### `V-S6-B1` · 10s — MỞ CẢNH — tòa Blackwell Tower nhìn ngược, Maya nhỏ bé
+**Cảm xúc:** Choáng ngợp — người nhỏ dưới khối kính khổng lồ
+
+**A** *(không lời)*
+```
+Cinematic orchestral awe at 80 BPM with slow, weighty pulse; low brass swells under climbing string figures, deep contrabass tremors, one wide peak then pulling back to open space, Dark authoritative mix — power, scale, intimidation, orchestral, brass, low, cinematic
+```
+**B** *(không lời)*
+```
+Modern cinematic tension at 88 BPM; pulsing synth bass with metallic percussion accents, high strings sustained above, building without release, Cold glass mix — corporate scale, a world not built for her, synth, strings, modern, imposing
+```
+
+## SCENE 8: THE KITCHEN TABLE
+
+### `V-S8-B1` · 10s — Đêm — Maya ngồi lại một mình với tờ giấy
+**Cảm xúc:** Sợ hãi và khao khát cùng lúc — một mình với quyết định
+
+**A** *(không lời)*
+```
+Intimate piano at 62 BPM with heavy, hesitant pulse; felt piano with long pauses, low cello entering under it, one small hopeful lift then falling back, Warm lamplit mix — wanting something badly and being afraid of it, piano, cello, intimate, conflicted
+```
+**B** *(không lời)*
+```
+Slow cinematic strings at 66 BPM; solo viola melody over deep sustained bass, faint clock-like percussion, unresolved ending, Late-night mix — alone with a life-changing choice, viola, strings, night, contemplative
+```
+
+## SCENE 9: BLACKWELL FOUNDATION OFFICE
+
+### `V-S9-B2` · 10s — CẦU NỐI S9→S10 — cổng trường điều dưỡng, sáu tháng sau
+**Cảm xúc:** Khởi đầu mới — bước vào cánh cổng
+
+**A** *(không lời)*
+```
+Cinematic orchestral beginning at 86 BPM with steady determined pulse; strings building in layers over soft timpani, French horn entering at the peak, resolving forward, Bright cinematic mix — a threshold crossed, a new chapter, orchestral, horn, determined, hopeful
+```
+**B** *(có lời — giọng hát ngân)*
+```
+Indie folk with vocals at 84 BPM; warm female voice humming a simple rising melody over fingerpicked guitar, light brushed drums and cello, gentle build to a full-hearted peak, Organic bright mix — starting over at twenty-eight, female vocal, folk, guitar, hopeful
+```
+
+## SCENE 11: TWO IN THE MORNING
+
+### `V-S11-B1` · 6s — Maya gục xuống bàn ngủ thiếp, đèn vẫn sáng
+**Cảm xúc:** Kiệt sức — gục xuống giữa giấc mơ của mình
+
+**A** *(không lời)*
+```
+Fragile piano at 58 BPM; soft felt piano fading in and out like breathing, faint tape hiss, low pad underneath, dissolving into silence, Sleepy intimate mix — exhaustion, a body giving out, piano, ambient, fragile, sleepy
+```
+**B** *(không lời)*
+```
+Ambient lullaby at 60 BPM; warm analog pad with slow swells, distant music-box tones, no drums, gently dissolving, Tender nocturnal mix — asleep over her books, ambient, music box, warm, lullaby
+```
+
+### `V-S11-B2` · 6s — CẦU NỐI S11→S12 — một năm sau, Maya sải bước hành lang bệnh viện
+**Cảm xúc:** Trưởng thành — một năm đã trôi qua
+
+**A** *(không lời)*
+```
+Cinematic strings with drive at 96 BPM; staccato string ostinato over steady percussion pulse, brass line rising at the peak, confident forward motion, Bright purposeful mix — transformation, momentum, competence, orchestral, strings, driving, confident
+```
+**B** *(không lời)*
+```
+Modern cinematic pulse at 100 BPM; arpeggiated synth over live drum groove, warm string pad above, building steadily without breaking, Clean modern mix — a person who knows what she is doing now, synth, strings, driving, modern
+```
+
+## SCENE 13: HELEN'S GARDEN
+
+### `V-S13-B2` · 6s — Hai bàn tay già và trẻ trên bàn trà
+**Cảm xúc:** Ấm áp — hai bàn tay nắm nhau
+
+**A** *(không lời)*
+```
+Emotional strings at 66 BPM; solo violin over warm sustained cello, soft piano underneath, one tender swell then settling, Intimate warm mix — human connection across a generation, violin, cello, piano, tender
+```
+**B** *(không lời)*
+```
+Ambient warmth at 70 BPM; layered pads blooming slowly with a simple piano motif, delicate harp touch, gentle resolution, Soft golden mix — being cared for, unconditional, ambient, piano, harp, warm
+```
+
+## SCENE 15: GRADUATION DAY
+
+### `V-S15-B2` · 10s — Maya xoay chai nước cam trong tay — trả lại hình ảnh mở phim
+**Cảm xúc:** Xúc động — vòng tròn khép lại trong lòng bàn tay
+
+**A** *(không lời)*
+```
+Emotional cinematic at 68 BPM; solo piano with long sustain, strings swelling slowly underneath, one full-hearted peak then falling to quiet, Warm tearful mix — remembering where it all began, piano, strings, emotional, tender
+```
+**B** *(không lời)*
+```
+Orchestral catharsis at 72 BPM; cello leading over a full string bed, soft French horn at the climax, gentle harp resolving, Cinematic bittersweet mix — a whole journey in one small object, cello, orchestral, emotional, cathartic
+```
+
+## SCENE 16: CALEB'S ROOM
+
+### `V-S16-B1` · 6s — Maya tắt đèn, đứng ở cửa nhìn con ngủ
+**Cảm xúc:** Dịu dàng — mẹ nhìn con ngủ
+
+**A** *(không lời)*
+```
+Tender lullaby at 62 BPM; soft music box melody over warm pad, gentle piano underneath, no drums, dissolving softly, Intimate nocturnal mix — a mother watching her child sleep, music box, piano, lullaby, tender
+```
+**B** *(không lời)*
+```
+Warm ambient love at 66 BPM; slow-blooming pads with delicate guitar harmonics, faint string swell, gentle fade, Soft golden mix — unconditional, wordless love, ambient, guitar, warm, gentle
+```
+
+## SCENE 18: THE DECISION
+
+### `V-S18-B1` · 6s — Maya cầm phong bì hồ sơ, gật đầu một mình
+**Cảm xúc:** Quyết định — gật đầu một mình
+
+**A** *(không lời)*
+```
+Cinematic resolve at 80 BPM with steady building pulse; low strings rising under a determined piano figure, soft timpani entering, confident unresolved lift, Warm decisive mix — choosing to say yes, strings, piano, determined, resolute
+```
+**B** *(không lời)*
+```
+Warm orchestral courage at 84 BPM; cello line climbing over sustained strings, French horn answering, gentle percussion, open forward ending, Golden cinematic mix — fear replaced by decision, cello, horn, orchestral, courageous
+```
+
+## SCENE 19: THE OPENING CEREMONY
+
+### `V-S19-B1` · 10s — Maya nhìn xuống, bắt gặp gia đình trong đám đông
+**Cảm xúc:** Vỡ òa — bắt gặp gia đình trong đám đông
+
+**A** *(không lời)*
+```
+Emotional orchestral swell at 76 BPM; strings rising in full warm layers, solo violin above, soft brass at the peak, tearful resolution, Cinematic heartfelt mix — seeing the people who carried you, orchestral, violin, emotional, cathartic
+```
+**B** *(có lời — bè hợp xướng wordless)*
+```
+Gospel-soul build at 78 BPM; warm organ and Rhodes with a wordless choir rising underneath, brushed drums building to a full-hearted peak, Analog soulful mix — family, pride, love made visible, choir, organ, gospel, uplifting
+```
+
+## SCENE 20: THE CLINIC — FIRST MORNING
+
+### `V-S20-B1` · 10s — Jasmine chạy đi, Maya nhìn theo
+**Cảm xúc:** Ấm áp — trao lại điều mình từng được nhận
+
+**A** *(không lời)*
+```
+Warm cinematic strings at 74 BPM; cello melody with violin answering, soft piano underneath, gentle full-hearted resolution, Golden intimate mix — passing kindness forward, cello, violin, piano, warm
+```
+**B** *(không lời)*
+```
+Gentle soul instrumental at 76 BPM; Rhodes piano with soft horn pad, brushed drums, warm bass, easy and generous, Analog warm mix — the circle continuing, rhodes, horns, soul, tender
+```
+
+### `V-S20-B3` · 10s — KẾT PHIM — toàn cảnh phố Riverdale, phòng khám mở cửa
+**Cảm xúc:** Hy vọng mở ra — kết phim
+
+**A** *(không lời)*
+```
+Cinematic orchestral finale at 82 BPM; strings and brass building in warm wide layers, French horn carrying the final melody, timpani underneath, resolving open and bright rather than closed, Expansive hopeful mix — an ending that is really a beginning, orchestral, horn, cinematic, hopeful
+```
+**B** *(có lời — refrain wordless)*
+```
+Uplifting soul-folk with vocals at 80 BPM; warm female voice singing a simple wordless refrain over acoustic guitar and Rhodes, strings and brushed drums building to a full generous peak, then opening out, Organic golden mix — hope carried forward to strangers, female vocal, folk, soul, uplifting
+```
+
+---
+
+# Nhịp đã cắt (24)
+
+Không có trong bản dựng hiện tại. Giữ lại đây phòng khi bật lại trên board (lọc **✕ Bị loại**).
+
+## SCENE 1: THE SAVEMORE GROCERY STORE
+
+### `V-S1-B1` · 6s — MỞ PHIM — mặt tiền SaveMore sáng sớm
+**Cảm xúc:** Bình thường trước biến cố — một ngày như mọi ngày
+
+**A** *(không lời)*
+```
+Warm ambient americana at 72 BPM with gentle, unhurried pulse; soft acoustic guitar fingerpicking over airy pad, light brushed snare enters mid-way, no climax, fading into open space, Calm neutral mix — ordinary, everyday, quietly hopeful, acoustic, guitar, ambient, soft
+```
+**B** *(không lời)*
+```
+Minimal piano morning at 68 BPM; single felt-piano motif repeating over faint room tone, sparse low strings underneath, never resolving, Gentle understated mix — plain, patient, before-anything-happens, piano, minimal, warm, sparse
+```
+
+### `V-S1-B2` · 6s — Derek đứng xa nhìn xuống — gieo trước cú đuổi việc
+**Cảm xúc:** Đe dọa ngầm — kẻ nắm quyền đang quan sát
+
+**A** *(không lời)*
+```
+Cinematic orchestral tension at 84 BPM with cold, stalking pulse; muted low strings and single ticking percussion, contrabass note swells slowly, no release, cut off abruptly, Dark restrained mix — watchful, predatory, unresolved, orchestral, low strings, tense, sparse
+```
+**B** *(không lời)*
+```
+Dark ambient dread at 70 BPM; sustained bass drone with metallic room resonance, faint high string harmonic creeping in, one distant percussive hit, Cold industrial mix — surveillance, judgement, quietly threatening, drone, ambient, dark, minimal
+```
+
+### `V-S1-B4` · 10s — TOÀN CẢNH — Maya quỳ dưới sàn, cả siêu thị vây quanh
+**Cảm xúc:** Cô lập giữa đám đông — thế giới vẫn chạy đều
+
+**A** *(không lời)*
+```
+Cinematic minimal isolation at 66 BPM; sparse piano notes with long decay over a wide reverb field, distant muffled crowd texture, no drums, no resolution, Lonely wide mix — small human in a large indifferent space, piano, ambient, spacious, cold
+```
+**B** *(không lời)*
+```
+Melancholic strings at 72 BPM with slow, drifting pulse; sustained high violin over deep cello drone, subtle glass-like textures floating past, never landing, Distant hollow mix — invisible, unnoticed, quietly heartbreaking, strings, ambient, sparse, melancholic
+```
+
+## SCENE 3: HOME
+
+### `V-S3-B1` · 6s — MỞ CẢNH — mặt tiền nhà thuê chiều muộn
+**Cảm xúc:** Về nhà mang theo tin xấu
+
+**A** *(không lời)*
+```
+Warm melancholic ambient at 66 BPM; soft synth pad with slow analog warmth, sparse piano notes drifting in, low strings holding underneath, no climax, Golden hour mix — coming home heavy, dusk, quiet dread, ambient, piano, warm, subdued
+```
+**B** *(không lời)*
+```
+Gentle acoustic dusk at 70 BPM; nylon guitar arpeggio over faint room ambience, single cello note swelling and receding, fading to silence, Intimate small mix — a modest home at the end of a hard day, guitar, cello, acoustic, tender
 ```
 
 ### `V-S3-B3` · 6s — TOÀN CẢNH — ngôi nhà về đêm, một ô cửa sổ còn sáng
@@ -145,31 +349,7 @@ Cold cinematic ambient at 60 BPM; sustained synth drone with metallic sheen, dis
 Minimal orchestral suspense at 66 BPM; sparse pizzicato cello over deep bass hum, occasional glass bell tone, tension held without release, Dark clinical mix — waiting, uncertainty, life on a thread, orchestral, cello, sparse, tense
 ```
 
-### `V-S4-B2` · 6s — Helen quay nhìn ra cửa sổ đêm
-**Cảm xúc:** Suy tư — một quyết định vừa hình thành
-
-**A** *(không lời)*
-```
-Reflective piano at 64 BPM; warm upright piano with soft sustain, low strings entering gently under the melody, one quiet resolution at the end, Intimate thoughtful mix — an old woman deciding something, piano, strings, warm, reflective
-```
-**B** *(không lời)*
-```
-Ambient orchestral contemplation at 68 BPM; solo oboe line over sustained string bed, faint harp arpeggio, slow gentle lift then settle, Serene cinematic mix — clarity arriving quietly, oboe, orchestral, calm, thoughtful
-```
-
 ## SCENE 5: MAYA'S FRONT PORCH
-
-### `V-S5-B1` · 6s — MỞ CẢNH — xe sang đỗ trước nhà bình dân
-**Cảm xúc:** Sự lạ lẫm — hai thế giới chạm nhau
-
-**A** *(không lời)*
-```
-Cinematic curiosity at 74 BPM with light suspended pulse; muted staccato strings over a soft synth bed, single piano note punctuating, tension without threat, Clean modern mix — something unexpected has arrived, strings, piano, modern, curious
-```
-**B** *(không lời)*
-```
-Minimal suspense at 70 BPM; sparse marimba pattern under sustained low strings, subtle air texture, one rising swell cut short, Bright-dark mix — an intrusion from another world, marimba, strings, minimal, intriguing
-```
 
 ### `V-S5-B2` · 6s — Maya cầm danh thiếp nhìn theo xe đi
 **Cảm xúc:** Hoang mang lẫn hy vọng
@@ -184,18 +364,6 @@ Warm ambient hope at 76 BPM; layered synth pad with slow bloom, delicate piano f
 ```
 
 ## SCENE 6: BLACKWELL TOWER
-
-### `V-S6-B1` · 10s — MỞ CẢNH — tòa Blackwell Tower nhìn ngược, Maya nhỏ bé
-**Cảm xúc:** Choáng ngợp — người nhỏ dưới khối kính khổng lồ
-
-**A** *(không lời)*
-```
-Cinematic orchestral awe at 80 BPM with slow, weighty pulse; low brass swells under climbing string figures, deep contrabass tremors, one wide peak then pulling back to open space, Dark authoritative mix — power, scale, intimidation, orchestral, brass, low, cinematic
-```
-**B** *(không lời)*
-```
-Modern cinematic tension at 88 BPM; pulsing synth bass with metallic percussion accents, high strings sustained above, building without release, Cold glass mix — corporate scale, a world not built for her, synth, strings, modern, imposing
-```
 
 ### `V-S6-B2` · 6s — Maya im lặng siết quai túi — nhịp nghẹn giữa cảnh
 **Cảm xúc:** Nghẹn lại — cố giữ bình tĩnh
@@ -233,20 +401,6 @@ Cinematic orchestral wonder at 76 BPM; strings building in wide sustained layers
 Ambient post-rock at 82 BPM; clean delayed guitar arpeggios over warm pad, slow-building drums entering late, wide reverb tail, Cinematic panoramic mix — standing before something vast, guitar, ambient, post-rock, uplifting
 ```
 
-## SCENE 8: THE KITCHEN TABLE
-
-### `V-S8-B1` · 10s — Đêm — Maya ngồi lại một mình với tờ giấy
-**Cảm xúc:** Sợ hãi và khao khát cùng lúc — một mình với quyết định
-
-**A** *(không lời)*
-```
-Intimate piano at 62 BPM with heavy, hesitant pulse; felt piano with long pauses, low cello entering under it, one small hopeful lift then falling back, Warm lamplit mix — wanting something badly and being afraid of it, piano, cello, intimate, conflicted
-```
-**B** *(không lời)*
-```
-Slow cinematic strings at 66 BPM; solo viola melody over deep sustained bass, faint clock-like percussion, unresolved ending, Late-night mix — alone with a life-changing choice, viola, strings, night, contemplative
-```
-
 ## SCENE 9: BLACKWELL FOUNDATION OFFICE
 
 ### `V-S9-B1` · 6s — Maya bước ra khỏi tòa nhà, ngẩng nhìn trời
@@ -259,18 +413,6 @@ Warm cinematic strings at 78 BPM with gentle forward pulse; violin melody rising
 **B** *(không lời)*
 ```
 Uplifting ambient at 74 BPM; layered pads blooming with a simple piano motif, subtle handclap-like texture, slow gentle lift, Sunlit airy mix — relief, quiet pride, ambient, piano, sunlit, hopeful
-```
-
-### `V-S9-B2` · 10s — CẦU NỐI S9→S10 — cổng trường điều dưỡng, sáu tháng sau
-**Cảm xúc:** Khởi đầu mới — bước vào cánh cổng
-
-**A** *(không lời)*
-```
-Cinematic orchestral beginning at 86 BPM with steady determined pulse; strings building in layers over soft timpani, French horn entering at the peak, resolving forward, Bright cinematic mix — a threshold crossed, a new chapter, orchestral, horn, determined, hopeful
-```
-**B** *(có lời — giọng hát ngân)*
-```
-Indie folk with vocals at 84 BPM; warm female voice humming a simple rising melody over fingerpicked guitar, light brushed drums and cello, gentle build to a full-hearted peak, Organic bright mix — starting over at twenty-eight, female vocal, folk, guitar, hopeful
 ```
 
 ## SCENE 10: NURSING SCHOOL — SIX MONTHS LATER
@@ -288,30 +430,6 @@ Playful minimal piano at 92 BPM; light staccato piano motif over soft upright ba
 ```
 
 ## SCENE 11: TWO IN THE MORNING
-
-### `V-S11-B1` · 6s — Maya gục xuống bàn ngủ thiếp, đèn vẫn sáng
-**Cảm xúc:** Kiệt sức — gục xuống giữa giấc mơ của mình
-
-**A** *(không lời)*
-```
-Fragile piano at 58 BPM; soft felt piano fading in and out like breathing, faint tape hiss, low pad underneath, dissolving into silence, Sleepy intimate mix — exhaustion, a body giving out, piano, ambient, fragile, sleepy
-```
-**B** *(không lời)*
-```
-Ambient lullaby at 60 BPM; warm analog pad with slow swells, distant music-box tones, no drums, gently dissolving, Tender nocturnal mix — asleep over her books, ambient, music box, warm, lullaby
-```
-
-### `V-S11-B2` · 6s — CẦU NỐI S11→S12 — một năm sau, Maya sải bước hành lang bệnh viện
-**Cảm xúc:** Trưởng thành — một năm đã trôi qua
-
-**A** *(không lời)*
-```
-Cinematic strings with drive at 96 BPM; staccato string ostinato over steady percussion pulse, brass line rising at the peak, confident forward motion, Bright purposeful mix — transformation, momentum, competence, orchestral, strings, driving, confident
-```
-**B** *(không lời)*
-```
-Modern cinematic pulse at 100 BPM; arpeggiated synth over live drum groove, warm string pad above, building steadily without breaking, Clean modern mix — a person who knows what she is doing now, synth, strings, driving, modern
-```
 
 ### `V-S11-B3` · 6s — TOÀN CẢNH — 2 giờ sáng, cả khu phố tối, một ô cửa sổ còn sáng
 **Cảm xúc:** Nỗ lực đơn độc — cả phố ngủ, một cửa sổ không tắt
@@ -351,18 +469,6 @@ Pastoral ambient at 68 BPM; warm strings with soft flute line, gentle harp arpeg
 **B** *(không lời)*
 ```
 Gentle acoustic calm at 72 BPM; nylon guitar with light piano accents, soft double bass underneath, unhurried and open, Warm intimate mix — tea in the garden, nothing to fear, guitar, piano, acoustic, serene
-```
-
-### `V-S13-B2` · 6s — Hai bàn tay già và trẻ trên bàn trà
-**Cảm xúc:** Ấm áp — hai bàn tay nắm nhau
-
-**A** *(không lời)*
-```
-Emotional strings at 66 BPM; solo violin over warm sustained cello, soft piano underneath, one tender swell then settling, Intimate warm mix — human connection across a generation, violin, cello, piano, tender
-```
-**B** *(không lời)*
-```
-Ambient warmth at 70 BPM; layered pads blooming slowly with a simple piano motif, delicate harp touch, gentle resolution, Soft golden mix — being cared for, unconditional, ambient, piano, harp, warm
 ```
 
 ### `V-S13-B3` · 6s — TOÀN CẢNH — khu vườn rộng, hai người nhỏ bên bàn trà
@@ -405,18 +511,6 @@ Triumphant orchestral at 104 BPM with bright driving pulse; full strings and bra
 Uplifting cinematic pop at 108 BPM; layered vocals singing a wordless anthemic hook, big drums and bright synths, full-hearted chorus, Modern euphoric mix — graduation day, pure celebration, vocals, anthemic, uplifting, bright
 ```
 
-### `V-S15-B2` · 10s — Maya xoay chai nước cam trong tay — trả lại hình ảnh mở phim
-**Cảm xúc:** Xúc động — vòng tròn khép lại trong lòng bàn tay
-
-**A** *(không lời)*
-```
-Emotional cinematic at 68 BPM; solo piano with long sustain, strings swelling slowly underneath, one full-hearted peak then falling to quiet, Warm tearful mix — remembering where it all began, piano, strings, emotional, tender
-```
-**B** *(không lời)*
-```
-Orchestral catharsis at 72 BPM; cello leading over a full string bed, soft French horn at the climax, gentle harp resolving, Cinematic bittersweet mix — a whole journey in one small object, cello, orchestral, emotional, cathartic
-```
-
 ### `V-S15-B3` · 6s — TOÀN CẢNH — biển người áo choàng đen, Maya giữa đám đông
 **Cảm xúc:** Thành tựu — một người giữa hàng trăm người
 
@@ -429,33 +523,7 @@ Cinematic orchestral pride at 88 BPM; strings building in wide layers over stead
 Uplifting ambient orchestral at 84 BPM; pads and strings rising together with a simple piano motif, soft percussion pulse, luminous open peak, Bright panoramic mix — achievement, belonging, arrival, ambient, orchestral, luminous, uplifting
 ```
 
-## SCENE 16: CALEB'S ROOM
-
-### `V-S16-B1` · 6s — Maya tắt đèn, đứng ở cửa nhìn con ngủ
-**Cảm xúc:** Dịu dàng — mẹ nhìn con ngủ
-
-**A** *(không lời)*
-```
-Tender lullaby at 62 BPM; soft music box melody over warm pad, gentle piano underneath, no drums, dissolving softly, Intimate nocturnal mix — a mother watching her child sleep, music box, piano, lullaby, tender
-```
-**B** *(không lời)*
-```
-Warm ambient love at 66 BPM; slow-blooming pads with delicate guitar harmonics, faint string swell, gentle fade, Soft golden mix — unconditional, wordless love, ambient, guitar, warm, gentle
-```
-
 ## SCENE 18: THE DECISION
-
-### `V-S18-B1` · 6s — Maya cầm phong bì hồ sơ, gật đầu một mình
-**Cảm xúc:** Quyết định — gật đầu một mình
-
-**A** *(không lời)*
-```
-Cinematic resolve at 80 BPM with steady building pulse; low strings rising under a determined piano figure, soft timpani entering, confident unresolved lift, Warm decisive mix — choosing to say yes, strings, piano, determined, resolute
-```
-**B** *(không lời)*
-```
-Warm orchestral courage at 84 BPM; cello line climbing over sustained strings, French horn answering, gentle percussion, open forward ending, Golden cinematic mix — fear replaced by decision, cello, horn, orchestral, courageous
-```
 
 ### `V-S18-B2` · 6s — CẦU NỐI S18→S19 — mặt tiền phòng khám sáng khai trương
 **Cảm xúc:** Chờ đợi — buổi sáng trước giờ khai trương
@@ -483,18 +551,6 @@ Warm soul instrumental at 74 BPM; Rhodes piano with soft horn section, laid-back
 
 ## SCENE 19: THE OPENING CEREMONY
 
-### `V-S19-B1` · 10s — Maya nhìn xuống, bắt gặp gia đình trong đám đông
-**Cảm xúc:** Vỡ òa — bắt gặp gia đình trong đám đông
-
-**A** *(không lời)*
-```
-Emotional orchestral swell at 76 BPM; strings rising in full warm layers, solo violin above, soft brass at the peak, tearful resolution, Cinematic heartfelt mix — seeing the people who carried you, orchestral, violin, emotional, cathartic
-```
-**B** *(có lời — bè hợp xướng wordless)*
-```
-Gospel-soul build at 78 BPM; warm organ and Rhodes with a wordless choir rising underneath, brushed drums building to a full-hearted peak, Analog soulful mix — family, pride, love made visible, choir, organ, gospel, uplifting
-```
-
 ### `V-S19-B2` · 6s — Cắt dải ruy băng đỏ
 **Cảm xúc:** Khánh thành — cắt dải ruy băng
 
@@ -521,18 +577,6 @@ Soul-gospel anthem at 88 BPM; full choir singing wordless rising harmonies over 
 
 ## SCENE 20: THE CLINIC — FIRST MORNING
 
-### `V-S20-B1` · 10s — Jasmine chạy đi, Maya nhìn theo
-**Cảm xúc:** Ấm áp — trao lại điều mình từng được nhận
-
-**A** *(không lời)*
-```
-Warm cinematic strings at 74 BPM; cello melody with violin answering, soft piano underneath, gentle full-hearted resolution, Golden intimate mix — passing kindness forward, cello, violin, piano, warm
-```
-**B** *(không lời)*
-```
-Gentle soul instrumental at 76 BPM; Rhodes piano with soft horn pad, brushed drums, warm bass, easy and generous, Analog warm mix — the circle continuing, rhodes, horns, soul, tender
-```
-
 ### `V-S20-B2` · 10s — KẾT PHIM — Maya một mình giữa sảnh chan nắng
 **Cảm xúc:** Bình an — đứng giữa nơi mình đã dựng nên
 
@@ -544,34 +588,3 @@ Serene cinematic at 70 BPM; sustained warm strings with a simple piano motif, so
 ```
 Ambient warmth at 68 BPM; slow-blooming pads with distant piano echoes, faint string swell, no percussion, gently resolving, Golden spacious mix — standing in the life you built, ambient, piano, luminous, peaceful
 ```
-
-### `V-S20-B3` · 10s — KẾT PHIM — toàn cảnh phố Riverdale, phòng khám mở cửa
-**Cảm xúc:** Hy vọng mở ra — kết phim
-
-**A** *(không lời)*
-```
-Cinematic orchestral finale at 82 BPM; strings and brass building in warm wide layers, French horn carrying the final melody, timpani underneath, resolving open and bright rather than closed, Expansive hopeful mix — an ending that is really a beginning, orchestral, horn, cinematic, hopeful
-```
-**B** *(có lời — refrain wordless)*
-```
-Uplifting soul-folk with vocals at 80 BPM; warm female voice singing a simple wordless refrain over acoustic guitar and Rhodes, strings and brushed drums building to a full generous peak, then opening out, Organic golden mix — hope carried forward to strangers, female vocal, folk, soul, uplifting
-```
-
----
-
-## Gợi ý gộp — dùng chung một bản cho cả cụm
-
-| Cụm | Clip | Vì sao gộp được |
-|---|---|---|
-| Mất việc | `V-S2-B1` → `V-S2-B2` → `V-S2-B3` | Một mạch liên tục: đặt bảng tên → rời siêu thị → đi bộ về. Một bản 40s phủ trọn, hay hơn ba bản cắt rời |
-| Đêm khuya học bài | `V-S11-B1` → `V-S11-B3` | Cùng một đêm, cùng cảm xúc đơn độc |
-| Vườn Helen | `V-S13-B1` → `V-S13-B2` → `V-S13-B3` | Cả scene một tông bình yên |
-| Tốt nghiệp | `V-S15-B1` → `V-S15-B3` | Cùng buổi lễ, cùng năng lượng vui |
-| Khai trương → kết phim | `V-S19-B1` → `V-S19-B3` → `V-S20-B3` | Cao trào cuối phim, nên là **một bản dài dâng liên tục** rồi mở ra ở khung cuối |
-
-## Lưu ý khi tạo trên Suno
-
-- Nhịp chỉ 6–10s nhưng Suno trả bản dài — lấy đoạn hợp nhất, thường là phần *build* chứ không phải phần cao trào.
-- Các bản **có lời** trong danh sách đều là **hát wordless** (ngân, humming, bè) — cố ý không có ca từ để không đá với thoại ở clip liền kề.
-- Ba khung cần nhạc mạnh nhất: `V-S2-B1` (tháo bảng tên), `V-S15-B2` (chai nước cam), `V-S20-B3` (kết phim).
-
