@@ -2,8 +2,6 @@
 
 **153 clip · 21 phút 38 giây · 19 nhịp không thoại**
 
-Nhịp đã cắt không có trong bảng này (trên board lọc **✕ Bị loại**).
-
 | # | clip | giây | loại | file | nội dung |
 |---|---|---|---|---|---|
 | 1 | `V-S1-1` | 10 | thoại | ✓ | CUSTOMER: "Ma'am, you need to move. You're holding u |
