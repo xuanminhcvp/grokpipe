@@ -848,3 +848,30 @@ cracked at the edges) và **chủ đề lời kèm điều cấm** (*không đ�
 Bài học meta: khi user đưa một ví dụ, đó là **mẫu về ĐỊNH DẠNG, không phải mẫu về NỘI DUNG**.
 Lấy ví dụ làm khuôn rồi thay tính từ là cách nhanh nhất để tạo ra 43 thứ giống hệt nhau. Việc
 thật sự cần làm là nghe từng đoạn trong đầu và hỏi nó cần gì.
+
+## Bài học 38 — 2026-07-28: User thay ảnh master thì mọi khối "khóa look" con thành nói dối
+
+User chốt một ảnh master mới cho Scene 1 (render từ option khác — biển số quầy ĐEN, quầy be,
+đèn ấm trung tính) và dán vào board. Tôi rà cập nhật số khách trong master, nhưng KHÔNG cập
+nhật khối "khóa look" của các SF con — chúng vẫn tả master cũ ("quầy viền xanh dương, đèn ngả
+xanh"). Kết quả: mỗi SF con nhận một ảnh ref nói một đằng và một đoạn chữ nói một nẻo, model
+tự dung hòa mỗi khung một kiểu — ba khung ra ba cái quầy khác nhau. User: "SF đồng bộ còn yếu,
+trông bối cảnh khác master lắm".
+
+**Nguyên tắc rút ra:** ảnh master là MỘT NGUỒN SỰ THẬT, và khối khóa look ở mọi SF con là BẢN
+SAO CHÉP của nguồn đó bằng chữ. Khi ảnh master ĐỔI (user chọn bản khác, dán bản mới), phải:
+1. MỞ ẢNH MỚI RA NHÌN và viết lại khối khóa look theo đúng những gì thấy (màu biển số, chất
+   liệu quầy, nhiệt độ đèn) — không đoán từ prompt cũ;
+2. Quét TẤT CẢ SF con của scene và thay khối khóa look đồng loạt;
+3. Cập nhật luôn prompt của chính master (nếu không, lần render lại sẽ quay về kiểu cũ);
+4. Thêm câu "ẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI — chữ nào xung đột với ảnh thì THEO ẢNH" để tự
+   vệ trước những lệch còn sót.
+
+Hai bài kèm theo, cùng phát hiện trong đợt này:
+- **Khối bắt buộc chắp vá ở CUỐI prompt là khối yếu nhất.** "Hàng người chờ" tôi nối vào cuối
+  → cứ đến khung cận là model bỏ. Thứ gì bắt buộc phải có trong khung thì đặt NGAY SAU câu
+  camera, trước cả mô tả nhân vật chính, với chữ "PHẢI CÓ TRƯỚC KHI TÍNH ĐẾN NHÂN VẬT CHÍNH".
+- **Prompt video phải khớp trạng thái của frame ảnh.** Ảnh master mới: Maya ĐÃ nghiêng người
+  nhìn Helen. Prompt video cũ: "Maya ngẩng phắt lên" (viết cho ảnh cũ khi cô đang cúi ở máy).
+  Model nhận frame đã-nhìn + lệnh ngẩng-lên → cho nhân vật đảo mắt lung tung. Sửa: mô tả ánh
+  mắt BẮT ĐẦU đúng như frame và chỉ đạo diễn tiến TĂNG DẦN từ đó.
