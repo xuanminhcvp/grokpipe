@@ -34,3 +34,9 @@ PHIM-HEIRESS/videos/
 *.project/run.log
 *.project/state.json
 Nhân vật/
+
+# video ghép để duyệt (dựng lại được từ videos/ bằng ffmpeg concat)
+*.project/*.mp4
+# file trạng thái lúc chạy
+.sfboard-running.json
+.luu-ban.log

@@ -10,6 +10,7 @@ Bất kỳ lỗi nào ở chế độ AUTO đều tự rơi về MANUAL để pi
 """
 from __future__ import annotations
 
+import filecmp
 import os
 import time
 
@@ -46,8 +47,10 @@ SELECTORS = {
     "file_input": "input[type=file]",
     "send_button": "button[data-testid='send-button']",
     "stop_button": "button[data-testid='stop-button']",
-    # ảnh sinh ra có alt bắt đầu bằng "Generated image" (xác nhận qua DOM thật 2026-07)
-    "assistant_image": "img[alt^='Generated image']",
+    # UI mới dùng data-turn=assistant trên <section>; giữ selector cũ để tương
+    # thích. generate() sẽ loại toàn bộ URL đã có trước khi gửi prompt.
+    "assistant_turn": "[data-turn='assistant'], [data-message-author-role='assistant']",
+    "assistant_image": "[data-turn='assistant'] img, [data-message-author-role='assistant'] img",
     # khối overlay Edit/tải xuất hiện khi ảnh đã sinh xong
     "image_done": "[data-testid='image-gen-overlay-actions']",
 }
@@ -161,6 +164,21 @@ class ChatGPTSession:
         except Exception:
             pass
 
+        # Ghi nhận ảnh đã có TRƯỚC lượt mới. ChatGPT đôi khi giữ nguyên chat cũ
+        # nếu điều hướng về trang chủ bị chậm/lỗi; nếu không có mốc này, ảnh cũ
+        # có thể bị hiểu nhầm là kết quả vừa sinh.
+        old_img_srcs: set[str] = set()
+        try:
+            old_img_srcs = set(page.locator(SELECTORS["assistant_image"]).evaluate_all(
+                """imgs => imgs.map(i => i.currentSrc || i.src || '').filter(Boolean)"""
+            ))
+        except Exception:
+            pass
+        try:
+            old_assistant_messages = page.locator(SELECTORS["assistant_turn"]).count()
+        except Exception:
+            old_assistant_messages = 0
+
         # đính ảnh (một lần, nhiều file, đúng thứ tự)
         if attach_paths:
             finp = page.locator(SELECTORS["file_input"]).first
@@ -174,13 +192,22 @@ class ChatGPTSession:
             editor.fill(prompt)
         except Exception:
             page.keyboard.insert_text(prompt)
+        time.sleep(0.5)
         page.keyboard.press("Enter")
+        time.sleep(0.5)
+        if page.locator(SELECTORS["send_button"]).is_visible():
+            try:
+                page.locator(SELECTORS["send_button"]).click(timeout=1000)
+            except Exception:
+                pass
 
         # chờ sinh ảnh: có <img alt="Generated image"> src hợp lệ + đã sinh xong
         deadline = time.time() + self.gen_timeout
         img_src = None
         saw_generating = False   # đã từng thấy nút stop (đang sinh)
         idle_no_img = 0.0        # thời gian đã dừng sinh mà vẫn chưa có ảnh
+        candidate_src = None
+        candidate_stable = 0
         while time.time() < deadline:
             time.sleep(2)
             try:
@@ -189,15 +216,36 @@ class ChatGPTSession:
                     saw_generating = True
                 imgs = page.locator(SELECTORS["assistant_image"])
                 n = imgs.count()
-                if n:
-                    src = imgs.nth(n - 1).get_attribute("src") or ""
-                    if src.startswith("http") or src.startswith("blob:"):
-                        if not generating or page.locator(SELECTORS["image_done"]).count() > 0:
-                            img_src = src
-                            break
+                new_src = None
+                for i in range(n - 1, -1, -1):
+                    src = imgs.nth(i).evaluate(
+                        """img => img.currentSrc || img.src || ''"""
+                    )
+                    if (src.startswith("http") or src.startswith("blob:")) \
+                            and src not in old_img_srcs:
+                        new_src = src
+                        break
+
+                # Chỉ nhận URL ảnh mới, đã tải đủ kích thước và ổn định qua
+                # ít nhất hai nhịp kiểm tra sau khi ChatGPT ngừng trả lời.
+                if new_src:
+                    if new_src == candidate_src:
+                        candidate_stable += 1
+                    else:
+                        candidate_src = new_src
+                        candidate_stable = 1
+                    if not generating and candidate_stable >= 2:
+                        img_src = new_src
+                        break
+                else:
+                    candidate_src = None
+                    candidate_stable = 0
+
                 # fail nhanh: đã sinh xong (nút stop tắt) nhưng KHÔNG ra ảnh
                 # -> thường là hết lượt tạo ảnh / bị từ chối, khỏi chờ hết timeout
-                if saw_generating and not generating and not n:
+                assistant_messages = page.locator(SELECTORS["assistant_turn"]).count()
+                response_started = saw_generating or assistant_messages > old_assistant_messages
+                if response_started and not generating and not new_src:
                     idle_no_img += 2
                     if idle_no_img >= 12:
                         raise C.ExecutorError(
@@ -212,15 +260,57 @@ class ChatGPTSession:
         if not img_src:
             raise C.ExecutorError("Hết thời gian chờ ChatGPT sinh ảnh.")
 
-        return self._download(img_src, out_path)
+        ok = self._download(img_src, out_path)
+        if ok:
+            # Hàng rào cuối: tuyệt đối không nhận một file giống hệt ảnh ref.
+            # Trường hợp này chứng tỏ UI/selector đã lấy nhầm ảnh đính kèm.
+            for ref_path in attach_paths:
+                try:
+                    if filecmp.cmp(out_path, ref_path, shallow=False):
+                        os.remove(out_path)
+                        raise C.ExecutorError(
+                            "ChatGPT trả về đúng file ảnh tham chiếu thay vì ảnh mới; "
+                            "đã hủy file để không ghi đè SF."
+                        )
+                except C.ExecutorError:
+                    raise
+                except OSError:
+                    pass
+        return ok
 
     def _download(self, src: str, out_path: str) -> bool:
-        """Tải bytes ảnh từ src (dùng cookie của phiên)."""
-        # cách 1: fetch trong page rồi lấy base64
+        """Tải bytes ảnh từ src (dùng HTML Canvas hoặc fetch)."""
+        # cách 1: vẽ ra canvas trong DOM rồi lấy base64 (chống lỗi CORS/backend-api 422)
+        try:
+            b64 = self.page.evaluate(
+                """(u) => {
+                    const imgs = Array.from(document.querySelectorAll(
+                        "[data-turn='assistant'] img, [data-message-author-role='assistant'] img"
+                    ));
+                    const img = imgs.find(i => (i.currentSrc || i.src || '') === u);
+                    if (!img || !img.complete || !img.naturalWidth) return null;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    return canvas.toDataURL('image/png').split(',')[1];
+                }""", src)
+            if b64:
+                import base64
+                os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                with open(out_path, "wb") as f:
+                    f.write(base64.b64decode(b64))
+                if os.path.getsize(out_path) > 1000:
+                    return True
+        except Exception:
+            pass
+
+        # cách 2: fetch trực tiếp trong page
         try:
             b64 = self.page.evaluate(
                 """async (u) => {
-                    const r = await fetch(u);
+                    const r = await fetch(u, {credentials: 'include'});
                     const b = await r.blob();
                     return await new Promise(res => {
                         const fr = new FileReader();
@@ -232,17 +322,18 @@ class ChatGPTSession:
                 import base64
                 with open(out_path, "wb") as f:
                     f.write(base64.b64decode(b64))
-                if os.path.getsize(out_path) > 0:
+                if os.path.getsize(out_path) > 1000:
                     return True
         except Exception:
             pass
-        # cách 2: request API của context
+
+        # cách 3: request API của context
         try:
             resp = self._ctx.request.get(src)
             if resp.ok:
                 with open(out_path, "wb") as f:
                     f.write(resp.body())
-                return os.path.getsize(out_path) > 0
+                return os.path.getsize(out_path) > 1000
         except Exception:
             pass
         return False

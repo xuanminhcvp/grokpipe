@@ -32,6 +32,14 @@ tích lũy từ các lần sửa trước, có thể điều chỉnh/bổ sung n
   `refs.bg = "<ID-master>"` để bám theo bối cảnh/bảng màu/ánh sáng của master.
 - `refs.chars` là danh sách ID ảnh **thật sự được đính kèm** cho model xem — khác với việc
   chỉ nhắc tên nhân vật trong lời văn.
+- **REF KHÔNG CÓ TRẦN SỐ ẢNH — đính ĐỦ, không đính thiếu** (quyết định của user, ghi đè thử
+  nghiệm "trần 3 ảnh" cũ). Mỗi nhân vật trong khung đính CẢ portrait (khuôn mặt) LẪN full-body
+  của đúng bộ đồ cảnh đó, cộng thêm master bối cảnh — bao nhiêu nhân vật thì bấy nhiêu cặp.
+  Khi nhân dạng ra lệch, KHÔNG chữa bằng cách bỏ bớt ref: chữa bằng render lại, kiểm tra ảnh
+  có thật sự được đính không, và dòng khóa chữ ngắn (xem bài học 39).
+- Luôn kèm **một dòng ngắn** khóa những gì ảnh không tự nói nổi: chủng tộc, kiểu tóc, màu
+  quần áo. Phim này Maya da đen / Helen da trắng là điểm cốt lõi — dòng khóa chủng tộc phải
+  có ở mọi SF có hai người, kể cả khi ref đang ra đúng.
 - Trước khi viết prompt master của một scene, đọc lại field `script` của scene đó **và các
   scene khác trong phim** để tìm chi tiết/đạo cụ được nhắc tới bằng lời ở nơi khác (một món đồ,
   một hành động cụ thể) — nếu có, cố tình cho đạo cụ trong khung trùng khớp để tạo hiệu ứng
@@ -161,6 +169,20 @@ nhàm giữa 2 góc CU:
   close-up chỉ có mắt/môi, góc từ dưới cằm hắt lên. Chúng phá tông hiện thực của thể loại.
 - Mọi góc bổ sung vẫn phải khóa look từ master và tôn trọng trục 180°.
 
+**Hai giới hạn cứng khi THIẾT KẾ một khung — vi phạm là ảnh hỏng dù prompt viết hay:**
+- **Không dựng SF ở tư thế GIỮA chuyển động** (đang lao người, giữa sải nhảy, giữa cú vung tay).
+  Model vẽ tốt khoảnh khắc TRƯỚC (dợm, quyết định) và SAU (đã tới, đã chạm) nhưng gần như luôn
+  hỏng khoảnh khắc GIỮA. Chọn một trong hai vùng an toàn; chuyển động thật để prompt video lo.
+  Cách né sang trọng nhất: kể bằng DẤU VẾT — thứ bị bỏ lại trong khi nhân vật đã ở nơi khác.
+  Khoảnh khắc quan trọng mà khó render thì đưa NHIỀU phương án khác chiến lược cho user chọn
+  (bài học 43).
+- **Tối đa HAI lớp chiều sâu trong một khung.** Đòi lớp thứ ba (một người ở rất xa, không gian
+  khác ở cuối hành lang) là ép model lùi camera lên góc cao/toàn cảnh để "nhét cho vừa" — đúng
+  loại góc cực đoan bị cấm ở trên. Lớp thứ ba tách thành SF riêng. Và khi cần một khoảng trống
+  mang nghĩa "ai đó vừa rời đi", mô tả thuần bằng cái CÒN LẠI ("khoảng sàn trống, sạch"), tuyệt
+  đối không nhắc tới người đã đi trong câu tả — câu phủ định không xóa được hình ảnh mà chính
+  mình vừa gieo (bài học 41).
+
 **Cảnh đông người (3+ nhân vật cùng có mặt) cần THÊM 1-2 GÓC RỘNG VỪA lấy đủ cả nhóm** — nhỏ hơn
 master một nấc nhưng chưa phải cận. Đây là tầng hay bị bỏ sót nhất: nếu chỉ có master (rất rộng)
 rồi nhảy thẳng xuống two-shot/cận, cả scene chỉ có đúng MỘT khung thấy được cả nhóm, và khung đó
@@ -223,6 +245,32 @@ cắt vụn thoại, vừa mất phản ứng của người nghe, vừa xem ch�
 
 Câu thoại quá dài có thể tách làm hai shot của cùng một người, đổi góc giữa chừng — miễn không
 mất chữ nào so với kịch bản gốc.
+
+**Sau MỖI vòng gộp/tách/viết lại shot, chạy diff bằng máy so text các shot với script gốc** —
+chuẩn hóa rồi kiểm từng dòng gốc còn xuất hiện không. Sửa vòng thứ hai, thứ ba là lúc câu gốc
+rơi mất không ai hay; trí nhớ không bắt được lỗi này, script 10 dòng thì bắt được. Câu gốc chỉ
+được phép mất khi user chủ động duyệt bỏ. Các câu GIEO-TRẢ (được scene khác trích nguyên văn)
+nằm trong danh sách bất khả xâm phạm, diff riêng (bài học 44).
+
+## Viết và tinh chỉnh thoại nhân vật chính — khiêm tốn là quy tắc cứng
+
+Khi tự viết thêm hoặc sửa thoại (user cho phép "sửa cho hay"), nhân vật chính lúc làm việc tốt
+phải KHIÊM TỐN: không nói lố, không nói thừa, không khoe mẽ — người tốt thật không thuyết minh
+việc tốt của mình.
+
+- **Cắt thẳng tay hai loại câu**: giải thích động cơ ("tôi giúp vì tôi từng thấy...") và tuyên
+  bố phẩm chất/lời hứa ("I'm not going anywhere", "Not while I'm here" lặp nhiều lần). Nội dung
+  câu nào là "tôi tốt / tôi sẽ tốt / lý do tôi tốt" → ứng viên cắt đầu tiên.
+- **Người thật lòng giúp thì HỎI và LÀM**: thay câu hay bằng câu ngắn + hành động kế tiếp.
+  "Why are you helping me?" → "You needed help." rồi lảng ngay sang việc thực tế.
+- **Trước lời cảm ơn nặng, phản ứng chân thành nhất là NÉ hoặc HẠ THẤP**: lúng túng, "It's just
+  juice, ma'am." — sự vụng về khi được cảm ơn thuyết phục hơn mọi câu đáp trôi chảy.
+- **Ngoại lệ hợp lệ — thoại TRẤN AN**: "I've got you. I'm right here" nói MỘT LẦN, đúng lúc
+  chạm vào người đang hoảng, là kỹ năng sơ cứu chứ không phải kể công. Thành lố khi lặp lại
+  hoặc tách rời khỏi hành động chạm/đỡ cụ thể.
+- **Đức tính thể hiện bằng hành động KHÔNG AI CHỨNG KIẾN**, không bằng lời — một nhịp không
+  thoại (lặng lẽ trả tiền, không ngẩng lên xem ai thấy) nói được điều mà thoại tự nói ra sẽ
+  làm hỏng. Xem bài học 42.
 
 ## LOGIC KHÔNG GIAN LIÊN TỤC — quy tắc bắt buộc khi chọn SF
 
@@ -289,6 +337,29 @@ và ghi rõ ảnh nào dùng cho phần nào (nguyên lý 3).
 
 Nếu không muốn thêm SF, hai lựa chọn còn lại: chuyển câu đó thành giọng ngoài khung trên một SF
 insert, hoặc bỏ/đổi thoại. Nhưng thường tách SF là phương án cho chất lượng cao nhất.
+
+## MỘT CLIP = MỘT SHOT LIỀN. KHÔNG BAO GIỜ có chuyển cảnh bên trong một clip.
+
+Đây là quy tắc CỨNG của cả pipeline, không phải khuyến nghị. Grok dựng mỗi clip từ ĐÚNG MỘT start
+frame; nó không cắt được giữa chừng. Ép nó cắt thì hoặc nó bỏ qua yêu cầu, hoặc nó biến dạng cả
+clip (nhân vật morph giữa hai không gian, bối cảnh trôi).
+
+**Hệ quả bắt buộc: mỗi lần đổi góc máy, đổi cỡ cảnh hoặc đổi địa điểm là PHẢI có một SF riêng và
+một shot riêng.** Không có cách nào khác. Muốn hai không gian thì phải hai clip.
+
+**Tình huống hay gặp nhất: kịch bản viết sẵn một hard-cut bên trong một clip** — dạng
+*"CLIP 8 — 10 GIÂY · 0–5s: hai người dưới sàn · 5–10s: hard cut sang tủ mát"*. Đừng cố dựng
+nguyên si. Cách xử lý duy nhất đúng:
+1. **Tách thành hai shot**, mỗi shot một SF riêng đúng với không gian của nó.
+2. Chia lại thời lượng theo lượng thoại của từng nửa (thường 6s + 6s, không phải cố giữ tổng 10s).
+3. Thoại nằm ở nửa nào thì ở nguyên shot đó; nửa không thoại viết theo form nhịp không thoại.
+4. **Báo lại cho user rằng đã tách và vì sao** — họ viết kịch bản theo lối dựng phim thật, nơi
+   hard-cut là chuyện bình thường; giới hạn nằm ở công cụ, nên đây là thông tin họ cần biết chứ
+   không phải chuyện tự ý sửa kịch bản.
+
+Kiểm tra trước khi render: quét prompt tìm "hard cut", "cắt sang", "0–5 giây / 5–10 giây" — còn
+sót chữ nào là còn một clip sẽ hỏng. Và mọi prompt video đều phải giữ nguyên câu khóa
+"MỘT SHOT LIỀN DUY NHẤT suốt cả video" ở footer.
 
 ## Prompt video (Grok image-to-video) — FORM CHUẨN, dùng đúng khung này
 
@@ -444,6 +515,10 @@ trút được gánh nặng). Cách chữa là viết cảm xúc cho rõ và cho
 mỗi nhịp có một trạng thái riêng biệt thì cách diễn tự khác nhau theo. Xem bài học 32 và 34.
 
 ## Prompt nhạc nền Suno cho nhịp không thoại
+
+**Trước khi viết bất kỳ prompt Suno nào, mở `references/mau-suno.md`** — 4 prompt thật đã qua
+vòng sửa và được user chốt "đang làm ok, cứ giữ như vậy", mỗi vai trò một mẫu. Viết theo đúng
+chất lượng và cấu trúc đó.
 
 Nhịp không thoại nào cũng cần một hướng nhạc, vì clip im lặng thì nhạc chính là thứ dẫn cảm xúc.
 Mỗi nhịp viết **2 lựa chọn** cùng cảm xúc nhưng khác cách xử lý, để người dựng nghe rồi chọn.

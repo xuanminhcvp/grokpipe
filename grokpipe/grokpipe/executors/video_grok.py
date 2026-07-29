@@ -226,13 +226,30 @@ class GrokSession:
             raise C.ExecutorError("Hết thời gian chờ Grok render video.")
         self.logger.info(f"Grok: video xong ({vid_src[:70]}...), đang tải")
 
-        # tải qua request API (kèm cookie, không dính CORS)
-        resp = self._ctx.request.get(vid_src)
-        if not resp.ok:
-            raise C.ExecutorError(f"Tải video lỗi HTTP {resp.status}.")
-        data = resp.body()
-        if len(data) < 100_000:
-            raise C.ExecutorError(f"Video tải về quá nhỏ ({len(data)} bytes).")
+        # Tải qua request API (kèm cookie, không dính CORS). CDN của Grok hay chậm
+        # hoặc ngắt giữa chừng nên phải cho timeout rộng và thử lại vài lần —
+        # video đã render xong rồi, hỏng ở bước tải mà bỏ luôn thì rất phí.
+        data = None
+        last_err = None
+        for attempt in range(1, 5):
+            try:
+                resp = self._ctx.request.get(vid_src, timeout=180_000)
+                if not resp.ok:
+                    raise C.ExecutorError(f"Tải video lỗi HTTP {resp.status}.")
+                body = resp.body()
+                if len(body) < 100_000:
+                    raise C.ExecutorError(f"Video tải về quá nhỏ ({len(body)} bytes).")
+                data = body
+                break
+            except Exception as e:
+                last_err = e
+                self.logger.warning(
+                    "Grok: tải video hỏng (lần %d/4): %s", attempt, str(e)[:120])
+                if attempt < 4:
+                    time.sleep(3 * attempt)
+        if data is None:
+            raise C.ExecutorError(
+                f"Tải video thất bại sau 4 lần thử: {str(last_err)[:200]}")
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "wb") as f:
             f.write(data)

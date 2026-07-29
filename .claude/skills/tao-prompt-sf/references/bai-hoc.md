@@ -875,3 +875,173 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
   nhìn Helen. Prompt video cũ: "Maya ngẩng phắt lên" (viết cho ảnh cũ khi cô đang cúi ở máy).
   Model nhận frame đã-nhìn + lệnh ngẩng-lên → cho nhân vật đảo mắt lung tung. Sửa: mô tả ánh
   mắt BẮT ĐẦU đúng như frame và chỉ đạo diễn tiến TĂNG DẦN từ đó.
+
+---
+
+## 39. Nhân dạng lệch dù có REF — và một chẩn đoán sai đã bị user sửa lại: REF không có trần
+
+**Chuyện:** làm một SF hai nhân vật, đính 4 ảnh REF (2 portrait + 2 full) + master. Bản 1 ra
+sai chi tiết (tóc, quần), bản 2 sai cả chủng tộc của cả hai người. Tôi hạ xuống 2 portrait +
+master thì ra đúng, và vội kết luận "đính càng nhiều ref model càng loãng, trần thực dụng là
+3 ảnh" — rồi ghi thành luật.
+
+**User bác bỏ luật đó:** *"REF phải đủ tất cả portrait và full body nhé, không dùng trần 3 ảnh
+được đâu, ref không có trần đâu nhé, ref bao nhiêu cũng được."* Mẫu thử của tôi quá nhỏ (2 bản
+hỏng, 2 bản đúng) để đổ lỗi cho số ảnh — lệch render hoàn toàn có thể là phương sai giữa các
+lần tạo, và thiếu ảnh FULL thì trang phục toàn thân lại phải tả bằng chữ, đúng cái mà bài học
+2 và 24 đã cấm.
+
+**Nguyên tắc rút ra (bản đã sửa theo quyết định của user):**
+1. **REF không có trần số ảnh.** Mỗi nhân vật trong khung đính ĐỦ cặp: portrait (khuôn mặt) +
+   full-body của đúng bộ đồ cảnh đó, cộng master bối cảnh. Hai nhân vật = 5 ảnh là bình thường.
+2. **Khi nhân dạng ra lệch, thứ tự chẩn đoán đúng là:** (a) kiểm tra các ảnh có THẬT SỰ được
+   đính kèm không (pipeline có thể rớt ảnh im lặng); (b) render lại vài bản — phương sai giữa
+   các lần tạo là nghi phạm số một; (c) thêm dòng khóa chữ NGẮN cho những gì dễ lệch. KHÔNG
+   chữa bằng cách bỏ bớt ref.
+3. **Phần vẫn đúng của phát hiện cũ:** dòng khóa chữ ngắn cho đặc điểm cốt lõi (chủng tộc,
+   kiểu tóc, màu quần áo) đáng giữ ở mọi SF nhiều nhân vật — nó rẻ và chặn được lệch bất kể
+   nguyên nhân. Với phim mà tương phản chủng tộc giữa hai nhân vật là điểm cốt truyện, dòng
+   khóa đó là bắt buộc.
+4. **Bài học meta:** đừng thăng cấp một quan sát 2-mẫu thành luật. Ghi nó là giả thuyết, thử
+   thêm, hoặc hỏi user — người đã chạy pipeline này nhiều hơn mình.
+
+---
+
+## 40. Kịch bản người viết có hard-cut trong một clip — tách thành hai shot, và nói rõ vì sao
+
+**Chuyện:** user gửi lại bản hook đã tự tinh chỉnh, trong đó *"CLIP 8 — 10 GIÂY"* được viết
+thành hai nửa: 0–5s hai người dưới sàn có thoại, rồi *"Hard cut sang tủ mát"* cho 5–10s Maya
+chạy đi lấy nước cam. Tôi tách thành `8A` (SF sàn, 6s) + `8B` (SF tủ mát, 6s) và ghi rõ lý do
+trong phần bàn giao. User sau đó nhắn lại xác nhận đúng nguyên tắc: *"tôi làm không chuyển cảnh
+đâu nhé... nếu bạn cần cảnh nào khác, bắt buộc có SF khác."*
+
+**Nguyên tắc rút ra:**
+1. **Một clip = một start frame = một shot liền.** Đổi góc, đổi cỡ cảnh, đổi địa điểm đều phải
+   sang SF mới và shot mới. Không có ngoại lệ nào cho công cụ image-to-video này.
+2. **Kịch bản do người viết sẽ có hard-cut, và đó là bình thường** — họ nghĩ theo lối dựng phim
+   thật, nơi cắt trong một cảnh là chuyện hiển nhiên. Giới hạn nằm ở công cụ, không ở kịch bản.
+   Việc của mình là dịch sang cấu trúc mà công cụ dựng được, không phải bắt user viết lại.
+3. **Chia lại thời lượng theo lượng thoại của từng nửa, đừng cố giữ tổng.** Một clip 10s bị tách
+   thường thành 6s + 6s chứ không phải 5s + 5s — nửa không thoại cần đủ giây để hành động diễn ra
+   trọn vẹn.
+4. **Luôn báo lại việc tách và lý do.** Đây là thay đổi so với cái user viết ra; im lặng làm khác
+   đi thì lần sau họ vẫn viết như cũ, và họ mất quyền quyết định chia ở đâu.
+5. **Rà bằng máy trước khi render**: quét toàn bộ prompt video tìm `hard cut` / `cắt sang` /
+   `0-5 GIÂY` / `5-10 GIÂY`, và xác nhận footer nào cũng còn câu khóa "MỘT SHOT LIỀN DUY NHẤT".
+   Sót một chữ là hỏng một clip, mà lỗi này chỉ lộ ra sau khi đã tốn lượt render.
+
+---
+
+## 41. Khung ba lớp chiều sâu đẩy model lên góc bird's-eye — và câu phủ định vẫn vẽ ra thứ bị cấm
+
+**Chuyện:** làm SF cầu nối S1→S2, tôi thiết kế một khung ba lớp: tiền cảnh là chỗ sàn trống nơi
+bà cụ vừa ngồi, lớp giữa là Maya đã quay lại quầy làm việc, lớp sâu là quản lý đứng ở cửa văn
+phòng cuối cửa hàng nhìn về phía cô. Ý đồ: khán giả thấy mối đe dọa mà nhân vật không thấy.
+
+Ảnh ra hỏng hai lần cùng lúc:
+1. **Model lùi camera lên góc BIRD'S-EYE toàn cảnh siêu thị** — thấy cả chục dãy quầy từ trên
+   trần xuống. Vì ba lớp của tôi trải quá xa nhau theo chiều sâu (sàn ngay trước mặt → quầy →
+   cuối cửa hàng), cách duy nhất để lấy đủ cả ba vào một khung là bay lên cao. Model làm đúng
+   thứ tôi yêu cầu, và kết quả vi phạm chính quy tắc "tránh góc cực đoan" của skill này.
+2. **Bà cụ vẫn nằm chình ình dưới sàn** — dù tôi đã viết "TUYỆT ĐỐI KHÔNG có bà cụ trong khung".
+   Vì ngay phía trên đó tôi mô tả tiền cảnh là *"khoảng sàn nơi bà cụ vừa ngồi"*. Câu phủ định
+   không xóa được hình ảnh mà chính tôi vừa gieo vào.
+
+**Nguyên tắc rút ra:**
+1. **Tối đa HAI lớp chiều sâu trong một SF.** Muốn lớp thứ ba (một người ở rất xa, một không
+   gian khác) thì tách thành SF riêng và shot riêng. Lớp thứ ba gần như luôn là thứ khiến model
+   phải đổi góc máy để "nhét cho vừa" — và góc nó chọn sẽ là góc mình không muốn.
+2. **Khóa góc máy bằng một khối riêng ĐẶT TRƯỚC phần bố cục, không phải một cụm từ lẫn trong
+   câu tả cảnh.** Viết thẳng điều kiện phủ định: "camera ngang tầm ngực người đứng, TUYỆT ĐỐI
+   KHÔNG góc cao, KHÔNG nhìn từ trên xuống, KHÔNG toàn cảnh". Một chữ "medium-wide" đứng lẻ
+   không đủ sức giữ góc khi bố cục đang kéo model đi hướng khác.
+3. **Đừng mô tả một vật thể bằng cách nhắc tới thứ đang bị cấm.** "Chỗ sàn nơi bà cụ vừa ngồi",
+   "chiếc ghế của người đã đi khỏi" — model đọc ra hình ảnh, không đọc ra ngữ pháp phủ định.
+   Viết thuần bằng cái CÒN LẠI: "khoảng sàn vinyl trống, chỉ có một chai nước rỗng nằm nghiêng".
+   Ý nghĩa "ai đó vừa ở đây" do khán giả tự hiểu từ mạch phim, không cần prompt nói ra.
+4. Lệnh cấm nhân vật đặt ở **ba chỗ**: ngay sau khối góc máy, trong phần bố cục, và ở khối chống
+   lỗi cuối — nhưng chỉ hiệu quả khi đã dọn sạch mọi câu mô tả gợi ra nhân vật đó (điểm 3).
+
+---
+
+## 42. Thoại nhân vật chính lúc làm việc tốt — người tốt thật không thuyết minh việc tốt của mình
+
+**Chuyện:** viết cảnh nhân vật chính cứu giúp người lạ, tôi cho cô nói những câu nghe "hay":
+giải thích động cơ (*"I know what it looks like when someone's about to go down and nobody
+around them is paying attention"*), tuyên bố sẽ ở lại (*"I'm not going anywhere"*, *"Not while
+I'm here"* — lặp ý tới ba lần). User chê hai lần liên tiếp: *"nói dư dư, cố ghép vào cho voice
+nhiều hơn... nói cứ kiểu kể công kiểu gì ấy, không phải kiểu chân thành"*, rồi chốt nguyên tắc:
+*"nhân vật chính khiêm tốn thôi, đừng để nói lố, nói thừa, nói khoe mẽ, tự nhiên thôi."*
+
+Bản sửa được duyệt:
+- *"Why are you helping me?"* → **"You needed help."** — ba chữ, rồi LẢNG NGAY sang việc thực
+  tế ("Is there somebody I can call for you?"), tay vẫn bận, không nhìn vào mắt người kia.
+- *"You're going to lose your job because of me."* → **"Maybe. Drink."** — không phủ nhận,
+  không trấn an, quay lại việc đang làm.
+- Được cảm ơn nặng lời (*"I will never forget that name"*) → **lúng túng và hạ thấp chuyện
+  xuống**: *"It's just juice, ma'am."* — người ngại được cảm ơn tìm cách thoát khỏi khoảnh
+  khắc đó.
+
+**Nguyên tắc rút ra:**
+1. **Người đang thật lòng giúp thì HỎI và LÀM, không GIẢI THÍCH và không HỨA.** Câu giải thích
+   động cơ ("tôi giúp vì tôi từng thấy...") và câu tuyên bố phẩm chất ("tôi sẽ không đi đâu")
+   là dấu hiệu kể công — cắt thẳng tay, thay bằng câu ngắn + một hành động tiếp theo.
+2. **Trước câu hỏi cảm xúc nặng, phản ứng chân thành nhất là NÉ**: trả lời tối giản rồi đổi
+   chủ đề sang việc thực tế, hoặc lúng túng hạ thấp ("It's just juice"). Sự vụng về khi được
+   cảm ơn thuyết phục hơn mọi câu đáp trôi chảy.
+3. **Phân biệt với thoại TRẤN AN — loại này hợp lệ.** "I've got you. I'm right here" nói MỘT
+   LẦN, đúng lúc chạm vào người đang hoảng, là kỹ năng sơ cứu chứ không phải kể công (chính
+   user giữ lại câu này trong bản họ tự viết). Nó thành lố khi lặp lại hoặc khi nói mà không
+   gắn với hành động chạm/đỡ cụ thể.
+4. **Đức tính của nhân vật chính thể hiện bằng HÀNH ĐỘNG KHÔNG AI CHỨNG KIẾN, không bằng lời**
+   — ví dụ lặng lẽ tự trả tiền món đồ đã lấy, và KHÔNG ngẩng lên xem có ai nhìn thấy không.
+   Một nhịp không thoại như vậy nói được điều mà mọi câu thoại tự nói ra đều làm hỏng.
+5. Kiểm tra nhanh khi rà thoại: câu nào của nhân vật chính mà NỘI DUNG là "tôi tốt / tôi sẽ
+   tốt / lý do tôi tốt" thì đó là ứng viên cắt đầu tiên.
+
+---
+
+## 43. Hành động đỉnh điểm ở GIỮA chuyển động là thứ model không vẽ nổi — thiết kế khoảnh khắc TRƯỚC hoặc SAU nó
+
+**Chuyện:** khoảnh khắc bản lề "nhân vật vượt qua ranh giới quầy để cứu người" — tôi dựng SF
+cô đang LAO NGƯỜI giữa sải chân. Render nhiều lần đều giả: tư thế giữa-bước-nhảy là thứ model
+image gần như không làm ra tự nhiên được (khớp vặn, đà sai, mặt biến dạng). User cũng thấy:
+*"nhảy qua quầy để ra chỗ Helen e là AI làm ra hơi khó, xem có phương án nào khác không."*
+
+Tôi đưa 5 phương án né (cận đôi chân qua ranh giới; bàn tay bấu mép quầy; kể bằng đồ vật bị bỏ
+lại — máy quét nằm nghiêng, màn hình còn sáng; ...). User nghĩ ra phương án thứ 6 tốt hơn cả:
+**bỏ hẳn khoảnh khắc di chuyển, vào thẳng khoảnh khắc ĐÃ TỚI NƠI** — cô đã đứng sau lưng bà cụ,
+hai tay vừa đặt lên vai. Cảm xúc nằm ở cái chạm, không nằm ở cú nhảy.
+
+**Nguyên tắc rút ra:**
+1. **Ba vùng của một hành động: TRƯỚC (dợm/quyết định) — GIỮA (đang bay/đang lao) — SAU (đã
+   tới/đã chạm). Model vẽ tốt vùng TRƯỚC và SAU, gần như luôn hỏng vùng GIỮA.** SF nên chọn
+   một trong hai vùng an toàn; chuyển động thật để prompt video lo, vì video đi TỪ một tư thế
+   tĩnh chứ không cần bắt đầu giữa không trung.
+2. **Cách né sang trọng nhất: kể bằng DẤU VẾT** — thứ bị bỏ lại (máy quét nằm nghiêng, dây còn
+   đung đưa, hàng tính dở) trong khi nhân vật đã ở nơi khác. Khán giả tự dựng cú vượt trong
+   đầu, và bản trong đầu luôn đẹp hơn bản render hỏng.
+3. **Khi một khoảnh khắc quan trọng khó render, đưa NHIỀU PHƯƠNG ÁN cho user chọn thay vì cố
+   đấm một phương án** — và chuẩn bị tinh thần là user nghĩ ra phương án tốt hơn cả 5 cái của
+   mình. Các option nên KHÁC NHAU VỀ CHIẾN LƯỢC (né bằng cỡ cảnh / né bằng điểm tựa / né bằng
+   đồ vật / bỏ hẳn khoảnh khắc), không phải 5 biến thể của cùng một ý.
+
+---
+
+## 44. Tinh chỉnh thoại nhiều vòng sẽ đánh rơi câu gốc — diff bằng máy sau mỗi vòng, đừng tin trí nhớ
+
+**Chuyện:** sau vài vòng gộp/tách/viết lại shot theo feedback, tôi làm rơi mất một câu thoại
+gốc của kịch bản (*"Tanya, orange juice from the cooler. Small bottle."*) mà không hề hay —
+câu đó nằm trong shot bị viết lại và bản mới quên mang nó theo. Chỉ phát hiện ra khi chạy một
+script so khớp toàn bộ text các shot với script gốc của scene.
+
+**Nguyên tắc rút ra:**
+1. **Sau MỖI vòng sửa thoại, chạy diff bằng máy**: chuẩn hóa (bỏ nhãn tên, bỏ dấu câu, thường
+   hóa) rồi kiểm tra từng dòng script gốc có còn xuất hiện trong text các shot không. Việc này
+   một script 10 dòng làm được — trí nhớ thì không, nhất là khi sửa vòng thứ ba.
+2. **Câu gốc chỉ được phép mất khi user chủ động duyệt việc bỏ nó** (như khi user tự viết lại
+   cả đoạn hook). Mất do sơ suất và mất do quyết định là hai chuyện khác nhau — script diff
+   phân biệt được: nó báo thiếu, còn quyết định giữ hay bỏ là của người.
+3. Các câu gieo-trả (câu được scene khác trích lại nguyên văn) phải nằm trong danh sách BẤT KHẢ
+   XÂM PHẠM: rà mọi scene tìm câu được nhắc lại ở nơi khác TRƯỚC khi tinh chỉnh, và diff riêng
+   danh sách đó sau mỗi vòng.
