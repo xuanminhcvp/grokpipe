@@ -40,3 +40,5 @@ Nhân vật/
 # file trạng thái lúc chạy
 .sfboard-running.json
 .luu-ban.log
+.video-gate
+*.project/.video-gate

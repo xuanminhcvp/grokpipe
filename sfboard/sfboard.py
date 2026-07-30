@@ -349,6 +349,13 @@ def _wipe_profile(profile: str) -> tuple[str, str]:
     return f"{size / 1024 / 1024:.0f} MB", ""
 
 
+# Đếm số lần Chrome bị đóng. Mỗi luồng thợ giữ bản sao con số này; khi lệch
+# nghĩa là Chrome nó đang bám vào đã chết, phải nhả sạch Playwright rồi nối lại.
+# Thiếu bộ đếm này thì luồng thợ vẫn dùng context cũ và mọi job chết ở bước mở
+# tab với "Target page, context or browser has been closed".
+CHROME_GEN = {"n": 0}
+
+
 def _kill_chrome(port: int):
     """Đóng cửa sổ Chrome của tài khoản này.
 
@@ -358,6 +365,7 @@ def _kill_chrome(port: int):
     import subprocess
     subprocess.run(["pkill", "-f", f"remote-debugging-port={port}"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    CHROME_GEN["n"] += 1
 
 
 _THUMB_W = {240, 320, 420, 640}          # chỉ cho phép vài cỡ, tránh sinh cache vô hạn
@@ -491,6 +499,12 @@ def _worker(endpoint: str, kind: str):
             _, ident, tries = QUEUE.get(timeout=2)
         except queue.Empty:
             continue
+        # Chrome đã bị đóng/mở lại từ lần chạy trước (ngủ khi rảnh, user tắt-bật,
+        # supervisor hồi sinh)? Nhả sạch Playwright của luồng này rồi nối lại từ
+        # đầu — nếu không, mọi job sẽ chết ở bước mở tab.
+        if getattr(_TL, "gen", None) != CHROME_GEN["n"]:
+            _release_tl()
+            _TL.gen = CHROME_GEN["n"]
         stop = False
         try:
             if kind == "img":
@@ -666,6 +680,31 @@ def _supervisor():
 
 AUTO: dict[str, dict] = {}       # scene_id -> {"try": {ident: số lần}, "last": {ident: vòng}}
 AUTO_LOCK = threading.Lock()
+
+# ═══════════════════ CỔNG KHÓA TẠO VIDEO ═══════════════════════════════════
+# Video CHỈ được tạo khi user tự bấm nút "Cho phép tạo video" trên giao diện.
+# Cờ nằm ở <project>/.video-gate — không có file hoặc nội dung khác "on" = KHÓA.
+# Mọi đường dẫn tạo video (API, auto-run, bulk) đều đi qua video_gate_on().
+# CLAUDE/AI TUYỆT ĐỐI KHÔNG ĐƯỢC BẬT CỜ NÀY. Xem KHONG-TU-BAT-VIDEO.md.
+def _gate_path() -> str:
+    return os.path.join(PROJ, ".video-gate")
+
+
+def video_gate_on() -> bool:
+    try:
+        with open(_gate_path(), encoding="utf-8") as f:
+            return f.read().strip().lower() == "on"
+    except Exception:
+        return False
+
+
+def video_gate_set(on: bool, source: str = "?") -> bool:
+    with open(_gate_path(), "w", encoding="utf-8") as f:
+        f.write("on" if on else "off")
+    _LOG.info("CỔNG VIDEO %s (nguồn: %s)", "MỞ" if on else "ĐÓNG", source)
+    return on
+
+
 AUTO_PERIOD = 20                 # giây mỗi vòng quét
 AUTO_MAX_TRY = 40                # số lần bắn lại tối đa cho một ident
 AUTO_COOLDOWN = 6                # số vòng phải chờ trước khi bắn lại cùng ident (~2 phút)
@@ -696,8 +735,9 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
             _LOG.info("[auto %s] tạo lại ảnh %s (lần %d)", sc["id"], sid, st["try"][sid])
 
     # 2) video còn thiếu, nhưng chỉ khi ảnh SF của shot đó đã có
+    #    VÀ chỉ khi user đã mở cổng video trên giao diện.
     miss_vid = [sh["id"] for sh in shots if not BOARD.video_file(sh["id"])]
-    for sh in shots:
+    for sh in (shots if video_gate_on() else []):
         if BOARD.video_file(sh["id"]) or not BOARD.find_file(sh.get("sf", "")):
             continue
         if JOBS.get(sh["id"], {}).get("state") == "running":
@@ -828,8 +868,19 @@ def _hub():
             ctx.pages  # chạm vào để biết context còn sống
             return ctx
         except Exception:
+            # Context chết → PHẢI dừng hẳn Playwright cũ trước khi start cái mới.
+            # Bỏ qua bước này là hai sync_playwright() cùng sống trong một luồng,
+            # đúng cái xung đột ngầm mà ghi chú phía trên đã cảnh báo.
+            try:
+                pw = getattr(_TL, "pw", None)
+                if pw is not None:
+                    pw.stop()
+            except Exception:
+                pass
             _TL.pw = None
             _TL.ctx = None
+            _TL.sess = None
+            _TL.gsess = None
     from playwright.sync_api import sync_playwright
     _TL.pw = sync_playwright().start()
     browser = _TL.pw.chromium.connect_over_cdp(_TL.endpoint)
@@ -1237,8 +1288,27 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, "deleted": acc["id"], "freed": freed, "err": err})
             else:
                 self._json({"ok": False, "err": "op không hợp lệ"}, 400)
+        elif u.path == "/api/video-gate":
+            want = q.get("on", [""])[0]
+            if want == "":
+                self._json({"ok": True, "on": video_gate_on()}); return
+            # Chỉ chấp nhận cú bấm phát ra TỪ TRANG WEB của board. Lệnh gọi
+            # bằng curl/script không có bộ header này nên bị từ chối.
+            site = self.headers.get("Sec-Fetch-Site", "")
+            mode = self.headers.get("Sec-Fetch-Mode", "")
+            ref = self.headers.get("Referer", "")
+            if site != "same-origin" or mode != "cors" or "://" not in ref:
+                self._json({"ok": False, "on": video_gate_on(),
+                            "err": "Cổng video chỉ được bật/tắt bằng cách BẤM NÚT trên giao "
+                                   "diện. Yêu cầu này không đến từ trang web nên bị từ chối."},
+                           403); return
+            on = video_gate_set(want == "1", source=f"nút giao diện ({ref})")
+            self._json({"ok": True, "on": on}); return
         # ---------- video ----------
         elif u.path == "/api/genvideo":
+            if not video_gate_on():
+                self._json({"ok": False, "err": "CỔNG VIDEO ĐANG ĐÓNG — bấm nút "
+                            "'Cho phép tạo video' trên giao diện trước"}, 403); return
             if JOBS.get(sf_id, {}).get("state") == "running":
                 self._json({"ok": False, "err": "đang chạy"}); return
             _enqueue("vid", sf_id)
@@ -1533,6 +1603,9 @@ button.auto-b.on{background:#1f6f3f;color:#fff;border-color:#2a8a50;animation:au
     <option value="revise">Cần sửa</option><option value="approved">Đã duyệt</option>
     <option value="noimg">Chưa có ảnh</option>
   </select>
+  <button id="vgate" onclick="toggleGate()" style="font-weight:700;padding:6px 12px"
+          title="CHỈ NGƯỜI DÙNG được bấm nút này. Khi đóng, mọi lệnh tạo video đều bị server từ chối.">
+    ⏳ đang kiểm tra…</button>
   <select id="vfilter" title="Lọc video theo trạng thái — chỉ hiện những dòng cần xử lý">
     <option value="all">Tất cả video</option>
     <option value="pending">⬜ Chưa duyệt</option>
@@ -1911,6 +1984,29 @@ function renderScript(){
 // "prompt lệch thoại" phải sửa chia thoại / viết lại prompt TRƯỚC — render lại ngay
 // chỉ dựng lại đúng cái sai cũ.
 const VBULK_OK={novid:'chưa có video',err:'lỗi khi tạo',rejected:'bị loại'};
+
+// ══ CỔNG VIDEO ══ Chỉ người dùng được bấm. Server từ chối mọi lệnh không phát
+// từ trang này, nên script/curl không bật được cờ.
+let GATE_ON=false;
+function paintGate(){
+  const b=document.getElementById('vgate'); if(!b)return;
+  b.textContent = GATE_ON ? '🎬 Cho phép tạo video: ĐANG MỞ' : '🔒 Tạo video: ĐANG KHÓA';
+  b.style.background = GATE_ON ? '#1a7f37' : '#b42318';
+  b.style.color='#fff'; b.style.border='none'; b.style.borderRadius='6px';
+  b.style.cursor='pointer';
+}
+async function loadGate(){
+  try{ const r=await (await fetch('/api/video-gate')).json(); GATE_ON=!!r.on; }catch(e){}
+  paintGate();
+}
+async function toggleGate(){
+  const to = GATE_ON ? '0' : '1';
+  if(to==='1' && !confirm('MỞ cổng cho phép tạo video?\n\nSau khi mở, các lệnh tạo video sẽ chạy được.'))return;
+  const r=await (await fetch('/api/video-gate?on='+to,{method:'POST'})).json();
+  if(!r.ok){ alert(r.err||'Không đổi được cổng video'); }
+  GATE_ON=!!r.on; paintGate();
+}
+
 function vbulkBar(shown,hidden){
   const b=$('#vbulk'), fl=$('#vfilter').value;
   // chỉ cho tạo lại hàng loạt ở những nhóm thật sự cần render lại —
@@ -2396,6 +2492,7 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
   render();
 });
 loadProjects();
+loadGate();setInterval(loadGate,5000);
 load();
 </script></body></html>
 """
