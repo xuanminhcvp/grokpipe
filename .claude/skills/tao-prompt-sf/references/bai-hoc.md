@@ -1045,3 +1045,70 @@ script so khớp toàn bộ text các shot với script gốc của scene.
 3. Các câu gieo-trả (câu được scene khác trích lại nguyên văn) phải nằm trong danh sách BẤT KHẢ
    XÂM PHẠM: rà mọi scene tìm câu được nhắc lại ở nơi khác TRƯỚC khi tinh chỉnh, và diff riêng
    danh sách đó sau mỗi vòng.
+
+---
+
+## 45. Nhiều job lỗi cùng lúc = nghi hạ tầng TRƯỚC, đừng vội sửa prompt
+
+**Chuyện:** hai chân dung REF liên tiếp báo "cả 2 bản đều lỗi". Phản xạ đầu tiên của tôi là đổ
+cho prompt — ảnh là trẻ em nên tôi đoán bị chính sách nội dung chặn, và suýt viết lại prompt.
+Nhưng chân dung ông già cũng lỗi y hệt, mà prompt đó chẳng có gì nhạy cảm. Hai job khác hẳn
+nhau cùng chết theo một kiểu là dấu hiệu của nguyên nhân chung, không phải nội dung.
+
+Mở log board ra thì thấy ngay:
+```
+Rảnh 10 phút → đóng cửa sổ Chrome để tiết kiệm RAM
+Có việc mới → đánh thức cửa sổ Chrome
+Không khởi động được Playwright (Target page, context or browser has been closed)
+```
+Board tự đóng Chrome khi rảnh; lúc đánh thức, cửa sổ mở lại được nhưng luồng thợ vẫn bám vào
+context Playwright cũ đã chết. Mọi job sau đó chết ở bước mở tab và báo về đúng một câu "cả 2
+bản đều lỗi" — nhìn từ ngoài không phân biệt được với việc prompt bị từ chối.
+
+**Nguyên tắc rút ra:**
+1. **Phân biệt lỗi theo PHẠM VI trước khi chẩn đoán.** Một job lỗi → nghi prompt. NHIỀU job
+   khác nội dung cùng lỗi một kiểu → nghi hạ tầng (Chrome chết, đăng xuất, hết lượt, mất mạng).
+   Sửa prompt trong trường hợp thứ hai là sửa nhầm chỗ và còn làm hỏng prompt đang đúng.
+2. **Đọc log trước khi đoán.** Thông báo lỗi mà pipeline trả về đã bị gộp thành một câu chung
+   chung; log mới có nguyên nhân thật. Mất 10 giây đọc log tiết kiệm được vài lượt render.
+3. **Không bắn lại quá hai lần mà chưa biết vì sao.** Lần một có thể là nhiễu; lần hai cùng
+   lỗi thì phải điều tra. Tôi đã bắn lại ba lần trước khi mở log — đó là ba lượt phí.
+4. **Sửa ở gốc, không sửa ở nhánh.** Bản `sfboard.py` trong repo chính là nguồn chuẩn; các bản
+   copy ở dự án khác ăn theo. Vá gốc thì mọi dự án cùng khỏi.
+
+---
+
+## 46. Trang phục trong portrait rò sang SF — user quyết KHÔNG xử lý, và bài học là về tôi
+
+**Hiện tượng có thật:** ảnh chân dung gốc của một nhân vật mặc áo thun vàng; mọi SF của nhân
+vật đó đều đính ĐỦ cặp portrait (lấy mặt) + full-body (lấy trang phục) và prompt ghi rõ ảnh nào
+dùng cho phần nào — nhưng một số SF vẫn cho nhân vật mặc áo vàng của portrait. Lý do: portrait
+là ảnh rõ mặt nên model coi nó mạnh hơn full-body.
+
+**Quyết định của user: KHÔNG xử lý.** *"giữ như hiện tại được rồi, tỷ lệ lỗi ít"* — sai lệch
+chỉ xảy ra ở một phần nhỏ số khung, không đáng đổi cả quy trình REF. Vì vậy:
+- **TUYỆT ĐỐI KHÔNG tự ý crop ảnh portrait đã được user duyệt.**
+- **KHÔNG ép portrait về 1:1 cận mặt.** Giữ 2:3 từ ngực trở lên như cũ.
+- Khung nào ra sai trang phục thì render lại đúng khung đó. Hết.
+
+**Bài học thật của lần này không phải về portrait — mà về cách tôi phản ứng.** Tôi đã leo thang
+ba nhịp liền trên một hướng user chỉ mới NÊU RA, chứ chưa yêu cầu:
+1. User bảo trang phục Lily không đồng bộ → tôi thêm khối chữ khóa vào **91 SF**.
+2. User nói "portrait chỉ cho lấy mặt, đừng để lộ áo" → tôi **crop cả 13 portrait**.
+3. Vẫn lộ cổ áo → tôi crop lại **1:1** và trong lúc đó **lấy nhầm ảnh Maya**: dùng bản AI
+   render trong `versions/` (tóc tết cornrow) thay cho bản user tự dán (tóc xoăn búi cao) —
+   hai người hoàn toàn khác nhau.
+4. User phải dừng lại: *"mà thôi đừng có cắt thế... làm như cũ là được"*.
+
+**Nguyên tắc rút ra:**
+1. **Một nhận xét của user không phải một lệnh đổi quy trình.** "Portrait đừng để lộ áo" là mô
+   tả một mong muốn; biến nó thành thao tác sửa hàng loạt 13 ảnh và 91 prompt là tự ý leo thang.
+   Sửa ĐÚNG chỗ được chỉ, rồi hỏi trước khi mở rộng phạm vi.
+2. **TUYỆT ĐỐI KHÔNG sửa ảnh user đã duyệt mà không xin phép** — kể cả khi có bản lưu để hoàn
+   tác. Ảnh đã duyệt là quyết định của user, không phải dữ liệu để mình tối ưu.
+3. **Ảnh user TỰ DÁN VÀO là bản chuẩn tuyệt đối, không có ngoại lệ.** Nó có thể nhỏ hơn, chất
+   lượng thấp hơn, khác hẳn các bản AI render nằm cạnh trong `versions/` — không quan trọng.
+   Đừng bao giờ "nâng cấp" nó lên bản nét hơn: bản nét hơn thường là một người khác.
+4. **Cân nhắc tỉ lệ lỗi trước khi đổi quy trình.** Hỏi: lỗi này xảy ra ở bao nhiêu phần trăm
+   khung? Nếu nhỏ thì render lại vài khung rẻ hơn nhiều so với đổi cả hệ REF — và ít rủi ro
+   hơn hẳn.

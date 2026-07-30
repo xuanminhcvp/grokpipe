@@ -16,6 +16,7 @@ tích lũy từ các lần sửa trước, có thể điều chỉnh/bổ sung n
   và `REF_<TEN>_FULL` (toàn thân 9:16, luôn tham chiếu ngược lại PORTRAIT qua `refs.chars`).
 - **MỖI NHÂN VẬT CHỈ CÓ MỘT PORTRAIT DUY NHẤT, dùng cho cả phim.** Portrait là ảnh chuẩn của
   KHUÔN MẶT — không tạo lại portrait cho từng bộ đồ.
+- Trang phục trong ảnh portrait có thể rò sang SF ở một tỉ lệ nhỏ. **User đã quyết KHÔNG xử lý việc này** — tỉ lệ lỗi thấp, không đáng đổi cả quy trình. TUYỆT ĐỐI KHÔNG tự ý crop ảnh portrait đã duyệt và không ép portrait về 1:1 cận mặt (xem bài học 46).
 - **Nhân vật đổi trang phục theo chặng truyện thì mỗi bộ chỉ cần THÊM MỘT ẢNH FULL**
   (`REF_<TEN>_<TRẠNG THÁI>_FULL`, vd. `_HOME`, `_OFFICE`, `_SCRUBS`), luôn đính portrait gốc để
   lấy khuôn mặt rồi thay phần trang phục. Rà kịch bản ngay từ đầu để liệt kê đủ các trạng thái này.
