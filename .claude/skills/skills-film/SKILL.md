@@ -10,7 +10,7 @@ tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.j
 dự án `PIPELINE-*.project`.
 
 Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
-đó là đủ. `references/bai-hoc.md` là **kho lịch sử 40 bài** (~15k token): chỉ mở khi (a) gặp
+đó là đủ. `references/bai-hoc.md` là **kho lịch sử 41 bài** (~15k token): chỉ mở khi (a) gặp
 lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
 viết prompt** — luật đã được chưng cất lên đây rồi.
 
@@ -101,7 +101,8 @@ hành động của beat này (giữ, tả rõ), hay nó chỉ được cài và
    Một không gian công cộng (siêu thị, bệnh viện, sảnh, đường phố) mà khung hình vắng tanh sẽ
    đọc như phim trường giả.
 4. **TRẠNG THÁI KHÔNG GIAN của nhân vật** — ai đứng/ngồi, cách nhau bao xa, ai cao hơn ai (trên
-   thềm/dưới thềm, đứng/ngồi), ai trước ai sau. Phải ghi vào mô tả SF, vì đây là dữ liệu để đối
+   thềm/dưới thềm, đứng/ngồi), ai trước ai sau. Cụm ≥3 shot mà người đứng yên một chỗ thì
+   khoá bằng **ẢNH NEO** (xem mục dưới), đừng để mỗi SF tự tả vị trí một kiểu. Phải ghi vào mô tả SF, vì đây là dữ liệu để đối
    chiếu continuity giữa các shot (xem mục "LOGIC KHÔNG GIAN LIÊN TỤC").
 5. **NỘI THẤT CƠ BẢN của loại bối cảnh này** — thứ dễ sót nhất vì "hiển nhiên đến mức không ai
    nghĩ phải viết ra". Phòng làm việc phải có GHẾ (ghế của chủ phòng + ghế khách); phòng ăn phải
@@ -169,6 +170,38 @@ cùng một cụm hội thoại.
 
 Hệ quả quan trọng: **một bối cảnh khai thác đủ hướng cho 6–8 góc thật sự khác nhau.** Phải
 cạn góc rồi mới dùng tới take V2 — phần lớn V2 bị lạm dụng là vì quên rằng còn xoay được.
+
+## ẢNH NEO — khoá VỊ TRÍ NGƯỜI khi cả cụm đứng yên một chỗ
+
+Master khoá **không gian**, nhưng master **không có người** — nên vị trí và tư thế nhân vật
+là chiều KHÔNG được khoá, và mỗi SF con tự bịa một kiểu. Hậu quả: một cuộc gọi điện liên tục
+mà nhân vật khi thì đứng giữa hành lang, khi thì ở cuối hành lang — "nhảy" bốn lượt.
+
+**Luật:** một cụm **≥3 shot** mà nhân vật **đứng/ngồi yên một chỗ** → dựng **ẢNH NEO** trước,
+các góc còn lại đặt `refs.bg = <ID ảnh neo>` thay vì bám master.
+
+Ảnh neo mang theo ba thứ chữ không tả nổi: **đúng điểm đứng trong phòng · đúng dáng người và
+đồ đang cầm · đúng ánh sáng đổ lên người ở vị trí đó.**
+
+**Khối bắt buộc trong SF con bám neo** (thiếu là model copy luôn góc máy của neo, ra 5 khung
+giống hệt nhau):
+
+```
+KHÓA TỪ ẢNH NEO — GIỮ NGUYÊN: vị trí nhân vật trong phòng, tư thế, tay đang cầm gì,
+hướng người, ánh sáng đổ lên người. Nhân vật KHÔNG di chuyển so với ảnh neo.
+KHÔNG LẤY GÓC MÁY của ảnh neo — camera khung này đứng ở chỗ khác.
+```
+
+**Áp dụng:** gọi điện · đứng nói chuyện tại một điểm · ngồi trên ghế suốt cụm · cảnh 3+ người
+cần giữ vị trí tương đối · mặt bàn đã bày sẵn đạo cụ theo một cách cụ thể.
+
+**KHÔNG áp dụng** khi nhân vật đổi trạng thái (đứng → ngồi → nắm tay): mỗi trạng thái là một
+khung riêng, neo vào nhau sẽ khoá chết diễn biến.
+
+**Ba điều phải nhớ:**
+1. **Neo render và duyệt TRƯỚC**, không chạy song song — neo sai thì cả cụm sai theo.
+2. **Chuỗi chỉ MỘT tầng**: master → neo → góc con. Sâu hơn thì ảnh gốc bị pha loãng.
+3. Kỹ thuật: `refs.bg` chỉ là ID, đính ảnh của SF đó — trỏ vào SF thường hay master đều chạy.
 
 ## Cùng phòng, KHÁC THỜI ĐIỂM — ánh sáng KHÔNG bám master
 
@@ -353,4 +386,4 @@ thuộc SF/shot nào là tàn dư của kịch bản cũ.
 - **Viết prompt video (có thoại / nhịp lặng) và prompt nhạc Suno** → [references/prompt-video.md](references/prompt-video.md)
 - **Nguyên lý nền: ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** → [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Bài học tích lũy (40 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
+- **Bài học tích lũy (41 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)

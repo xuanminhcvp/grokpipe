@@ -1698,9 +1698,41 @@ margin-bottom:3px;border:1px solid transparent;cursor:pointer}
 transition:width .25s}
 #snav a.full .bar i{background:var(--ok,#1a7f37)}
 #snav .tot{margin-top:8px;padding:7px;border-top:1px solid var(--line);font-size:11px}
+#snav .allm{display:block;margin-top:6px;padding:6px 7px;border-radius:7px;font-size:11px;
+text-align:center;border:1px solid var(--acc);color:var(--acc);cursor:pointer;font-weight:600}
+#snav .allm:hover{background:var(--tagbg2)}
 body.hasnav main{padding-left:146px}
 section.scene{scroll-margin-top:calc(var(--hdrh,52px) + 12px)}
 @media (max-width:1100px){#snav{display:none}body.hasnav main{padding-left:18px}}
+
+
+/* ---- dải trang phục trong thẻ portrait ---- */
+.wrstrip{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 0 2px}
+.wrstrip b{font-size:10.5px;color:var(--tx2);font-weight:600;margin-right:2px}
+.wrstrip .wit{width:34px;height:52px;border-radius:5px;overflow:hidden;cursor:pointer;
+border:1.5px solid var(--line);background:var(--deep);flex:none;display:flex;
+align-items:center;justify-content:center}
+.wrstrip .wit img{width:100%;height:100%;object-fit:cover;display:block}
+.wrstrip .wit:hover{border-color:var(--acc)}
+.wrstrip .wit.ok{border-color:var(--ok,#1a7f37)}
+.wrstrip .wit i{color:var(--bad);font-size:11px}
+.wrstrip .wtog{padding:1px 7px;margin-left:auto}
+
+/* ---- chip ref: có ảnh nhỏ, bấm xem, ✕ riêng để bỏ ---- */
+.pill.ref{display:inline-flex;align-items:center;gap:5px;padding:2px 4px 2px 2px;cursor:pointer}
+.pill.ref:hover{border-color:var(--acc)}
+.pill.ref{font-family:ui-monospace,monospace;font-size:10.5px}
+.pill.ref .x{padding:0 3px;opacity:.45;font-weight:400}
+.pill.ref .x:hover{opacity:1;color:var(--bad)}
+
+/* ---- phân cấp thẻ: master to, con nhỏ ---- */
+.card.ismaster{grid-column:span 2}
+.kindtag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;
+padding:1px 6px;border-radius:999px;margin-right:5px;vertical-align:middle}
+.kindtag.m{background:var(--acc);color:#fff}
+.kindtag.a{background:var(--warn,#b45309);color:#fff}
+.kindtag.r{background:var(--tagbg2);color:var(--tagtx2)}
+@media (max-width:900px){.card.ismaster{grid-column:span 1}}
 
 /* ---- chọn Start frame có xem trước ---- */
 button.sfpick{display:inline-flex;align-items:center;gap:6px;max-width:260px;padding:3px 8px 3px 3px}
@@ -1708,7 +1740,20 @@ button.sfpick img{width:44px;height:25px;object-fit:cover;border-radius:4px;disp
 button.sfpick .nosf{width:44px;text-align:center;color:var(--bad)}
 button.sfpick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 font-family:ui-monospace,monospace;font-size:11.5px}
-#sfpick{width:min(1100px,94vw);max-height:88vh}
+#sfpick,#mall{width:min(1100px,94vw);max-height:88vh}
+#ma-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:11px;
+padding:11px;overflow-y:auto;max-height:calc(88vh - 56px)}
+#ma-g .it{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;
+background:var(--panel)}
+#ma-g .it:hover{border-color:var(--acc)}
+#ma-g .it img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:var(--deep)}
+#ma-g .it .no{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;
+color:var(--tx2);font-size:11px;background:var(--deep)}
+#ma-g .it b{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--acc);
+padding:6px 8px 0}
+#ma-g .it i{display:block;font-style:normal;font-size:11px;color:var(--tx2);padding:1px 8px 3px}
+#ma-g .it u{display:block;text-decoration:none;font-size:10.5px;color:var(--tx2);
+padding:0 8px 7px;opacity:.75}
 #sp-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px;
 padding:10px;overflow-y:auto;max-height:calc(88vh - 56px)}
 #sp-g .it{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;
@@ -1749,11 +1794,13 @@ border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-conten
 .card.sel{outline:2px solid var(--acc);outline-offset:2px}
 .pastebox{border:2px dashed var(--line);border-radius:12px;background:var(--panel);
 display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-min-height:190px;padding:16px;text-align:center;color:var(--tx2);font-size:12.5px;
+min-height:64px;padding:9px 12px;text-align:center;color:var(--tx2);font-size:12px;
 cursor:pointer;transition:.15s}
 .pastebox:hover,.pastebox.on{border-color:var(--acc);color:var(--acc);background:var(--panel2)}
 .pastebox b{font-size:13px;color:var(--tx)}
-.pastebox .big{font-size:26px;line-height:1}
+.pastebox .big{font-size:16px;line-height:1}
+.pastebox{flex-direction:row;gap:9px;flex-wrap:wrap}
+.pastebox div:last-child{font-size:11px;opacity:.8}
 /* ---- yêu cầu AI ---- */
 button.ai{border-color:var(--acc);color:var(--acc)}
 /* bản đang được dùng làm bản hiển thị/tải về */
@@ -1840,6 +1887,11 @@ border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;color:var(--tx2)
   </div>
   <div id="root"></div>
 </main>
+
+<dialog id="mall"><div class="dlg-h"><b>Tất cả ảnh master của phim</b><span style="flex:1"></span>
+<span id="ma-n" style="opacity:.6;margin-right:10px"></span>
+<button onclick="mall.close()">Đóng</button></div>
+<div id="ma-g"></div></dialog>
 
 <dialog id="sfpick"><div class="dlg-h"><b id="sp-t"></b><span style="flex:1"></span>
 <input id="sp-q" placeholder="lọc theo mã hoặc tên góc…" style="width:230px">
@@ -2124,7 +2176,8 @@ function snav(){
   }).join('');
   const tp = nTot?Math.round(dTot*100/nTot):0;
   nav.innerHTML=`<div class="snav-t">${vid?'Video':'Start frame'}</div>${rows}
-    <div class="tot"><b>${tp}%</b> — ${dTot}/${nTot} đã duyệt</div>`;
+    <div class="tot"><b>${tp}%</b> — ${dTot}/${nTot} đã duyệt</div>
+    <a class="allm" onclick="showMasters()">🗂 Xem tất cả master</a>`;
   markScene();
 }
 // bọc render: vẽ xong ở BẤT KỲ chế độ nào cũng cập nhật lại thanh bên trái
@@ -2143,6 +2196,32 @@ if(window.ResizeObserver){
 // ══ CHỌN START FRAME CÓ XEM TRƯỚC ══ dropdown chữ không cho biết ảnh nào,
 // nên thay bằng lưới thumbnail: SF của scene này trước, rồi master, rồi phần còn lại.
 let SP = null;
+
+// ══ XEM TẤT CẢ MASTER ══ mọi bối cảnh gốc của phim gom một chỗ, kèm số SF con
+// đang bám vào — để thấy ngay bối cảnh nào đang bị dồn quá nhiều cảnh.
+function showMasters(){
+  const all=allSF().map(x=>x.f);
+  const kids={};
+  all.forEach(f=>{const b=f.refs&&f.refs.bg; if(b)kids[b]=(kids[b]||0)+1});
+  const ms=all.filter(f=>f.id.startsWith('SF-M-'))
+              .sort((a,b)=>(kids[b.id]||0)-(kids[a.id]||0));
+  document.getElementById('ma-n').textContent=ms.length+' master';
+  const g=document.getElementById('ma-g');
+  g.innerHTML=ms.map(f=>{
+    const n=kids[f.id]||0;
+    const warn=n>25?' style="color:var(--bad);font-weight:700"':'';
+    return `<div class="it" data-m="${esc(f.id)}">
+      ${f.image?`<img src="${thumb(f.image,420)}" loading="lazy" decoding="async">`
+               :'<div class="no">chưa có ảnh</div>'}
+      <b>${esc(f.id)}</b><i>${esc(f.label||'')}</i>
+      <u${warn}>${n} SF con bám vào${n>25?' — đang dồn quá nhiều':''}</u></div>`;
+  }).join('')||'<div style="padding:14px">Chưa có master nào.</div>';
+  g.querySelectorAll('[data-m]').forEach(el=>el.onclick=()=>{
+    const r=find(el.dataset.m);
+    if(r&&r.f&&r.f.image)lbOpenAt(r.f); else alert(el.dataset.m+' chưa có ảnh.');});
+  mall.showModal();
+}
+
 function openSFPick(sc, sh){
   SP = {sc, sh};
   document.getElementById('sp-t').textContent =
@@ -2234,7 +2313,44 @@ function render(){
       <button class="sm bad-b" onclick="delScene('${sc.id}')">Xóa scene</button></div><div class="grid"></div>`;
     const g=el.querySelector('.grid');
     g.appendChild(pasteBox(sc));
-    list.forEach(f=>g.appendChild(card(sc,f)));
+    if(sc.id==='REF'){
+      // NHÓM THEO NHÂN VẬT: portrait là thẻ chính, các bản trang phục (_FULL)
+      // thành dải ảnh nhỏ bên trong thẻ đó — bấm ảnh nhỏ để phóng to,
+      // bấm ✎ để mở/đóng các thẻ trang phục đầy đủ (sửa prompt, tạo lại).
+      const who=id=>id.split('_')[1]||id;
+      const ports=list.filter(f=>f.id.endsWith('_PORTRAIT'));
+      const fulls=list.filter(f=>f.id.endsWith('_FULL'));
+      const rest =list.filter(f=>!f.id.endsWith('_PORTRAIT')&&!f.id.endsWith('_FULL'));
+      const byChar={};
+      fulls.forEach(f=>(byChar[who(f.id)]=byChar[who(f.id)]||[]).push(f));
+      ports.forEach(pf=>{
+        const ch=who(pf.id), kids=byChar[ch]||[];
+        delete byChar[ch];
+        const d=card(sc,pf);
+        if(kids.length){
+          const strip=document.createElement('div');
+          strip.className='wrstrip';
+          strip.innerHTML=`<b>Trang phục (${kids.length})</b>`+kids.map(k=>
+            `<span class="wit${k.status==='approved'?' ok':''}" data-wsee="${esc(k.id)}"
+               title="${esc(k.id)} — bấm để phóng to">
+               ${k.image?`<img src="${thumb(k.image,120)}" loading="lazy">`:'<i>?</i>'}</span>`).join('')
+            +`<button class="sm wtog" data-wtog="${esc(ch)}"
+               title="Mở/đóng thẻ đầy đủ của các bản trang phục (sửa prompt, tạo lại)">${WROPEN[ch]?'▾':'✎'}</button>`;
+          strip.querySelectorAll('[data-wsee]').forEach(el=>el.onclick=()=>{
+            const r=find(el.dataset.wsee);
+            if(r&&r.f&&r.f.image)lbOpenAt(r.f); else alert(el.dataset.wsee+' chưa có ảnh.');});
+          strip.querySelector('[data-wtog]').onclick=e=>{
+            WROPEN[ch]=!WROPEN[ch];render();};
+          d.querySelector('.body').insertBefore(strip,d.querySelector('.body').children[1]);
+        }
+        g.appendChild(d);
+        kids.forEach(k=>{const kd=card(sc,k); if(!WROPEN[ch])kd.style.display='none'; g.appendChild(kd);});
+      });
+      Object.values(byChar).flat().forEach(f=>g.appendChild(card(sc,f)));   // full mồ côi
+      rest.forEach(f=>g.appendChild(card(sc,f)));
+    } else {
+      list.forEach(f=>g.appendChild(card(sc,f)));
+    }
     root.appendChild(el);
   });
 }
@@ -2301,6 +2417,7 @@ const VBULK_OK={novid:'chưa có video',err:'lỗi khi tạo',rejected:'bị lo�
 // ══ CỔNG VIDEO ══ Chỉ người dùng được bấm. Server từ chối mọi lệnh không phát
 // từ trang này, nên script/curl không bật được cờ.
 let GATE_ON=false;
+let WROPEN={};   // nhân vật nào đang mở thẻ trang phục đầy đủ
 function paintGate(){
   const b=document.getElementById('vgate'); if(!b)return;
   b.textContent = GATE_ON ? '🎬 Cho phép tạo video: ĐANG MỞ' : '🔒 Tạo video: ĐANG KHÓA';
@@ -2761,7 +2878,11 @@ function card(sc,f){
   const job=JOBS[f.id]||{};const running=job.state==='running';
   const refs=f.refs||{chars:[],bg:null};
   const d=document.createElement('div');
-  d.className='card '+(f.status==='approved'?'approved':f.status==='rejected'?'rejected':f.status==='revise'?'revise':'');
+  const isM=f.id.startsWith('SF-M-');
+  const isR=f.id.startsWith('REF_');
+  const isPortrait=isR&&f.id.endsWith('_PORTRAIT');
+  d.className='card '+(f.status==='approved'?'approved':f.status==='rejected'?'rejected':f.status==='revise'?'revise':'')
+    +(isM?' ismaster':'');
   d.innerHTML=`
    <div class="thumb" data-sf="${f.id}">
      ${f.image?`<img src="${thumb(f.image,320)}" loading="lazy" decoding="async">`:`<div class="empty">Chưa có ảnh<br><b>Kéo–thả ảnh vào đây</b><br>hoặc bấm <b>Tạo ảnh</b></div>`}
@@ -2769,14 +2890,19 @@ function card(sc,f){
      ${running?`<div class="run"><div class="spin"></div><div>${esc(job.msg||'đang tạo…')}</div></div>`:''}
    </div>
    <div class="body">
-     <div class="sfid">${esc(f.id)}</div>
+     <div class="sfid">${isPortrait?'<span class="kindtag r">CHÂN DUNG</span>'
+       :isR?'<span class="kindtag a">TRANG PHỤC</span>'
+       :isM?'<span class="kindtag m">MASTER</span>':''}${esc(f.id)}</div>
      <input class="ed" data-k="label" value="${esc(f.label||'')}" placeholder="Tên góc máy…">
      <textarea class="ed" data-k="desc" placeholder="Mô tả / dùng cho beat nào…">${esc(f.desc||'')}</textarea>
      <div class="refrow"><b>Nhân vật</b><div class="picker" data-p="chars">
-       ${(refs.chars||[]).map(r=>`<span class="pill" data-rm="${esc(r)}">${esc(r)} ✕</span>`).join('')}
+       ${(refs.chars||[]).map(r=>`<span class="pill ref" data-see="${esc(r)}" title="Bấm để xem ảnh"
+         >${esc(r)}<b class="x" data-rm="${esc(r)}" title="Bỏ ref này">✕</b></span>`).join('')}
        <span class="pill add" data-add="chars">+ thêm</span></div></div>
      <div class="refrow"><b>Bối cảnh</b><div class="picker" data-p="bg">
-       ${refs.bg?`<span class="pill bg" data-rmbg="1">${esc(refs.bg)} ✕</span>`:`<span class="pill add" data-add="bg">+ chọn</span>`}
+       ${refs.bg?`<span class="pill bg ref" data-see="${esc(refs.bg)}" title="Bấm để xem ảnh"
+         >${esc(refs.bg)}<b class="x" data-rmbg="1" title="Bỏ ref này">✕</b></span>`
+         :`<span class="pill add" data-add="bg">+ chọn</span>`}
        </div></div>
      ${(f.versions&&f.versions.length>1)?`<div class="vers"><span class="vlab">bản:</span>
        ${f.versions.map((v,i)=>`<img src="${thumb(v.url,240)}" loading="lazy" decoding="async" title="v${i+1} · ${v.at}" data-v="${v.file}">`).join('')}</div>`:''}
@@ -2826,10 +2952,15 @@ function card(sc,f){
     e.stopPropagation();
     await fetch(`/api/pick-version?sf=${encodeURIComponent(f.id)}&file=${encodeURIComponent(el.dataset.v)}`,{method:'POST'});
     await load();});
-  d.querySelectorAll('[data-rm]').forEach(el=>el.onclick=()=>{
+  d.querySelectorAll('[data-see]').forEach(el=>el.onclick=e=>{
+    if(e.target.classList.contains('x'))return;      // bấm ✕ thì để handler xoá lo
+    const r=find(el.dataset.see);
+    if(r&&r.f&&r.f.image)lbOpenAt(r.f); else alert(el.dataset.see+' chưa có ảnh.');});
+  d.querySelectorAll('[data-rm]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();
     f.refs.chars=f.refs.chars.filter(x=>x!==el.dataset.rm);save();render()});
   const rmbg=d.querySelector('[data-rmbg]');
-  if(rmbg)rmbg.onclick=()=>{f.refs.bg=null;save();render()};
+  if(rmbg)rmbg.onclick=e=>{e.stopPropagation();f.refs.bg=null;save();render()};
   d.querySelectorAll('[data-add]').forEach(el=>el.onclick=()=>addRef(f,el.dataset.add));
   d.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
     const sel=d.querySelector('[data-n]');

@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-40 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+41 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -48,6 +48,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 38. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
 - 39. Master khoá KHÔNG GIAN chứ không khoá góc máy — và địa điểm phải được CHỌN
 - 40. Khoá ánh sáng theo master khi scene khác giờ = ra lệnh trái ngược
+- 41. Master không có người nên KHÔNG khoá được vị trí người — cần ảnh neo
 
 ## Vận hành & gỡ lỗi hạ tầng
 
@@ -708,3 +709,21 @@ copy y nguyên khối đó.
 
 **Cách rà không tin được:** quét từ khoá "ban đêm" bỏ lọt những SF viết "phần lớn phòng tối" mà
 không nói giờ. Phải đọc dòng thời điểm của từng SF trong scene và đối chiếu thủ công.
+
+
+## 41. Master không có người nên KHÔNG khoá được vị trí người — cần ảnh neo
+
+*Bối cảnh:* user hỏi lúc nhân vật gọi điện thì các SF tham chiếu từ đâu, vì gọi điện thì người
+ta đứng yên một chỗ. Kiểm ra: 5 SF của cùng một cuộc gọi đều bám master hành lang (master không
+có người), nên mỗi SF tự bịa vị trí — nhân vật "nhảy" giữa hai đầu hành lang bốn lượt trong một
+cuộc gọi liên tục 74 giây.
+
+**Nguyên tắc:** master khoá được KHÔNG GIAN, không khoá được VỊ TRÍ NGƯỜI. Chiều nào master
+không khoá thì mỗi SF con tự điền, mỗi cái một kiểu — cùng loại lỗi với vụ ánh sáng ngày/đêm
+(bài 40). Cụm ≥3 shot mà nhân vật đứng/ngồi yên → dựng **ảnh neo** trước, các góc còn lại bám
+neo thay vì bám master. Ảnh neo mang ba thứ chữ không tả nổi: điểm đứng, dáng người, ánh sáng
+đổ lên người ở vị trí đó.
+
+**Bẫy đi kèm:** phải viết rõ "lấy vị trí, KHÔNG lấy góc máy" — nếu không model copy luôn góc
+của neo, ra cả cụm giống hệt nhau. Đây chính là bài 39 dịch từ tầng căn phòng xuống tầng con
+người.
