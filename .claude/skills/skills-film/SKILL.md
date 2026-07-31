@@ -1,5 +1,5 @@
 ---
-name: tao-prompt-sf
+name: skills-film
 description: Viết/sửa prompt ảnh nhân vật và Start Frame (SF) trong sf-board.json cho các dự án PIPELINE-*.project. Dùng skill này mỗi khi tạo REF nhân vật mới, tạo SF cho một scene, hoặc sửa ngoại hình/trang phục nhân vật trong board — kể cả khi user chỉ nói "tạo SF cho scene X" mà không nhắc rõ kỹ thuật.
 ---
 

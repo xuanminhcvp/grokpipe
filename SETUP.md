@@ -38,7 +38,7 @@ Hoặc gọi thẳng: `python3 sfboard/sfboard.py <PROJECT> --port <PORT>`
 ## 4. Quy trình một phim
 
 1. Viết kịch bản — skill `viet-kich-ban`
-2. Tạo REF nhân vật rồi SF từng scene — skill `tao-prompt-sf`
+2. Tạo REF nhân vật rồi SF từng scene — skill `skills-film`
 3. Duyệt ảnh trên board, bản nào bấm duyệt là **chốt**
 4. Chia shot + viết prompt video
 5. **Bạn tự bấm nút "Cho phép tạo video"** rồi render (AI không được bật)
