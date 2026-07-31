@@ -10,7 +10,7 @@ tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.j
 dự án `PIPELINE-*.project`.
 
 Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
-đó là đủ. `references/bai-hoc.md` là **kho lịch sử 50 bài** (~25k token): chỉ mở khi (a) gặp
+đó là đủ. `references/bai-hoc.md` là **kho lịch sử 38 bài** (~15k token): chỉ mở khi (a) gặp
 lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
 viết prompt** — luật đã được chưng cất lên đây rồi.
 
