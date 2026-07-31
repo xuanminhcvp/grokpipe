@@ -126,8 +126,8 @@ hành động của beat này (giữ, tả rõ), hay nó chỉ được cài và
 
 - [ ] **SF là TRẠNG THÁI, không phải khoảnh khắc** — không ho, không che miệng, không khóc,
       không đưa tay ra. Phép thử: khung này dùng được cho ≥2–3 câu thoại khác nhau không?
-- [ ] **Đã phủ đủ trạng thái + OTS của từng trạng thái CHƯA, rồi mới làm take V2** — nếu còn
-      phải cắt frame từ video ra vá thì bậc 1–2 chưa xong.
+- [ ] **Đã phủ đủ trạng thái chưa, rồi mới tới OTS và take V2** — nếu còn phải cắt frame từ
+      video ra vá thì bậc 1 chưa xong. OTS chỉ bắt buộc cho trạng thái gánh ≥3 shot.
 
 ## SF là TRẠNG THÁI, không phải KHOẢNH KHẮC
 
@@ -152,8 +152,11 @@ Scene dài (>3 phút) làm đúng bậc thang này, xong bậc trên mới xuố
 
 1. **Đủ mọi TRẠNG THÁI** — mỗi lần nhân vật đổi tư thế/vị trí/khoảng cách là một trạng thái
    riêng. Ví dụ cụm hội thoại hai người: *bé ngồi sàn vẽ · bé đứng cạnh xe lăn · bé nắm tay ông*.
-2. **OTS / reverse cho từng trạng thái ở bậc 1** — giữ nguyên trạng thái, chỉ đổi góc. Đây là
-   thứ làm cụm thoại dài đỡ lặp, và luôn bị bỏ quên.
+2. **OTS / reverse — theo ĐỘ DÀI của trạng thái, không phải mặc định cho mọi trạng thái.**
+   Đếm số shot mà một trạng thái phải gánh:
+   - **1–2 shot** (kiểu *"Ngồi xuống." — "Tôi đứng được."*): **không cần OTS**, thêm vào là thừa.
+   - **≥3 shot cùng một trạng thái**: **bắt buộc** có OTS/reverse, nếu không khán giả nhìn y
+     một khung suốt 30 giây. Đây là chỗ luôn bị bỏ quên.
 3. **Wide / góc rộng** để thở, phục vụ nhịp không thoại — vẫn phải có người trong khung.
 4. **Take V2/V3** — CHỈ khi một SF ở trên vẫn gánh **>3 shot**.
 

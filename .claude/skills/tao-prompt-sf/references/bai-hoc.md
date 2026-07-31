@@ -662,7 +662,11 @@ và thiếu OTS tương ứng cho từng trạng thái.
 
 **Nguyên tắc:** SF mô tả **trạng thái** (ai ở đâu, đứng/ngồi, gần/xa, cầm gì, hướng nào), diễn
 xuất để prompt video lo. Phép thử: một SF phải phục vụ được ≥2–3 câu thoại khác nhau. Thứ tự
-làm: đủ trạng thái → OTS của từng trạng thái → góc rộng → take V2 chỉ khi một SF còn gánh
->3 shot. Dấu hiệu làm sai thứ tự: phải đi cắt frame từ video ra vá.
+làm: đủ trạng thái → OTS → góc rộng → take V2 chỉ khi một SF còn gánh >3 shot. Dấu hiệu làm
+sai thứ tự: phải đi cắt frame từ video ra vá.
+
+**OTS theo ĐỘ DÀI trạng thái, không rải đều:** trạng thái chỉ gánh 1–2 shot (kiểu màn giằng co
+*"Ngồi xuống." — "Tôi đứng được."*) thì OTS là thừa; trạng thái gánh **≥3 shot** thì bắt buộc
+phải có, nếu không khán giả nhìn y một khung suốt 30 giây.
 
 ---
