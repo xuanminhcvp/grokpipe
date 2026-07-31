@@ -59,7 +59,9 @@ Cách thi hành khi chia shot: gán SF theo GIAI ĐOẠN KHÔNG GIAN tuần tự
 giai đoạn trước), trong mỗi giai đoạn luân phiên và ưu tiên SF ít dùng, người nói phải có mặt
 trong khung.
 
-**Khi góc máy đã cạn mà cảnh còn dài — dùng TAKE 2 của cùng góc (user chốt 2026-07-30):** không
+**Khi góc máy đã cạn mà cảnh còn dài — dùng TAKE 2 của cùng góc (user chốt 2026-07-30).**
+"Cạn góc" nghĩa là đã XOAY HẾT các hướng khả dĩ trong bối cảnh đó (xem "Một master = cả
+căn phòng" trong SKILL.md), không phải mới dùng 3 góc quen thuộc. Take V2: không
 cần bịa thêm góc mới gượng ép; tạo `<SF-ID>-V2` là CHÍNH GÓC ĐÓ render lại — giữ nguyên bố cục,
 cỡ cảnh, trục máy, chỉ để vi sai tự nhiên về tư thế/ánh mắt/nhịp cơ thể giữa hai lần render. Ví
 dụ medium v2, OTS v2 — và được phép lên V3, V4 khi cảnh rất dài, nhưng **TỐI ĐA 4 VER cho một

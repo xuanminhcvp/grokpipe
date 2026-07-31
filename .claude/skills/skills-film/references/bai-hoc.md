@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-38 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+39 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -46,6 +46,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 36. Công thức mật độ SF do user chốt — phút × 4; và góc cận-vật bị hạ cấp
 - 37. Người ở tiền cảnh quay lưng / out nét VẪN phải có ref
 - 38. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
+- 39. Master khoá KHÔNG GIAN chứ không khoá góc máy — và địa điểm phải được CHỌN
 
 ## Vận hành & gỡ lỗi hạ tầng
 
@@ -670,3 +671,22 @@ sai thứ tự: phải đi cắt frame từ video ra vá.
 phải có, nếu không khán giả nhìn y một khung suốt 30 giây.
 
 ---
+
+
+## 39. Master khoá KHÔNG GIAN chứ không khoá góc máy — và địa điểm phải được CHỌN
+
+*Bối cảnh:* user chỉ ra sảnh biệt thự bị dùng 37 SF con trên một phim 48 phút, và mọi SF đều
+nhìn về cùng một hướng (cầu thang ở hậu cảnh) nên xem rất lặp — dù tham chiếu master vẫn đúng.
+
+**a. Master khoá không gian, KHÔNG khoá vị trí camera.** Được phép xoay 360° trong cùng bối
+cảnh. Lỗi mắc phải là viết prompt con mô tả lại đúng bố cục của master, khiến mọi SF nhìn về
+một phía. Tách bạch: *khoá* màu tường/chất liệu/đồ đạc/ánh sáng — *tự do* vị trí camera, hướng
+nhìn, cỡ cảnh. Xoay hướng mới thì phải tả thứ đáng lẽ thấy ở hướng đó, không tả thì model bịa.
+Hệ quả: một bối cảnh cho 6–8 góc thật sự khác nhau, nên **phần lớn take V2 bị lạm dụng là vì
+quên rằng còn xoay được.**
+
+**b. Kịch bản không ấn định nơi chốn thì phải CHỌN, không mặc định dùng master gần nhất.**
+Skill cũ chỉ có luật chống-lệch (địa điểm đã có thì phải tham chiếu), không có luật bắt cân
+nhắc chọn — kết quả là dồn hết vào một chỗ cho tiện. Liệt kê 2–3 phương án, chọn nơi phục vụ
+kể chuyện tốt nhất. Ngưỡng cảnh báo: một master gánh **quá ~25 SF** trên cả phim là dấu hiệu
+phải rà lại.

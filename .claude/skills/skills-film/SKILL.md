@@ -10,7 +10,7 @@ tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.j
 dự án `PIPELINE-*.project`.
 
 Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
-đó là đủ. `references/bai-hoc.md` là **kho lịch sử 38 bài** (~15k token): chỉ mở khi (a) gặp
+đó là đủ. `references/bai-hoc.md` là **kho lịch sử 39 bài** (~15k token): chỉ mở khi (a) gặp
 lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
 viết prompt** — luật đã được chưng cất lên đây rồi.
 
@@ -68,7 +68,11 @@ vật thể định đưa vào khung, hỏi: nó thuộc về không gian này m
 hành động của beat này (giữ, tả rõ), hay nó chỉ được cài vào để minh họa một câu thoại (bỏ)?
 Đừng nhầm hai loại đầu với loại thứ ba mà dọn sạch cả đồ đạc vốn phải có — xem nguyên lý 14.
 
-0. **ĐỊA ĐIỂM NÀY ĐÃ XUẤT HIỆN CHƯA?** — áp dụng cho **MỌI SF**, không riêng master: SF con,
+0. **ĐỊA ĐIỂM NÀY LÀ ĐÂU, VÀ ĐÃ XUẤT HIỆN CHƯA?** Kịch bản không ghi rõ nơi chốn thì
+   **chọn có chủ đích** trước (xem mục "Chọn ĐỊA ĐIỂM trước"), đừng mặc định dùng lại
+   master gần nhất. Chọn xong mới hỏi tiếp: địa điểm đó đã xuất hiện chưa?
+
+   **ĐÃ XUẤT HIỆN RỒI?** — áp dụng cho **MỌI SF**, không riêng master: SF con,
    nhịp không thoại, toàn cảnh, cầu nối — tất cả. Rà theo ĐỊA ĐIỂM, không theo số scene. Nếu
    công trình này (ngôi nhà, siêu thị, bệnh viện…) đã có ảnh ở BẤT KỲ scene nào trước đó thì
    BẮT BUỘC đính ảnh đó vào `refs.bg` kèm khối khóa đặt ngay đầu prompt.
@@ -128,6 +132,40 @@ hành động của beat này (giữ, tả rõ), hay nó chỉ được cài và
       không đưa tay ra. Phép thử: khung này dùng được cho ≥2–3 câu thoại khác nhau không?
 - [ ] **Đã phủ đủ trạng thái chưa, rồi mới tới OTS và take V2** — nếu còn phải cắt frame từ
       video ra vá thì bậc 1 chưa xong. OTS chỉ bắt buộc cho trạng thái gánh ≥3 shot.
+
+## Chọn ĐỊA ĐIỂM trước, rồi mới chọn góc máy
+
+Kịch bản thường chỉ cho thoại, **không ấn định nơi chốn**. Đừng mặc định nhét vào master
+sẵn có cho tiện — đó là cách cả phim quanh quẩn một chỗ.
+
+**Bước bắt buộc trước khi dựng SF cho một cụm thoại không ghi rõ địa điểm:** liệt kê 2–3
+phương án rồi chọn nơi phục vụ kể chuyện tốt nhất. Hai người giúp việc thì thầm về chủ nhà
+→ **bếp** (vừa pha trà vừa nói) tự nhiên hơn đứng giữa sảnh lớn; ai đó nói điều không muốn
+người khác nghe → chọn nơi kín.
+
+**Ngưỡng cảnh báo:** đếm số SF con của mỗi master. Một master gánh **quá ~25 SF** trên cả
+phim là dấu hiệu đang dồn quá nhiều cảnh vào một chỗ — rà lại xem cụm nào chuyển đi nơi khác
+được. Đổi địa điểm còn tạo thêm cơ hội cho ánh sáng và tông màu khác đi.
+
+## Một master = CẢ CĂN PHÒNG, không phải một góc máy
+
+Ảnh master khoá **không gian**, KHÔNG khoá vị trí camera. Hoàn toàn được phép xoay 360° trong
+cùng bối cảnh: góc ngược lại, góc từ trên chiếu nghỉ nhìn xuống, góc từ cửa bên nhìn vào.
+
+Tách bạch trong prompt:
+- **KHOÁ từ master (bất biến):** màu tường, chất liệu sàn, đồ đạc, chiều cao trần, hướng và
+  nhiệt độ ánh sáng, mức sống.
+- **TỰ DO đặt:** vị trí camera, hướng nhìn, cỡ cảnh.
+
+Lỗi hay mắc: viết prompt con **mô tả lại đúng bố cục của master** (cùng landmark ở hậu cảnh,
+cùng hướng nhìn) — thế là mọi SF của bối cảnh đó nhìn về một phía, xem rất lặp.
+
+**Khi xoay sang hướng mới, PHẢI tả thứ đáng lẽ thấy ở hướng đó** (mảng tường nào, cửa nào,
+cửa sổ nào) — không tả thì model bịa ra không gian không khớp master. Giữ trục 180° trong
+cùng một cụm hội thoại.
+
+Hệ quả quan trọng: **một bối cảnh khai thác đủ hướng cho 6–8 góc thật sự khác nhau.** Phải
+cạn góc rồi mới dùng tới take V2 — phần lớn V2 bị lạm dụng là vì quên rằng còn xoay được.
 
 ## SF là TRẠNG THÁI, không phải KHOẢNH KHẮC
 
@@ -285,4 +323,4 @@ thuộc SF/shot nào là tàn dư của kịch bản cũ.
 - **Viết prompt video (có thoại / nhịp lặng) và prompt nhạc Suno** → [references/prompt-video.md](references/prompt-video.md)
 - **Nguyên lý nền: ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** → [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Bài học tích lũy (38 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
+- **Bài học tích lũy (39 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
