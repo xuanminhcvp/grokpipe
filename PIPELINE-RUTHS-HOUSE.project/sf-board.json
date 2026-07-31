@@ -1,6 +1,6 @@
 {
   "film": "Not One Would Care for a Dying Billionaire — Until the Maid's Baby Brought the Cold Old Man to Tears",
-  "updated_at": "2026-07-31 08:47:16",
+  "updated_at": "2026-07-31 09:12:37",
   "scenes": [
     {
       "id": "REF",
@@ -1165,13 +1165,14 @@
           "id": "V-S2-4",
           "sf": "SF-S2-MAYA-PHONE",
           "dur": 10,
-          "vstatus": "",
+          "vstatus": null,
           "ai_request": "",
           "notes": "",
           "text": "AGENCY WOMAN: \"Mr. Whitmore happened. He's cruel, Ms. Bennett. Deliberately. He doesn't want help. He wants everyone to leave him alone so he can die in peace. And he's very good at making that happen.\"",
           "prompt_text": "AGENCY WOMAN: \"Mr. Whitmore happened. He's cruel, Ms. Bennett. Deliberately. He doesn't want help. He wants everyone to leave him alone so he can die in peace. And he's very good at making that happen.\"",
           "prompt": "REFS · Start frame: SF-S2-MAYA-PHONE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: ; AGENCY WOMAN = CHỈ NGHE GIỌNG qua điện thoại, KHÔNG có mặt trong khung. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nAGENCY WOMAN (off-screen) — flat, procedural, over the phone:\n\"Mr. Whitmore happened. He's cruel, Ms. Bennett. Deliberately. He doesn't want help. He wants everyone to leave him alone so he can die in peace. And he's very good at making that happen.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "music": {},
+          "vpicked": "V-S2-4_v2.mp4"
         },
         {
           "id": "V-S2-5",
@@ -4100,20 +4101,21 @@
           "sf": "SF-S7-STERLING-DESK",
           "dur": 10,
           "vstatus": "",
-          "ai_request": "",
-          "notes": "",
+          "ai_request": true,
+          "notes": "sửa lại prompt này cho chuẩn",
           "text": "NURSE: \"Sir, your father just came out of cardiac arrest. Would you like to see him first?\"\nSTERLING: \"The legal matter is time-sensitive. Who handles estate documentation here?\"\nMAYA: \"Lily, don't stare.\"",
           "prompt_text": "NURSE: \"Sir, your father just came out of cardiac arrest. Would you like to see him first?\"\nSTERLING: \"The legal matter is time-sensitive. Who handles estate documentation here?\"\nMAYA: \"Lily, don't stare.\"",
           "prompt": "REFS · Start frame: SF-S7-STERLING-DESK\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: NURSE = y tá nữ da đen 35 tuổi; STERLING = đàn ông da trắng 50 tuổi; MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nNURSE — quiet, detached:\n\"Sir, your father just came out of cardiac arrest. Would you like to see him first?\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nSTERLING — quiet, detached:\n\"The legal matter is time-sensitive. Who handles estate documentation here?\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — quiet, detached:\n\"Lily, don't stare.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "music": {},
+          "vpicked": "V-S7-2_v2.mp4"
         },
         {
           "id": "V-S7-3",
           "sf": "SF-S7-WAITING-VIV",
           "dur": 10,
           "vstatus": "",
-          "ai_request": "",
-          "notes": "",
+          "ai_request": true,
+          "notes": "thoại không chuẩn với media",
           "text": "LILY: \"But Mama — he didn't even ask if his dad's okay.\"\nMAYA: \"Shh, baby.\"\nVIVIAN: \"Is this the waiting room? Phillip, sit down. You look green.\"",
           "prompt_text": "LILY: \"But Mama — he didn't even ask if his dad's okay.\"\nMAYA: \"Shh, baby.\"\nVIVIAN: \"Is this the waiting room? Phillip, sit down. You look green.\"",
           "prompt": "REFS · Start frame: SF-S7-WAITING-VIV\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu; MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh; VIVIAN = phụ nữ da trắng 45 tuổi tóc vàng sẫm uốn sóng. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — quiet, detached:\n\"But Mama — he didn't even ask if his dad's okay.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — quiet, detached:\n\"Shh, baby.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nVIVIAN — quiet, detached:\n\"Is this the waiting room? Phillip, sit down. You look green.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
