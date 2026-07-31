@@ -42,3 +42,7 @@ Nhân vật/
 .luu-ban.log
 .video-gate
 *.project/.video-gate
+
+# chat log + snapshot nặng (không bao giờ đẩy lên git)
+_claude/sessions/
+*.project/videos/versions/

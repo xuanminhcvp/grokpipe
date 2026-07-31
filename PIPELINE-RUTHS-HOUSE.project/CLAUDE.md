@@ -1,16 +1,12 @@
-# PIPELINE-RUTHS-HOUSE — luật của dự án
+# RUTHS-HOUSE — luật riêng của phim này
 
-## ⛔ KHÔNG TỰ BẬT CỔNG VIDEO
-Video chỉ được tạo khi **user tự bấm nút** "Cho phép tạo video" trên giao diện board.
-Claude/AI **tuyệt đối không** ghi file `.video-gate`, không gọi `/api/video-gate?on=1`,
-không giả header để lách, không sửa `sfboard.py` để bỏ cổng.
-Cần render video thì **báo user và chờ user bấm nút**.
-Chi tiết: [KHONG-TU-BAT-VIDEO.md](KHONG-TU-BAT-VIDEO.md)
+Luật chung (cổng video, bản đã duyệt, 4 Chrome) nằm ở `CLAUDE.md` gốc repo.
+Chi tiết cổng video: [KHONG-TU-BAT-VIDEO.md](KHONG-TU-BAT-VIDEO.md)
 
-## Board
-`python3 sfboard/sfboard.py PIPELINE-RUTHS-HOUSE.project --port 8779`
-(8DOLLARS dùng 8778, HOOK-DUESENBERG dùng 8777)
-
-## Ảnh REF
-Ảnh user tự dán vào là **bản chuẩn tuyệt đối** — không "nâng cấp" lên bản nét hơn trong
-`versions/`, không tự crop ảnh đã duyệt. Xem bài học 46 trong skill `tao-prompt-sf`.
+- **Board: cổng 8779**
+- **Tên phim:** *Not One Would Care for a Dying Billionaire — Until the Maid's Baby
+  Brought the Cold Old Man to Tears*
+- **Quy mô:** 18 khối (HOOK + S1–S16 + CTA) · 326 clip · ~48 phút
+- **Maya** dùng lại nhân vật từ dự án 8DOLLARS, giữ nguyên mặt, đổi trang phục theo phim này.
+- **Lily** (con gái Maya, 6 tuổi): tóc xoăn **hai búi tròn** — không tết bím, không hạt cườm.
+- **An toàn trẻ em:** không đặt bé vào cảnh nguy hiểm/y tế đáng sợ. YouTube phạt nặng.

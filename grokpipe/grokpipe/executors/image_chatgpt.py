@@ -53,6 +53,10 @@ SELECTORS = {
     "assistant_image": "[data-turn='assistant'] img, [data-message-author-role='assistant'] img",
     # khối overlay Edit/tải xuất hiện khi ảnh đã sinh xong
     "image_done": "[data-testid='image-gen-overlay-actions']",
+    # thumbnail ảnh đính kèm hiện trong ô soạn (đếm để XÁC MINH upload đủ)
+    # Thumbnail ảnh đính kèm nằm trong <form> của ô soạn. Đã đo trên UI thật:
+    # "form img" = đúng số ảnh đang đính, và = 0 khi chưa đính gì.
+    "composer_attachment": "form img",
 }
 
 
@@ -179,11 +183,90 @@ class ChatGPTSession:
         except Exception:
             old_assistant_messages = 0
 
-        # đính ảnh (một lần, nhiều file, đúng thứ tự)
+        # ĐÍNH ẢNH THAM CHIẾU: up CẢ LOẠT một lần cho nhanh, rồi ĐỐI CHIẾU TỪNG
+        # ẢNH để biết CHÍNH XÁC cái nào chưa lên (so tỉ lệ khung của thumbnail với
+        # tỉ lệ khung ảnh gốc), và chỉ up bù ĐÚNG những ảnh đó.
         if attach_paths:
             finp = page.locator(SELECTORS["file_input"]).first
-            finp.set_input_files(attach_paths)
-            time.sleep(min(3 + len(attach_paths), 12))  # chờ upload
+
+            def _shapes() -> list[float]:
+                """Tỉ lệ w/h của từng thumbnail đang có trong ô soạn."""
+                try:
+                    return [r for r in page.locator(
+                        SELECTORS["composer_attachment"]).evaluate_all(
+                        "els=>els.map(e=>e.naturalHeight?e.naturalWidth/e.naturalHeight:0)")
+                        if r and r > 0]
+                except Exception:
+                    return []
+
+            def _ratio_of(path: str) -> float:
+                try:
+                    from PIL import Image
+                    with Image.open(path) as im:
+                        w, h = im.size
+                    return w / h if h else 0.0
+                except Exception:
+                    return 0.0
+
+            want_r = [_ratio_of(x) for x in attach_paths]
+
+            def _which_missing(base_shapes: list[float]) -> list[str]:
+                """Ghép thumbnail hiện có với danh sách cần đính; trả về ảnh CHƯA lên."""
+                pool = list(_shapes())
+                for b in base_shapes:                     # bỏ thumbnail có từ trước
+                    m = min(range(len(pool)), key=lambda i: abs(pool[i] - b), default=None)
+                    if m is not None and pool and abs(pool[m] - b) < 0.02:
+                        pool.pop(m)
+                lack = []
+                for path, r in zip(attach_paths, want_r):
+                    if not pool:
+                        lack.append(path); continue
+                    m = min(range(len(pool)), key=lambda i: abs(pool[i] - r))
+                    if abs(pool[m] - r) < 0.02:           # khớp tỉ lệ → ảnh này đã lên
+                        pool.pop(m)
+                    else:
+                        lack.append(path)
+                return lack
+
+            base_shapes = _shapes()
+            total = len(attach_paths)
+            want = len(base_shapes) + total
+
+            def _wait(target: int, secs: float) -> int:
+                end_t = time.time() + secs
+                n = len(_shapes())
+                while time.time() < end_t and n < target:
+                    time.sleep(1)
+                    n = len(_shapes())
+                return n
+
+            finp.set_input_files(attach_paths)              # 1 phát cả loạt
+            n_att = _wait(want, 8 + 3 * total)
+
+            for _ in range(3):
+                if n_att >= want:
+                    break
+                lack = _which_missing(base_shapes)
+                if not lack:                                # đếm lệch nhưng ghép đủ
+                    break
+                self.logger.warning(
+                    f"upload ref thiếu {len(lack)}/{total} — up bù ĐÚNG ảnh thiếu: "
+                    + ", ".join(m.split('/')[-1] for m in lack))
+                try:
+                    finp.set_input_files(lack)
+                except Exception as e:
+                    self.logger.warning(f"up bù lỗi: {str(e)[:60]}")
+                n_att = _wait(want, 6 + 3 * len(lack))
+
+            still = _which_missing(base_shapes)
+            if still:
+                self.logger.warning(
+                    "upload ref THIẾU sau khi up bù: "
+                    + ", ".join(m.split('/')[-1] for m in still)
+                    + " — hủy lượt, KHÔNG tạo ảnh khi thiếu tham chiếu")
+                return False
+            self.logger.info(f"đã đính đủ {total} ảnh tham chiếu")
+            time.sleep(1.5)
 
         # nhập prompt
         editor = page.locator(SELECTORS["composer"])
