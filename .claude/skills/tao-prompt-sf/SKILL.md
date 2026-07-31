@@ -7,8 +7,12 @@ description: Viết/sửa prompt ảnh nhân vật và Start Frame (SF) trong sf
 
 Bạn đang soạn prompt tiếng Việt để một model tạo ảnh (qua ChatGPT/CDP) render ảnh nhân vật
 tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.json` của
-dự án `PIPELINE-*.project`. Trước khi viết, đọc `references/bai-hoc.md` — kinh nghiệm
-tích lũy từ các lần sửa trước, có thể điều chỉnh/bổ sung nguyên lý dưới đây.
+dự án `PIPELINE-*.project`.
+
+Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
+đó là đủ. `references/bai-hoc.md` là **kho lịch sử 50 bài** (~25k token): chỉ mở khi (a) gặp
+lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
+viết prompt** — luật đã được chưng cất lên đây rồi.
 
 ## Cấu trúc dữ liệu cần biết
 
@@ -223,6 +227,16 @@ Khi user chỉnh sửa hoặc phát hiện lỗi trong cách viết prompt: sau 
 thành bài học **ở tầng nguyên lý** (áp dụng cho mọi nhân vật/scene, không nhắc chi tiết của
 dự án cụ thể) và ghi vào `references/bai-hoc.md`. Nếu bài học mâu thuẫn với một nguyên lý ở
 trên, báo user và đề xuất sửa nguyên lý thay vì chỉ ghi chồng lên.
+
+## Xoá hay đổi tên SF — phải quét shot mồ côi
+
+Xoá/đổi id một SF xong **bắt buộc** quét lại toàn bộ `shots[].sf` đối chiếu danh sách SF
+còn sống. Shot trỏ vào id đã chết sẽ hỏng ngay khi render video. Shot mồ côi thì gán lại
+góc cùng pha không gian, hoặc dựng lại SF. Chạy lượt quét này **lần cuối ngay trước khi
+render video hàng loạt**.
+
+Cùng lúc đó, kiểm luôn media mồ côi: ảnh trong `assets/` và video trong `videos/` không
+thuộc SF/shot nào là tàn dư của kịch bản cũ.
 
 ## Tài liệu chi tiết — đọc khi cần
 

@@ -15,9 +15,8 @@ grok_test/
 # Rác hệ thống
 .DS_Store
 
-# File chat thô (chứa mật khẩu/2FA đã dán)
+# File chat thô
 *.jsonl
-_claude/chat-export/
 
 # Ảnh/video sinh ra (nặng — chỉ giữ code, không đẩy media lên git)
 PHIM-HEIRESS/assets/
@@ -44,5 +43,4 @@ Nhân vật/
 *.project/.video-gate
 
 # chat log + snapshot nặng (không bao giờ đẩy lên git)
-_claude/sessions/
 *.project/videos/versions/
