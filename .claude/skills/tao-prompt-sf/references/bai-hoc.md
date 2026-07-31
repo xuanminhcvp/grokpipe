@@ -4,6 +4,49 @@ File này chứa kinh nghiệm rút ra từ việc viết/sửa prompt ảnh SF 
 Quy tắc ghi: mỗi bài học viết ở tầng nguyên lý (dùng được cho mọi nhân vật/scene), kèm ngày
 và lý do ngắn gọn. Không nhắc tên nhân vật/dự án cụ thể trừ khi cần minh họa.
 
+## Mục lục
+
+1. Mô tả bằng chữ không đủ để đồng bộ trang phục giữa các nhân vật
+2. Ngoại hình nhân vật phải chủ động phủ định tín hiệu cốt truyện chưa nên lộ
+3. Dặn "không dùng làm mặt" một lần là không đủ trọng số — model vẫn copy mặt
+4. Master frame mô tả bố cục bằng văn xuôi khiến địa lý bị đọc sai
+5. Không liệt kê hết bảng tên hợp lệ → model tự bịa tên cho nhân vật còn lại
+6. Đừng vá triệu chứng — hỏi trước xem nhân vật có cần ở đó không
+7. Đạo cụ bị bỏ trống mô tả là bỏ lỡ cơ hội nối với chi tiết kịch bản khác
+8. Thiếu checklist hệ thống → sót thành phần khung hình lần lượt từng cái một
+9. Sót NỘI THẤT CƠ BẢN vì "hiển nhiên", lại thừa đạo cụ vì "khai thác kịch bản"
+10. Chữ nhỏ trong ảnh wide dễ nhòe thành ký tự vô nghĩa
+11. Skill dạy viết từng prompt nhưng không dạy thiết kế BỘ góc của cả scene
+12. Mỗi shot chỉ được một người nói, nhưng đừng vì thế mà lạm dụng khung solo
+13. Chia shot quá vụn; và quy tắc lip-sync đúng là "người nói phải trong khung"
+14. Thoại "gọi/triệu tập" không cùng không gian với phần còn lại của cảnh
+15. Prompt video có FORM CHUẨN riêng — không được tự chế format
+16. Ba chuẩn ràng buộc lẫn nhau — 10s, 2-3 lượt thoại, khung hai người
+17. Sửa thoại sau khi prompt đã viết → prompt lệch âm thầm
+18. SF insert thuần đạo cụ là khung chết khi thành video
+19. Tái dùng master trước khi nghĩ tới dựng SF mới
+20. Phải TÍNH số từ trước khi chia shot, không ước lượng bằng cảm giác
+21. Thoại phải khớp với BỐ CỤC KHÔNG GIAN mình vừa dựng ra
+22. Cảnh 3 người cần tầng "rộng vừa", không nhảy thẳng từ master xuống cận
+23. Nhân vật đổi chỗ giữa hai shot mà không có nhịp chuyển → video khựng
+24. Nhân vật đổi trang phục qua các cảnh → phải tạo REF RIÊNG cho từng bộ
+25. "Nghèo" không có nghĩa là "xấu và quê" — trang phục nhân vật chính vẫn phải đẹp
+26. SF là frame ĐẦU clip → phải bằng trạng thái KẾT THÚC của clip trước
+27. Quy tắc REF trang phục áp dụng cho MỌI nhân vật, không riêng nhân vật chính
+28. Board TỰ ĐỘNG kèm _FULL → đính thêm FULL trạng thái gây thừa ảnh
+29. Khối "Nhận diện" tả trang phục càng chi tiết, model vẽ càng láo
+30. Trang phục nhân vật chính phải MÁT và NHẸ, không chỉ "đẹp"
+31. Cùng một không gian thì phải THAM CHIẾU master cũ, kể cả khi là phòng khác
+32. Phim toàn thoại là phim không có nhịp thở
+33. Ghi bài học rồi vẫn vi phạm, vì áp dụng sai phạm vi
+34. Lạm dụng chữa bằng lệnh cấm là sai, chữa bằng danh sách cũng sai
+35. Nhịp không thoại ≈ 15% số shot thoại, tính theo cả phim
+36. Chuyển động không có tác nhân — lỗi phi vật lý trong nhịp không thoại
+37. Nhạc nền — quyết VAI TRÒ trước, viết prompt sau
+38. User thay ảnh master thì mọi khối "khóa look" con thành nói dối
+49. Xoá hay đổi tên SF xong PHẢI quét shot mồ côi
+50. Cổng chặn bị NỔ trông y hệt cổng chặn ĐANG LÀM VIỆC
+
 ## Bài học 1 — 2026-07-25: Mô tả bằng chữ không đủ để đồng bộ trang phục giữa các nhân vật
 
 User phát hiện REF của một nhân vật phụ (đồng nghiệp cùng nghề với nhân vật chính) chỉ được
@@ -1112,3 +1155,52 @@ ba nhịp liền trên một hướng user chỉ mới NÊU RA, chứ chưa yêu
 4. **Cân nhắc tỉ lệ lỗi trước khi đổi quy trình.** Hỏi: lỗi này xảy ra ở bao nhiêu phần trăm
    khung? Nếu nhỏ thì render lại vài khung rẻ hơn nhiều so với đổi cả hệ REF — và ít rủi ro
    hơn hẳn.
+
+---
+
+## 47. Công thức mật độ SF do user chốt — phút × 4; và góc cận-vật bị hạ cấp
+
+**Bối cảnh:** phim 44 phút ban đầu chia SF không theo chuẩn nào — scene 4,9 phút chỉ có 11 SF
+(một khung gánh 7-8 shot liên tiếp), scene ngắn lại thừa. User xem và chốt nguyên tắc: *"cảnh
+nào càng dài thì càng cần nhiều SF hơn"*, rồi duyệt công thức:
+
+**SF ≈ phút × 4 (cứ 15 giây ≈ 1 SF) · sàn 5 SF/cảnh 1 phút · không SF nào quá 3 shot · cảnh
+>3 phút cần ≥2 góc rộng làm góc thở · thoại chỉ dùng khung có người.**
+
+Kèm một đánh giá thẩm mỹ quan trọng: **góc cận bàn tay / cận vật thể "không hay lắm"** ngay cả
+khi hình đẹp — người xem muốn thấy mặt người. Hệ quả: các khung cận-vật (bàn tay đan nhau, chìa
+khóa, lọ thuốc, đống tiền xu) bị RÚT khỏi mọi shot thoại, chỉ giữ cho vài nhịp không thoại đắt
+nhất mang tính gieo-trả (hai chiếc nhẫn, khung ảnh dựng lên), và cũng phải tiết chế.
+
+**Lưu ý thi hành:** tỉ lệ này đo bằng SỐ SF ĐƯỢC DÙNG trong shot list, không phải số SF tồn tại
+trong board. Board có thể chứa thêm SF dự phòng cho user lựa.
+
+---
+
+## 48. Người ở tiền cảnh quay lưng / out nét VẪN phải có ref
+
+**Chuyện:** dựng bộ SF cho một phim, các khung OTS và CU đều mô tả kiểu *"rìa trái tiền cảnh là
+vai và gáy của Edmund, out nét mạnh, chỉ làm khung viền"* — và tôi chỉ đính ref của người nét
+rõ. User quét ra **43 SF thiếu tham chiếu** và nhắc: *"người ở vai tiền cảnh quay lưng vẫn phải
+có tham chiếu, chứ không thì làm sao đúng được nhân vật / quần áo?"*
+
+**Nguyên tắc rút ra:**
+1. **Tên nhân vật nào xuất hiện trong prompt thì phải có ref trong `refs.chars`** — đủ cặp
+   portrait + full của đúng bộ đồ cảnh đó. Không có ngoại lệ cho "chỉ thấy vai", "out nét",
+   "quay lưng", "mờ ở rìa khung".
+2. **Vì sao quan trọng dù mờ:** màu áo và dáng người ở tiền cảnh vẫn đọc được. Khung OTS đi
+   theo cặp với khung đối diện; nếu vai out nét mặc áo màu khác thì hai khung ghép lại lộ ngay.
+   Model không có ref sẽ bịa một bộ đồ bất kỳ.
+3. **Cách rà bằng máy:** so danh sách tên riêng xuất hiện trong prompt với `refs.chars`; loại
+   trừ các câu "X KHÔNG có trong khung" và master ghi "KHÔNG CÓ NGƯỜI TRONG KHUNG NÀY".
+   Chạy kiểm này sau mỗi đợt sinh SF, trước khi render — rẻ hơn nhiều so với render lại.
+4. Liên quan bài học 39 (REF không có trần): đừng tiếc ref, cứ đính đủ.
+
+
+## Bài 49 — Xoá hay đổi tên SF xong PHẢI quét shot mồ côi
+Đợt duyệt ảnh xoá 4 SF (`SF-S1-WIDE`, `SF-S7-LILY-GLASS`, `SF-S14-WIDE-V2`, `SF-S15-REPORTER`) nhưng 9 shot vẫn trỏ vào id đã chết — nếu không quét trước khi render video thì 9 clip đó sẽ hỏng ngay khi cổng mở.
+**Nguyên tắc:** mọi thao tác xoá/đổi tên SF phải kèm một lượt quét toàn bộ `shots[].sf` đối chiếu danh sách SF còn sống; shot mồ côi thì gán lại góc cùng pha không gian hoặc dựng lại SF. Chạy lượt quét này lần cuối NGAY TRƯỚC khi mở cổng video.
+
+## Bài 50 — Cổng chặn bị NỔ trông y hệt cổng chặn ĐANG LÀM VIỆC
+`_gate_path()` tham chiếu biến `PROJ` chưa từng tồn tại → mọi lần user bấm nút mở cổng video đều nổ `NameError`, và vì hàm đọc cờ bọc trong `try/except: return False` nên giao diện vẫn hiện đúng chữ 'ĐANG KHÓA'. Nhìn từ ngoài: cổng hoạt động hoàn hảo. Thực tế: user KHÔNG THỂ mở, kể cả khi muốn.
+**Nguyên tắc:** viết xong cơ chế chặn phải kiểm CẢ HAI chiều — chiều từ chối *và* chiều cho phép. Riêng cơ chế mà chỉ user được kích hoạt thì tôi không được tự thử chiều cho phép; thay vào đó phải kiểm từng mắt riêng lẻ (hàm đọc/ghi cờ chạy không lỗi, thư mục ghi được, nút có handler) và ĐỌC LOG tìm exception, chứ không suy ra 'chưa ai bấm' từ việc không thấy gì xảy ra. `except: return False` che lỗi lập trình thành trạng thái hợp lệ — với code bảo vệ, hãy log exception trước khi trả về mặc định an toàn.

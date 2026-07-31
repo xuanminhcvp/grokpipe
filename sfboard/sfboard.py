@@ -288,7 +288,15 @@ def _pool(kind: str) -> list[str]:
     with ACC_LOCK:
         pool = [_ep(a) for a in ACCOUNTS if a["kind"] == kind and a["enabled"]]
         if kind == "vid" and not pool:
+            # Dự phòng: mở grok.com ngay trong cửa sổ ChatGPT. Chỉ chạy được nếu
+            # profile đó CŨNG đã đăng nhập grok.com — nên phải kêu to, đừng lặng
+            # lẽ đẩy việc video sang Chrome ChatGPT rồi để user tự đoán.
             pool = [_ep(a) for a in ACCOUNTS if a["kind"] == "img" and a["enabled"]]
+            if pool:
+                _LOG.warning(
+                    "KHÔNG có tài khoản Grok nào đang BẬT — việc tạo video sẽ chạy nhờ trong "
+                    "cửa sổ Chrome ChatGPT (%s). Muốn dùng đúng Chrome Grok thì vào mục Tài "
+                    "khoản trên board và BẬT tài khoản grok.", ", ".join(pool))
         return pool
 
 
@@ -411,6 +419,9 @@ def _is_dead_session_error(e: Exception) -> bool:
     return any(k in m for k in (
         "has been closed", "target closed", "browser has been closed",
         "connection closed", "websocket", "target page, context or browser",
+        # renderer bị hệ thống giết vì hết bộ nhớ ("Aw, Snap! Error code: 5").
+        # Thiếu hai khoá này thì job chết luôn thay vì mở lại phiên và thử lại.
+        "target crashed", "page crashed",
     ))
 
 
@@ -496,7 +507,9 @@ def _worker(endpoint: str, kind: str):
             _release_tl()
             return
         try:
-            _, ident, tries = QUEUE.get(timeout=2)
+            item = QUEUE.get(timeout=2)
+            _, ident, tries = item[0], item[1], item[2]
+            manual = item[3] if len(item) > 3 else False
         except queue.Empty:
             continue
         # Chrome đã bị đóng/mở lại từ lần chạy trước (ngủ khi rảnh, user tắt-bật,
@@ -508,7 +521,7 @@ def _worker(endpoint: str, kind: str):
         stop = False
         try:
             if kind == "img":
-                _generate(ident)
+                _generate(ident, manual=manual)
             else:
                 _gen_video(ident)
         except Exception as e:
@@ -522,7 +535,7 @@ def _worker(endpoint: str, kind: str):
                 if tries < len(_pool(kind)) and _alive_count(kind) > 0:
                     JOBS[ident] = {"state": "running",
                                    "msg": f"{reason} → chuyển sang tài khoản khác…"}
-                    QUEUE.put((kind, ident, tries + 1))
+                    QUEUE.put((kind, ident, tries + 1, manual))
                 else:
                     JOBS[ident] = {"state": "error",
                                    "msg": f"{reason}; không còn tài khoản nào khả dụng"}
@@ -535,7 +548,7 @@ def _worker(endpoint: str, kind: str):
             return
 
 
-def _enqueue(kind: str, ident: str, copies: int = 1):
+def _enqueue(kind: str, ident: str, copies: int = 1, manual: bool = False):
     """Xếp việc vào hàng. copies>1 = tạo nhiều bản SONG SONG cho cùng một SF,
     mỗi bản chạy trên một tài khoản khác nhau, kết quả vào versions/ để chọn."""
     _wake_all()
@@ -552,7 +565,7 @@ def _enqueue(kind: str, ident: str, copies: int = 1):
         JOBS[ident] = {"state": "running",
                        "msg": "khởi động…" if n == 0 else f"đang xếp hàng ({n} việc trước)"}
     for _ in range(copies):
-        q.put((kind, ident, 0))
+        q.put((kind, ident, 0, manual))
 
 
 BATCH: dict[str, dict] = {}      # sf_id -> {total, done, err} khi tạo nhiều bản
@@ -687,7 +700,9 @@ AUTO_LOCK = threading.Lock()
 # Mọi đường dẫn tạo video (API, auto-run, bulk) đều đi qua video_gate_on().
 # CLAUDE/AI TUYỆT ĐỐI KHÔNG ĐƯỢC BẬT CỜ NÀY. Xem KHONG-TU-BAT-VIDEO.md.
 def _gate_path() -> str:
-    return os.path.join(PROJ, ".video-gate")
+    # BOARD.dir là thư mục dự án đang mở (PROJ chưa từng tồn tại — lỗi cũ làm
+    # mọi lần bấm nút cổng video đều nổ NameError và bị từ chối).
+    return os.path.join(BOARD.dir, ".video-gate")
 
 
 def video_gate_on() -> bool:
@@ -919,6 +934,60 @@ def _grok():
     return s
 
 
+def _sync_startframe(data: dict) -> int:
+    """Dòng 'Start frame: X' trong prompt video PHẢI luôn khớp shot['sf'].
+
+    Đổi SF bằng ô chọn trên giao diện chỉ sửa shot['sf'], không đụng tới prompt —
+    thế là ảnh mang đi tạo video một đằng, prompt tả một nẻo. Đồng bộ ở đây, chỗ
+    duy nhất mọi thay đổi từ giao diện đều đi qua.
+    """
+    n = 0
+    for sc in data.get("scenes", []):
+        for sh in sc.get("shots", []):
+            sf, pr = sh.get("sf"), sh.get("prompt") or ""
+            if not sf or not pr:
+                continue
+            m = re.search(r"Start frame:\s*(\S+)", pr)
+            if m and m.group(1) != sf:
+                sh["prompt"] = pr.replace(m.group(0), "Start frame: " + sf, 1)
+                n += 1
+    if n:
+        _LOG.info("đồng bộ %d prompt video theo SF mới trên giao diện", n)
+    return n
+
+
+def _mark_picked(ident: str, key: str, filename: str) -> None:
+    """Ghi lại BẢN NÀO đang được dùng làm bản hiển thị/tải về.
+
+    key='picked' cho ảnh SF, key='vpicked' cho video. Không có nó thì sau một
+    lần render nữa là không ai biết bản đang hiện là bản nào trong dãy.
+    """
+    try:
+        data = BOARD.read()
+        hit = False
+        for sc in data.get("scenes", []):
+            for it in list(sc.get("sfs", [])) + list(sc.get("shots", [])):
+                if it.get("id") == ident:
+                    it[key] = filename; hit = True
+        if hit:
+            BOARD.write(data)
+    except Exception as e:
+        _LOG.warning("không ghi được %s cho %s: %s", key, ident, e)
+
+
+def can_touch_image(sf_id: str) -> bool:
+    """Ảnh user ĐÃ DUYỆT thì không được xoá/ghi đè — kể cả khi nghi ngờ sai ref.
+    Nghi ngờ thì BÁO user và để user quyết, không tự ghi đè quyết định của họ."""
+    try:
+        for sc in BOARD.read().get("scenes", []):
+            for f in sc.get("sfs", []):
+                if f.get("id") == sf_id:
+                    return f.get("status") != "approved"
+    except Exception:
+        pass
+    return True
+
+
 def _sf_attachments(sf: dict) -> tuple[list[str], list[str], list[str]]:
     """Resolve refs của SF; tự kèm full-body khi nhân vật có sẵn ảnh FULL.
 
@@ -933,16 +1002,16 @@ def _sf_attachments(sf: dict) -> tuple[list[str], list[str], list[str]]:
         return parts[1] if len(parts) > 1 else rid
 
     explicit_full = {person(c) for c in chars if c.endswith("_FULL")}
-    requested: list[str] = []
+    # ẢNH BỐI CẢNH ĐÍNH ĐẦU TIÊN: khi upload rớt file thì file CUỐI rụng trước,
+    # mà mất bối cảnh là hỏng cả khung (nhân vật còn có thể đoán, bối cảnh thì
+    # model bịa ra một căn phòng khác hẳn).
+    requested: list[str] = [refs["bg"]] if refs.get("bg") else []
     for rid in chars:
         requested.append(rid)
         if rid.endswith("_PORTRAIT") and person(rid) not in explicit_full:
             full_id = rid.removesuffix("_PORTRAIT") + "_FULL"
             if BOARD.find_file(full_id):
                 requested.append(full_id)
-    if refs.get("bg"):
-        requested.append(refs["bg"])
-
     # Giữ đúng thứ tự portrait → full-body của từng nhân vật, không đính trùng.
     ids = list(dict.fromkeys(requested))
     attach, missing = [], []
@@ -987,11 +1056,22 @@ def _gen_video(shot_id: str):
     if not ok or not out or not os.path.exists(out):
         raise RuntimeError("Grok không trả về video")
     with BOARD_LOCK:
+        # BẢN ĐÃ DUYỆT LÀ BẢN CHỐT: user bấm duyệt tức là chốt đúng bản đó để
+        # hiển thị và tải về. Bản render sau chỉ nằm trong versions/ để so, tuyệt
+        # đối không đè. Muốn thay thì user bỏ duyệt trước.
+        cur = BOARD.get_shot(shot_id)[0] or {}
+        if cur.get("vstatus") == "approved" and BOARD.video_file(shot_id):
+            _LOG.info("%s ĐÃ DUYỆT — giữ nguyên bản chốt, bản mới nằm ở versions/%s",
+                      shot_id, os.path.basename(out))
+            JOBS[shot_id] = {"state": "done",
+                             "msg": "xong — đã duyệt nên giữ bản cũ, bản mới ở dãy bản"}
+            return
         BOARD.set_video(shot_id, out)
+        _mark_picked(shot_id, "vpicked", os.path.basename(out))
     JOBS[shot_id] = {"state": "done", "msg": "xong"}
 
 
-def _generate(sf_id: str):
+def _generate(sf_id: str, manual: bool = False):
     """Chạy trong một luồng thợ. Lỗi hết lượt / cửa sổ chết được ném lên cho
     worker phân loại và chuyển việc sang tài khoản khác."""
     sf = BOARD.get_sf(sf_id)
@@ -1007,7 +1087,7 @@ def _generate(sf_id: str):
 
     in_batch = sf_id in BATCH
     ok, out = False, None
-    for attempt in range(2):        # 1 lần mở lại phiên nếu tab (không phải cửa sổ) chết
+    for attempt in range(4):        # 3 lần mở lại phiên nếu tab crash / bị đóng
         if not in_batch:            # đang chạy theo lô thì để _batch_tick lo thông báo
             JOBS[sf_id] = {
                 "state": "running",
@@ -1024,10 +1104,12 @@ def _generate(sf_id: str):
             raise RuntimeError("ChatGPT không trả về ảnh (thử lại hoặc kiểm tra tab ChatGPT)")
         except Exception as e:
             _drop_reserved(out); out = None
-            if attempt == 0 and _is_dead_session_error(e) and _endpoint_alive(_TL.endpoint):
+            if attempt < 3 and _is_dead_session_error(e) and _endpoint_alive(_TL.endpoint):
                 _release_tl()
+                time.sleep(4 + 4 * attempt)   # cho Chrome kịp thu hồi bộ nhớ
                 if not in_batch:
-                    JOBS[sf_id] = {"state": "running", "msg": "tab đã đóng → mở lại phiên…"}
+                    JOBS[sf_id] = {"state": "running",
+                                   "msg": f"tab chết → mở lại phiên (lần {attempt + 2})…"}
                 continue
             if _batch_tick(sf_id, ok=False):
                 return              # lô tự tổng kết, không ném lỗi ra worker
@@ -1037,10 +1119,26 @@ def _generate(sf_id: str):
             return
         raise RuntimeError("ChatGPT không trả về ảnh (thử lại hoặc kiểm tra tab ChatGPT)")
     with BOARD_LOCK:
-        # trong một lô, chỉ bản XONG ĐẦU TIÊN được đặt làm ảnh đang dùng;
-        # các bản sau chỉ nằm trong versions/ để bạn bấm chọn
-        if not (in_batch and BOARD.find_file(sf_id)):
+        # TÔN TRỌNG LỰA CHỌN CỦA USER: nếu user đã bấm chọn một bản (picked)
+        # hoặc đã DUYỆT SF này, bản render mới chỉ nằm trong versions/ để
+        # user tự so — TUYỆT ĐỐI không ghi đè ảnh chính.
+        sf_now = BOARD.get_sf(sf_id) or {}
+        # Khoá chỉ chặn render TỰ ĐỘNG (auto-run, guard, lô nền) đè lên bản user
+        # đã chọn. User tự bấm "Tạo ảnh" là chủ động muốn bản mới → phải đè,
+        # nếu không thì nhìn như "tạo xong mà không tải về".
+        # ĐÃ DUYỆT = chốt tuyệt đối, kể cả user tự bấm "Tạo lại" (muốn thay thì
+        # bỏ duyệt trước). Chỉ "picked" mới nhường cho cú bấm tay.
+        user_locked = (sf_now.get("status") == "approved") or (
+            (not manual) and bool(sf_now.get("picked")))
+        if user_locked and BOARD.find_file(sf_id):
+            if sf_now.get("status") == "approved":
+                _LOG.info("%s ĐÃ DUYỆT — giữ nguyên bản chốt, bản mới ở versions/%s",
+                          sf_id, os.path.basename(out))
+                JOBS[sf_id] = {"state": "done",
+                               "msg": "xong — đã duyệt nên giữ bản cũ, bản mới ở dãy bản"}
+        elif not (in_batch and BOARD.find_file(sf_id)):
             BOARD.set_current(sf_id, out)
+            _mark_picked(sf_id, "picked", os.path.basename(out))
     if _batch_tick(sf_id, ok=True):
         return
     JOBS[sf_id] = {"state": "done", "msg": "xong"}
@@ -1153,6 +1251,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, HTML.encode("utf-8"), "text/html; charset=utf-8")
         elif u.path == "/api/board":
             self._json(BOARD.read())
+        elif u.path == "/api/video-gate":
+            # CHỈ ĐỌC trạng thái cổng. Việc bật/tắt nằm ở do_POST và chỉ chấp
+            # nhận cú bấm phát ra từ trang web (xem KHONG-TU-BAT-VIDEO.md).
+            self._json({"ok": True, "on": video_gate_on()})
         elif u.path == "/api/jobs":
             self._json({"jobs": JOBS, "auto": _auto_status(),
                         "mtime": int(os.path.getmtime(BOARD.path))})
@@ -1186,7 +1288,9 @@ class Handler(BaseHTTPRequestHandler):
         sf_id = q.get("sf", [""])[0]
 
         if u.path == "/api/board":
-            BOARD.write(json.loads(raw.decode("utf-8")))
+            data = json.loads(raw.decode("utf-8"))
+            _sync_startframe(data)   # đổi SF trên board thì prompt phải đổi theo
+            BOARD.write(data)
             self._json({"ok": True, "mtime": int(os.path.getmtime(BOARD.path))})
         elif u.path == "/api/upload":
             if not re.match(r"^[A-Za-z0-9_\-]+$", sf_id):
@@ -1199,18 +1303,42 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/generate":
             if JOBS.get(sf_id, {}).get("state") == "running":
                 self._json({"ok": False, "err": "đang chạy"}); return
-            _enqueue("img", sf_id, int(q.get("n", ["1"])[0] or 1))
+            with BOARD_LOCK:                 # user chủ động tạo lại → bỏ khoá cũ
+                data = BOARD.read(); ch = False
+                for sc in data.get("scenes", []):
+                    for sfd in sc.get("sfs", []):
+                        if sfd.get("id") == sf_id and "picked" in sfd:
+                            del sfd["picked"]; ch = True
+                if ch:
+                    BOARD.write(data)
+            _enqueue("img", sf_id, int(q.get("n", ["1"])[0] or 1), manual=True)
             self._json({"ok": True})
         elif u.path == "/api/pick-version":
             f = q.get("file", [""])[0]
             src = os.path.join(BOARD.versions, os.path.basename(f))
             if os.path.isfile(src):
                 BOARD.set_current(sf_id, src)
+                # GHI NHỚ lựa chọn của user: các lần render sau sẽ chỉ thêm bản
+                # mới vào versions/, KHÔNG được ghi đè bản user đã chọn.
+                with BOARD_LOCK:
+                    data = BOARD.read()
+                    for sc in data.get("scenes", []):
+                        for sfd in sc.get("sfs", []):
+                            if sfd.get("id") == sf_id:
+                                sfd["picked"] = os.path.basename(src)
+                    BOARD.write(data)
                 self._json({"ok": True})
             else:
                 self._json({"ok": False, "err": "không thấy bản này"}, 404)
         elif u.path == "/api/delete-files":
             BOARD.delete_sf_files(sf_id)
+            with BOARD_LOCK:
+                data = BOARD.read()
+                for sc in data.get("scenes", []):
+                    for sfd in sc.get("sfs", []):
+                        if sfd.get("id") == sf_id and "picked" in sfd:
+                            del sfd["picked"]
+                BOARD.write(data)
             self._json({"ok": True})
         # ---------- accounts ----------
         elif u.path == "/api/auto":
@@ -1326,6 +1454,7 @@ class Handler(BaseHTTPRequestHandler):
             src = os.path.join(BOARD.vversions, os.path.basename(f))
             if os.path.isfile(src):
                 BOARD.set_video(sf_id, src)
+                _mark_picked(sf_id, "vpicked", os.path.basename(src))
                 self._json({"ok": True})
             else:
                 self._json({"ok": False, "err": "không thấy bản này"}, 404)
@@ -1508,7 +1637,10 @@ select{font:inherit;background:var(--panel2);color:var(--tx);border:1px solid va
 .shot{display:flex;gap:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;
 padding:11px;margin-bottom:10px;box-shadow:var(--shadow)}
 .shot.warn-sf{border-color:var(--badline)}
-.sf-side{flex:none;width:200px;display:flex;flex-direction:column;gap:6px}
+.sf-side{flex:none;width:460px;display:flex;flex-direction:column;gap:6px}
+/* ảnh SF co giãn cùng nhịp với khung video để hai bên luôn bằng nhau */
+@media (max-width:1500px){.sf-side{width:340px}}
+@media (max-width:1200px){.sf-side{width:250px}}
 .sf-side .fr{aspect-ratio:16/9;background:var(--deep);border-radius:8px;overflow:hidden;border:1px solid var(--line);
 display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
 .sf-side .fr img{width:100%;height:100%;object-fit:cover}
@@ -1546,9 +1678,36 @@ details.scr summary{padding:8px 11px;font-size:12.5px;color:var(--tx2)}
 details.scr pre{white-space:pre-wrap;word-break:break-word;margin:0;padding:12px 14px;
 border-top:1px solid var(--line);font:12.5px/1.85 ui-monospace,Menlo,monospace;color:var(--tx);
 max-height:420px;overflow:auto;background:var(--deep);border-radius:0 0 9px 9px}
+
+/* ---- thanh nhảy scene bên trái ---- */
+#snav{position:fixed;left:0;top:var(--hdrh,52px);bottom:0;width:132px;overflow-y:auto;z-index:40;
+padding:10px 6px 20px;background:var(--hdr);border-right:1px solid var(--line);
+backdrop-filter:blur(8px)}
+#snav .snav-t{font-size:10.5px;font-weight:700;color:var(--tx2);padding:0 6px 6px;
+letter-spacing:.4px;text-transform:uppercase}
+#snav a{display:block;text-decoration:none;color:inherit;padding:5px 7px;border-radius:7px;
+margin-bottom:3px;border:1px solid transparent;cursor:pointer}
+#snav a:hover{background:var(--tagbg2);border-color:var(--line)}
+#snav a.cur{background:var(--tagbg2);border-color:var(--acc)}
+#snav .r1{display:flex;align-items:baseline;gap:5px}
+#snav .sv{font-family:ui-monospace,monospace;font-size:11.5px;font-weight:700;color:var(--acc)}
+#snav .sp{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--tx2)}
+#snav a.full .sp{color:var(--ok,#1a7f37)}
+#snav .bar{height:4px;border-radius:3px;background:var(--line);margin-top:4px;overflow:hidden}
+#snav .bar i{display:block;height:100%;background:var(--acc);border-radius:3px;
+transition:width .25s}
+#snav a.full .bar i{background:var(--ok,#1a7f37)}
+#snav .tot{margin-top:8px;padding:7px;border-top:1px solid var(--line);font-size:11px}
+body.hasnav main{padding-left:146px}
+section.scene{scroll-margin-top:calc(var(--hdrh,52px) + 12px)}
+@media (max-width:1100px){#snav{display:none}body.hasnav main{padding-left:18px}}
+
 /* ---- lớp video ---- */
 .shot.vok{border-color:var(--okline)}
-.v-side{flex:none;width:230px;display:flex;flex-direction:column;gap:6px}
+.v-side{flex:none;width:460px;display:flex;flex-direction:column;gap:6px}
+/* màn hẹp thì khung video co lại theo, không đẩy vỡ hàng */
+@media (max-width:1500px){.v-side{width:340px}}
+@media (max-width:1200px){.v-side{width:250px}}
 .vbox{position:relative;aspect-ratio:16/9;background:var(--deep);border:1px solid var(--line);
 border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .vbox.drop{outline:2px dashed var(--acc);outline-offset:-6px}
@@ -1556,6 +1715,11 @@ border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-conten
 .vempty{color:var(--tx2);font-size:11.5px;text-align:center;line-height:1.6;padding:10px}
 .vempty span{font-size:10.5px;opacity:.75}
 .vacts{display:flex;gap:4px;flex-wrap:wrap}
+.vnotes{min-height:50px;font-size:12px;padding:7px 9px;width:100%;resize:vertical}
+.noterow{display:flex;justify-content:flex-end;margin-top:-2px}
+/* có ghi chú thì viền cam để lướt mắt là thấy dòng nào đang vướng */
+.shot.hasnote{border-color:var(--warn)}
+.shot.hasnote .vnotes{border-color:var(--warn);background:var(--panel)}
 .v-side .vers{display:flex;gap:3px;flex-wrap:wrap}
 /* ---- dán ảnh ---- */
 .card.sel{outline:2px solid var(--acc);outline-offset:2px}
@@ -1568,6 +1732,8 @@ cursor:pointer;transition:.15s}
 .pastebox .big{font-size:26px;line-height:1}
 /* ---- yêu cầu AI ---- */
 button.ai{border-color:var(--acc);color:var(--acc)}
+/* bản đang được dùng làm bản hiển thị/tải về */
+button.vpick{border-color:var(--ok,#1a7f37);color:var(--ok,#1a7f37);font-weight:700}
 button.ai.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .shot.vbad{border-left:3px solid var(--bad)}
 .shot.vnew{border-left:3px solid var(--warn)}
@@ -1586,7 +1752,10 @@ button.auto-b.on{background:#1f6f3f;color:#fff;border-color:#2a8a50;animation:au
 @keyframes autopulse{0%,100%{opacity:1}50%{opacity:.68}}
 #runall.on{background:var(--bad);border-color:var(--bad);color:#fff}
 .chip.ai{color:var(--acc);border-color:var(--acc);cursor:pointer}
-.aidone{font-size:11.5px;color:var(--ok);padding:2px 0}
+.aidone{font-size:11.5px;color:var(--ok);padding:2px 0;display:flex;align-items:center;gap:6px}
+.aidone .x{margin-left:auto;cursor:pointer;border:1px solid var(--line);background:var(--panel);
+border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;color:var(--tx2)}
+.aidone .x:hover{border-color:var(--bad);color:var(--bad)}
 </style></head><body>
 
 <header>
@@ -1616,6 +1785,7 @@ button.auto-b.on{background:#1f6f3f;color:#fff;border-color:#2a8a50;animation:au
     <option value="err">⚠ Lỗi khi tạo</option>
     <option value="gap">⏱ Trống thời lượng</option>
     <option value="stale">⚠ Prompt lệch thoại</option>
+    <option value="note">📝 Có ghi chú cần fix</option>
     <option value="nosf">Thiếu ảnh SF</option>
     <option value="beat">▶ Nhịp không thoại</option>
     <option value="talk">💬 Cảnh có thoại</option>
@@ -1625,6 +1795,7 @@ button.auto-b.on{background:#1f6f3f;color:#fff;border-color:#2a8a50;animation:au
   <span class="save" id="save"></span>
 </header>
 
+<nav id="snav"></nav>
 <main>
   <div class="toolbar">
     <button class="pri" onclick="addScene()">+ Thêm scene</button>
@@ -1647,6 +1818,9 @@ button.auto-b.on{background:#1f6f3f;color:#fff;border-color:#2a8a50;animation:au
 </main>
 
 <dialog id="lightbox"><div class="dlg-h"><b id="lb-t"></b><span style="flex:1"></span>
+<span id="lb-n" style="opacity:.6;margin-right:10px"></span>
+<button onclick="lbNav(-1)" title="Ảnh trước (phím ←)">‹</button>
+<button onclick="lbNav(1)" title="Ảnh sau (phím →)">›</button>
 <button onclick="lightbox.close()">Đóng</button></div><img id="lb-i"></dialog>
 
 <script>
@@ -1787,13 +1961,28 @@ function aiReqs(){
 }
 function aiChip(){
   const n=aiReqs().length;
-  return n?`<span class="chip ai" onclick="showAI()">🤖 ${n} yêu cầu cho AI</span>`:'';
+  return n?`<span class="chip ai" onclick="showAI()" title="Bấm để copy danh sách gửi AI">🤖 ${n} yêu cầu cho AI</span>`
+   +`<span class="chip" onclick="clearAI()" style="cursor:pointer"
+      title="Đã xử lý xong đợt này — bỏ cờ 🤖 của tất cả, giữ nguyên ghi chú">✕ dọn yêu cầu</span>`:'';
 }
 function showAI(){
   const r=aiReqs();
   const txt=r.map(x=>`${x.kind} ${x.id}: ${x.note||'(chưa ghi chú)'}`).join('\n');
   navigator.clipboard.writeText(txt);
-  alert('Đã copy danh sách yêu cầu:\n\n'+txt+'\n\nDán vào chat, hoặc chỉ cần nhắn AI \"xử lý yêu cầu trên bảng\".');
+  alert('Đã copy '+r.length+' yêu cầu:\n\n'+txt+
+        '\n\nDán vào chat, hoặc nhắn AI \"xử lý yêu cầu trên bảng\".'+
+        '\n\nXong việc thì bấm nút \"✕ dọn yêu cầu\" cạnh chip để bỏ cờ 🤖 hàng loạt.');
+}
+// Dọn cờ 🤖 hàng loạt — làm xong một đợt thì bỏ hết cờ cũ để đánh dấu đợt mới,
+// không phải bấm tay từng thẻ. KHÔNG đụng tới ô ghi chú.
+function clearAI(){
+  const r=aiReqs();
+  if(!r.length)return;
+  if(!confirm('Bỏ cờ 🤖 của '+r.length+' mục đã đánh dấu?\n\n'+
+              'Ô ghi chú GIỮ NGUYÊN, chỉ bỏ dấu "cần AI xử lý".'))return;
+  allSF().forEach(x=>{if(x.f.ai_request){delete x.f.ai_request;delete x.f.ai_done}});
+  allShots().forEach(x=>{if(x.sh.ai_request){delete x.sh.ai_request;delete x.sh.ai_done}});
+  save();render();
 }
 
 let RUNALL={active:false,stop:false};
@@ -1883,6 +2072,61 @@ async function exportCapCut(){
   b.disabled=false;b.textContent='🎬 Xuất CapCut';
 }
 
+
+// ══ THANH NHẢY SCENE (trái) ══ mỗi scene một dòng + % ĐÃ DUYỆT của chế độ đang xem.
+// Chế độ Kịch bản đếm video đã duyệt (vstatus), chế độ Start frames đếm SF đã duyệt.
+function snav(){
+  const nav=document.getElementById('snav');
+  const scenes=(DATA.scenes||[]).filter(s=>s.id!=='REF');
+  if(!scenes.length){nav.innerHTML='';document.body.classList.remove('hasnav');return}
+  document.body.classList.add('hasnav');
+  const vid = VIEW==='script';
+  let dTot=0,nTot=0;
+  const rows=scenes.map(sc=>{
+    const items = vid ? (sc.shots||[]) : (sc.sfs||[]);
+    const n = items.length;
+    const d = vid ? items.filter(x=>x.vstatus==='approved').length
+                  : items.filter(x=>x.status==='approved').length;
+    dTot+=d; nTot+=n;
+    const pct = n?Math.round(d*100/n):0;
+    return `<a onclick="jumpScene('${sc.id}')" id="nv-${sc.id}" class="${n&&d===n?'full':''}">
+      <span class="r1"><span class="sv">${esc(sc.id)}</span><span class="sp">${n?pct+'%':'—'}</span></span>
+      <span class="bar"><i style="width:${pct}%"></i></span></a>`;
+  }).join('');
+  const tp = nTot?Math.round(dTot*100/nTot):0;
+  nav.innerHTML=`<div class="snav-t">${vid?'Video':'Start frame'}</div>${rows}
+    <div class="tot"><b>${tp}%</b> — ${dTot}/${nTot} đã duyệt</div>`;
+  markScene();
+}
+// bọc render: vẽ xong ở BẤT KỲ chế độ nào cũng cập nhật lại thanh bên trái
+(function(){const _r=render;render=function(){_r.apply(this,arguments);snav();};})();
+function syncHdr(){
+  const h=document.querySelector('header');
+  if(h)document.documentElement.style.setProperty('--hdrh',h.offsetHeight+'px');
+}
+syncHdr();
+window.addEventListener('resize',syncHdr);
+if(window.ResizeObserver){
+  const h=document.querySelector('header');
+  if(h)new ResizeObserver(syncHdr).observe(h);
+}
+function jumpScene(id){
+  const el=document.getElementById('sc-'+id);
+  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function markScene(){
+  const ss=[...document.querySelectorAll('section.scene')];
+  if(!ss.length)return;
+  let cur=ss[0];
+  const hh=(document.querySelector('header')||{}).offsetHeight||52;
+  for(const s of ss){ if(s.getBoundingClientRect().top<=hh+40) cur=s; }
+  document.querySelectorAll('#snav a').forEach(a=>a.classList.remove('cur'));
+  const a=document.getElementById('nv-'+cur.id.slice(3));
+  if(a)a.classList.add('cur');
+}
+let _mkT=null;
+window.addEventListener('scroll',()=>{clearTimeout(_mkT);_mkT=setTimeout(markScene,60)});
+
 function render(){
   stats();
   $('#filter').style.display = VIEW==='sf'?'':'none';
@@ -1894,14 +2138,14 @@ function render(){
   $('#hint').innerHTML = VIEW==='script'
     ? 'Badge <b>≈Xs / Ys</b> = ước lượng thời lượng thoại so với độ dài video — <b style="color:var(--bad)">đỏ = thừa lời</b>, <b style="color:var(--warn)">cam = trống</b> · <b>＋ Thêm dưới</b> để chèn video rồi tự copy–paste thoại sang'
     : 'Kéo–thả hoặc <b>Ctrl+V</b> ảnh vào ô “Tạo SF mới” để dùng lại frame · bấm thẻ SF (Shift+bấm nếu đã có ảnh) rồi Ctrl+V để thay ảnh · <b>Tạo ảnh</b> để ChatGPT vẽ';
-  if(VIEW==='script'){renderScript();return}
+  if(VIEW==='script'){renderScript();snav();return}
   const fl=$('#filter').value;
   const keep=f=>fl==='all'?1:fl==='noimg'?!f.image:fl==='pending'?f.status==='proposed':f.status===fl;
   const root=$('#root');root.innerHTML='';
   if(!DATA.scenes.length){root.innerHTML='<div class="empty-all">Chưa có scene. Bấm “+ Thêm scene”.</div>';return}
   DATA.scenes.forEach(sc=>{
     const list=sc.sfs.filter(keep);
-    const el=document.createElement('section');el.className='scene';
+    const el=document.createElement('section');el.className='scene';el.id='sc-'+sc.id;
     // tổng thời lượng scene + mật độ SF, để căn xem scene này cần bao nhiêu góc
     const shs=sc.shots||[];
     const secs=shs.reduce((a,s)=>a+(s.dur||10),0);
@@ -1961,7 +2205,7 @@ function renderScript(){
     if(flt!=='all'&&!shots.length)return;          // scene không còn gì để xử lý → ẩn
     const secs=all.reduce((a,s)=>a+(s.dur||10),0);
     const done=all.filter(s=>{const f=sfById(s.sf);return f&&f.image}).length;
-    const el=document.createElement('section');el.className='scene';
+    const el=document.createElement('section');el.className='scene';el.id='sc-'+sc.id;
     el.innerHTML=`<div class="scene-h"><span class="sid">${esc(sc.id)}</span><h2>${esc(sc.name)}</h2>
       <span style="flex:1"></span>
       <span class="scene-sum">${all.length?`${done}/${all.length} video có SF · ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`:'chưa chia shot'}</span>
@@ -2007,6 +2251,50 @@ async function toggleGate(){
   GATE_ON=!!r.on; paintGate();
 }
 
+
+// ══ LIGHTBOX ĐIỀU HƯỚNG ‹ › ══ danh sách ảnh theo đúng thứ tự đang hiển thị.
+let LB_LIST=[],LB_IDX=-1;
+function lbOpen(items,idx){
+  LB_LIST=items;LB_IDX=idx;lbShow();lightbox.showModal();
+}
+function lbShow(){
+  if(LB_IDX<0||LB_IDX>=LB_LIST.length)return;
+  const it=LB_LIST[LB_IDX];
+  document.getElementById('lb-t').textContent=it.t;
+  document.getElementById('lb-i').src=it.src;
+  document.getElementById('lb-n').textContent=(LB_IDX+1)+'/'+LB_LIST.length;
+}
+function lbNav(d){
+  if(!LB_LIST.length)return;
+  LB_IDX=(LB_IDX+d+LB_LIST.length)%LB_LIST.length;lbShow();
+}
+document.addEventListener('keydown',e=>{
+  if(!document.getElementById('lightbox').open)return;
+  if(e.key==='ArrowLeft'){e.preventDefault();lbNav(-1)}
+  else if(e.key==='ArrowRight'){e.preventDefault();lbNav(1)}
+});
+function lbCollect(){
+  // Gom theo ĐÚNG thứ tự thẻ đang hiển thị trên trang, nhưng lấy ẢNH GỐC và
+  // nhãn từ DATA (không đoán URL từ src thu nhỏ — trước đây ghép sai nên
+  // findIndex luôn trượt và lightbox mở ở cuối danh sách).
+  const byId={};
+  (DATA.scenes||[]).forEach(sc=>(sc.sfs||[]).forEach(f=>{byId[f.id]=f}));
+  const out=[];
+  document.querySelectorAll('.thumb[data-sf]').forEach(th=>{
+    if(th.closest('#lightbox'))return;
+    const f=byId[th.dataset.sf];
+    if(f&&f.image)out.push({id:f.id,src:f.image,t:f.id+' — '+(f.label||'')});
+  });
+  return out;
+}
+function lbOpenAt(f){
+  // Mở lightbox ĐÚNG tại ảnh vừa bấm, để ‹ › đi tiếp từ chính nó.
+  const L=lbCollect();
+  let i=L.findIndex(x=>x.id===f.id);
+  if(i<0){L.push({id:f.id,src:f.image,t:f.id+' — '+(f.label||'')});i=L.length-1}
+  lbOpen(L,i);
+}
+
 function vbulkBar(shown,hidden){
   const b=$('#vbulk'), fl=$('#vfilter').value;
   // chỉ cho tạo lại hàng loạt ở những nhóm thật sự cần render lại —
@@ -2047,6 +2335,7 @@ function vcat(sh){
     err:(JOBS[sh.id]||{}).state==='error',
     gap:((sh.dur||10)-sec)>3.2,
     stale:stale(sh),
+    note:!!(sh.notes||'').trim(),
     nosf:!f||!f.image,
     beat:/-B\d+$/.test(sh.id),          // nhịp không thoại: id kết thúc bằng -B<số>
     talk:!/-B\d+$/.test(sh.id),
@@ -2113,7 +2402,7 @@ function shotRow(sc,sh,idx){
   const st=f?(ST[f.status]||ST.proposed):null;
   d.innerHTML=`
     <div class="sf-side">
-      <div class="fr">${f&&f.image?`<img src="${thumb(f.image,320)}" loading="lazy" decoding="async">
+      <div class="fr">${f&&f.image?`<img src="${thumb(f.image,640)}" loading="lazy" decoding="async">
           <span class="sf-badge ${st[0]}">${st[1]}</span>`
         :`<div class="no">${f?'SF chưa có ảnh':'chưa gán SF'}</div>`}</div>
       <div class="pick">
@@ -2140,6 +2429,13 @@ function shotRow(sc,sh,idx){
       <details><summary>Prompt video (sửa được)</summary>
         <textarea data-k="prompt" spellcheck="false" placeholder="Prompt gửi Grok…">${esc(sh.prompt||'')}</textarea></details>
       ${musicBox(sh)}
+      <textarea class="notes vnotes" data-k="notes"
+        placeholder="Ghi chú chung cho video này — SF chưa đúng, prompt cần sửa, thoại, tham chiếu…">${esc(sh.notes||'')}</textarea>
+      <div class="noterow">
+        <button class="sm ai ${sh.ai_request?'on':''}" data-va="ai"
+          title="Ghi rõ vấn đề ở ô trên rồi bấm — mục này vào danh sách yêu cầu AI ở header">
+          ${sh.ai_request?'✓ đã gửi AI':'🤖 Yêu cầu AI'}</button>
+      </div>
     </div>
     <div class="v-side">
       <div class="vbox">
@@ -2149,22 +2445,23 @@ function shotRow(sc,sh,idx){
         ${sh.vstatus==='approved'?'<span class="badge ok">DUYỆT</span>':sh.vstatus==='rejected'?'<span class="badge bad">LOẠI</span>':''}
       </div>
       ${(sh.vversions&&sh.vversions.length>1)?`<div class="vers">${sh.vversions.map((v,i)=>
-        `<button class="sm" data-vv="${v.file}" title="${v.at}">v${i+1}</button>`).join('')}</div>`:''}
+        `<button class="sm${v.file===sh.vpicked?' vpick':''}" data-vv="${v.file}"
+          title="${v.at}${v.file===sh.vpicked?' — ĐANG DÙNG':''}">v${i+1}${
+          v.file===sh.vpicked?(sh.vstatus==='approved'?' ✓':' •'):''}</button>`).join('')}</div>`:''}
       <div class="vacts">
         <button class="sm pri" data-va="gen" ${vrun?'disabled':''}>${sh.video?'Tạo lại':'Tạo video'}</button>
         <button class="sm ok-b" data-va="approved">✓</button>
         <button class="sm bad-b" data-va="rejected">✕</button>
-        <button class="sm ai ${sh.ai_request?'on':''}" data-va="ai" title="Nhờ AI viết lại prompt / sửa lời thoại">🤖</button>
         ${sh.video?`<button class="sm" data-va="frame" title="Tua video tới khung ưng ý rồi bấm — lưu khung đó thành SF mới (tự chọn dòng dùng sau)">📸→SF</button>`:''}
         ${sh.video?`<button class="sm" data-va="framedown" title="Tua video tới khung cuối rồi bấm — cắt khung đó thành SF và GÁN LUÔN cho video ngay bên dưới, để hai clip nối liền không bị khựng">📸↓</button>`:''}
         ${sh.video?`<a class="sm dl" href="${sh.video}?dl=1&name=${encodeURIComponent(sh.id)}" download="${sh.id}.mp4" title="Tải video về máy">⬇</a>`:''}
         ${sh.video?'<button class="sm bad-b" data-va="delv">🗑</button>':''}
       </div>
       ${vjob.state==='error'?`<div class="err" style="padding:0">⚠ ${esc(vjob.msg)}</div>`:''}
-      ${sh.ai_done?`<div class="aidone">🤖 ${esc(sh.ai_done)}</div>`:''}
+      ${sh.ai_done?`<div class="aidone"><span>🤖 ${esc(sh.ai_done)}</span>
+        <span class="x" data-va="donex" title="Xong việc này rồi — xoá dòng báo để ghi yêu cầu mới">✕ dọn</span></div>`:''}
     </div>`;
-  d.querySelector('.fr').onclick=()=>{if(f&&f.image){$('#lb-t').textContent=f.id+' — '+(f.label||'');
-    $('#lb-i').src=f.image;lightbox.showModal()}};
+  d.querySelector('.fr').onclick=()=>{if(f&&f.image)lbOpenAt(f)};
 
   d.querySelectorAll('[data-mcopy]').forEach(b=>b.onclick=async()=>{
     const t=d.querySelector(`[data-mk="${b.dataset.mcopy}"]`);
@@ -2187,18 +2484,32 @@ function shotRow(sc,sh,idx){
     await load();});
   d.querySelectorAll('[data-va]').forEach(b=>b.onclick=async()=>{
     const a=b.dataset.va;
-    if(a==='gen'){JOBS[sh.id]={state:'running',msg:'khởi động…'};render();
+    if(a==='gen'){
+      if(sh.vstatus==='approved'&&!confirm(
+        'Video này ĐÃ DUYỆT — bản đang hiển thị là bản bạn chốt.\n\n'+
+        'Tạo bản mới sẽ KHÔNG thay bản đã duyệt; bản mới nằm ở dãy bản để so.\n'+
+        'Muốn thay hẳn thì bấm ✓ lần nữa để bỏ duyệt trước.\n\nVẫn tạo thêm bản mới?'))return;
+      JOBS[sh.id]={state:'running',msg:'khởi động…'};render();
       await fetch('/api/genvideo?sf='+encodeURIComponent(sh.id),{method:'POST'});return}
-    if(a==='ai'){sh.ai_request=!sh.ai_request;save();render();return}
+    if(a==='donex'){delete sh.ai_done;save();render();return}
+    if(a==='ai'){
+      sh.ai_request=!sh.ai_request;
+      if(sh.ai_request)delete sh.ai_done;   // yêu cầu mới → báo cáo cũ hết hiệu lực
+      save();render();return}
     if(a==='frame'){await frameToSF(sc,sh,d);return}
     if(a==='framedown'){await frameToNextShot(sc,sh,idx,d);return}
     if(a==='delv'){if(!confirm('Xóa video '+sh.id+' (cả lịch sử)?'))return;
       await fetch('/api/delete-video?sf='+encodeURIComponent(sh.id),{method:'POST'});await load();return}
-    sh.vstatus=a;save();render();});
+    // bấm lại đúng trạng thái đang có = bỏ đánh dấu → đó là cách mở khoá bản chốt
+    sh.vstatus = (sh.vstatus===a) ? null : a;
+    save();render();});
   d.querySelector('[data-sf]').onchange=e=>{sh.sf=e.target.value;save();render()};
   d.querySelector('[data-dur]').onchange=e=>{sh.dur=+e.target.value;save();render()};
+  if((sh.notes||'').trim())d.classList.add('hasnote');
   d.querySelectorAll('[data-k]').forEach(el=>el.oninput=e=>{
     sh[e.target.dataset.k]=e.target.value;save();
+    if(e.target.dataset.k==='notes')
+      d.classList.toggle('hasnote',!!e.target.value.trim());
     if(e.target.dataset.k==='text'){
       const badge=d.querySelector('.sh-head .est');
       if(badge)badge.outerHTML=estBadge(sh);
@@ -2370,7 +2681,8 @@ function card(sc,f){
      <details><summary>Prompt (sửa được)</summary>
        <textarea data-k="prompt" spellcheck="false">${esc(f.prompt||'')}</textarea></details>
      <textarea class="notes" data-k="notes" placeholder="Ghi chú / yêu cầu chỉnh sửa…">${esc(f.notes||'')}</textarea>
-     ${f.ai_done?`<div class="aidone">🤖 ${esc(f.ai_done)}</div>`:''}
+     ${f.ai_done?`<div class="aidone"><span>🤖 ${esc(f.ai_done)}</span>
+       <span class="x" data-a="donex" title="Xong việc này rồi — xoá dòng báo để ghi yêu cầu mới">✕ dọn</span></div>`:''}
    </div>
    ${job.state==='error'?`<div class="err">⚠ ${esc(job.msg)}</div>`:''}
    <div class="acts">
@@ -2383,7 +2695,7 @@ function card(sc,f){
      <button class="sm bad-b" data-a="rejected">✕</button>
      <span style="flex:1"></span>
      ${f.image?`<a class="sm dl" href="${f.image}?dl=1&name=${encodeURIComponent(f.id)}" download="${f.id}.png" title="Tải ảnh về máy">⬇</a>`:''}
-     <button class="sm ai ${f.ai_request?'on':''}" data-a="ai" title="Đánh dấu nhờ AI xử lý (ghi rõ ở ô ghi chú)">🤖</button>
+     <button class="sm ai ${f.ai_request?'on':''}" data-a="ai" title="Ghi rõ vấn đề ở ô ghi chú rồi bấm — mục này vào danh sách yêu cầu AI ở header">${f.ai_request?'✓ đã gửi AI':'🤖 Yêu cầu AI'}</button>
      <button class="sm" data-a="dup">Nhân bản</button>
      <button class="sm" data-a="copy">Copy →</button>
      <button class="sm bad-b" data-a="del">🗑</button>
@@ -2398,7 +2710,7 @@ function card(sc,f){
       d.classList.add('sel');
       return;
     }
-    $('#lb-t').textContent=f.id+' — '+(f.label||'');$('#lb-i').src=f.image;lightbox.showModal();
+    lbOpenAt(f);
   };
   th.ondragover=e=>{e.preventDefault();th.classList.add('drop')};
   th.ondragleave=()=>th.classList.remove('drop');
@@ -2444,7 +2756,11 @@ async function act(sc,f,a,n){
     if(!confirm('Xóa '+f.id+' (kèm mọi ảnh & phiên bản)?'))return;
     await fetch('/api/delete-files?sf='+encodeURIComponent(f.id),{method:'POST'});
     sc.sfs=sc.sfs.filter(x=>x.id!==f.id);save();render();return}
-  if(a==='ai'){f.ai_request=!f.ai_request;save();render();return}
+  if(a==='donex'){delete f.ai_done;save();render();return}
+  if(a==='ai'){
+    f.ai_request=!f.ai_request;
+    if(f.ai_request)delete f.ai_done;       // yêu cầu mới → báo cáo cũ hết hiệu lực
+    save();render();return}
   if(a==='dup'){
     let nid=f.id+'-B',k=2;while(find(nid)){nid=f.id+'-B'+k;k++}
     sc.sfs.splice(sc.sfs.indexOf(f)+1,0,{...f,id:nid,status:'proposed',notes:'',image:null,versions:[]});
@@ -2456,7 +2772,8 @@ async function act(sc,f,a,n){
     let nid=f.id+'-COPY',k=2;while(find(nid)){nid=f.id+'-COPY'+k;k++}
     dst.sfs.push({...f,id:nid,status:'proposed',notes:'',usedBy:[],image:null,versions:[]});
     save();render();return}
-  f.status=a;save();render();
+  f.status = (f.status===a) ? 'proposed' : a;
+  save();render();
 }
 
 function addSF(sid){

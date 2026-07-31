@@ -1,18 +1,21 @@
 #!/bin/bash
-# Mở SF Board cho dự án phim 8 DOLLARS.
-# Dùng đường dẫn TUYỆT ĐỐI để không bao giờ mở nhầm dự án trùng tên ở thư mục khác.
-# Cổng lấy từ board.json trong thư mục dự án (8781).
-ROOT="/Users/may1/Desktop/grokpipe"
-PROJ="$ROOT/PIPELINE-8DOLLARS.project"
-PORT=$(python3 -c "import json;print(json.load(open('$PROJ/board.json'))['port'])")
+# Mở SF Board. Bấm đúp file này, hoặc: ./chay-board.command <TÊN-PROJECT>
+# macOS KHÔNG có setsid — phải bọc subshell + disown thì tiến trình mới sống sót.
+cd "$(dirname "$0")"
 
-if lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "Board đã chạy sẵn ở cổng $PORT"
+PROJ="${1:-PIPELINE-RUTHS-HOUSE.project}"
+case "$PROJ" in
+  PIPELINE-RUTHS-HOUSE.project) PORT=8779 ;;
+  PIPELINE-8DOLLARS.project)    PORT=8778 ;;
+  *) echo "Chưa gán cổng cho $PROJ — sửa case trong file này."; exit 1 ;;
+esac
+
+if curl -s -o /dev/null --max-time 2 "http://localhost:$PORT"; then
+  echo "Board đã chạy sẵn ở http://localhost:$PORT"
 else
-  pkill -f "sfboard.py $PROJ" 2>/dev/null
-  nohup python3 -u "$ROOT/sfboard/sfboard.py" "$PROJ" > /tmp/board-8dollars.log 2>&1 &
-  disown
-  sleep 3
+  ( nohup python3 -u sfboard/sfboard.py "$PROJ" --port "$PORT" \
+      > "/tmp/sfboard-$PORT.log" 2>&1 < /dev/null & disown )
+  until curl -s -o /dev/null --max-time 2 "http://localhost:$PORT"; do sleep 2; done
+  echo "Board lên: http://localhost:$PORT  (log: /tmp/sfboard-$PORT.log)"
 fi
-echo "→ http://localhost:$PORT"
 open "http://localhost:$PORT"
