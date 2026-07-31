@@ -10,7 +10,7 @@ tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.j
 dự án `PIPELINE-*.project`.
 
 Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
-đó là đủ. `references/bai-hoc.md` là **kho lịch sử 42 bài** (~15k token): chỉ mở khi (a) gặp
+đó là đủ. `references/bai-hoc.md` là **kho lịch sử 43 bài** (~15k token): chỉ mở khi (a) gặp
 lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
 viết prompt** — luật đã được chưng cất lên đây rồi.
 
@@ -44,12 +44,17 @@ viết prompt** — luật đã được chưng cất lên đây rồi.
   khác với quần áo khác, và khung OTS lộ ngay vì màu áo lệch với khung đối diện.
   Quy tắc rà: **tên nhân vật nào xuất hiện trong prompt thì phải có cặp portrait + full của
   đúng bộ đồ cảnh đó trong `refs.chars`** — trừ khi prompt ghi rõ "X KHÔNG có trong khung".
-  REF không có trần số ảnh (bài học 39) nên cứ đính đủ.
-- **REF KHÔNG CÓ TRẦN SỐ ẢNH — đính ĐỦ, không đính thiếu** (quyết định của user, ghi đè thử
-  nghiệm "trần 3 ảnh" cũ). Mỗi nhân vật trong khung đính CẢ portrait (khuôn mặt) LẪN full-body
-  của đúng bộ đồ cảnh đó, cộng thêm master bối cảnh — bao nhiêu nhân vật thì bấy nhiêu cặp.
-  Khi nhân dạng ra lệch, KHÔNG chữa bằng cách bỏ bớt ref: chữa bằng render lại, kiểm tra ảnh
-  có thật sự được đính không, và dòng khóa chữ ngắn (xem bài học 39).
+- **TRẦN CỨNG: TỐI ĐA 4 NHÂN VẬT được đính ref trong một SF** (= 8 ảnh người + 1 master ≈ 9
+  ảnh). Mỗi nhân vật đính CẢ portrait (khuôn mặt) LẪN full-body của đúng bộ đồ cảnh đó — đủ
+  cặp, không đính thiếu, nhưng KHÔNG quá 4 người.
+  **Khung cần hơn 4 người thì xử lý theo thứ tự:**
+  1. **Cắt bớt người khỏi khung** — hỏi lại từng người có thật sự thuộc beat này không.
+  2. **Tách thành hai khung**, mỗi khung ≤4 người, rồi dựng thành hai shot.
+  3. **Chỉ khi buộc phải giữ đủ**: đính ref cho 4 người ĐỨNG GẦN/RÕ MẶT nhất; những người còn
+     lại mô tả bằng chữ như QUẦN CHÚNG NỀN — mờ, không rõ mặt, không phải nhân vật có tên.
+     Người có thoại thì LUÔN nằm trong nhóm 4 được đính ref.
+  Khi nhân dạng ra lệch, KHÔNG chữa bằng cách bỏ bớt ref của người vẫn còn trong khung: chữa
+  bằng render lại, kiểm tra ảnh có thật sự được đính không, và dòng khóa chữ ngắn.
 - Luôn kèm **một dòng ngắn** khóa những gì ảnh không tự nói nổi: chủng tộc, kiểu tóc, màu
   quần áo. Phim này Maya da đen / Helen da trắng là điểm cốt lõi — dòng khóa chủng tộc phải
   có ở mọi SF có hai người, kể cả khi ref đang ra đúng.
@@ -407,4 +412,4 @@ thuộc SF/shot nào là tàn dư của kịch bản cũ.
 - **Viết prompt video (có thoại / nhịp lặng) và prompt nhạc Suno** → [references/prompt-video.md](references/prompt-video.md)
 - **Nguyên lý nền: ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** → [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Bài học tích lũy (42 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
+- **Bài học tích lũy (43 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)

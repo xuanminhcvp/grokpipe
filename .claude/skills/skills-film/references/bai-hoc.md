@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-42 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+43 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -50,6 +50,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 40. Khoá ánh sáng theo master khi scene khác giờ = ra lệnh trái ngược
 - 41. Master không có người nên KHÔNG khoá được vị trí người — cần ảnh neo
 - 42. Ánh mắt nối nhau, cảm xúc ở tầng SCENE, miệng khép
+- 43. Trần cứng 4 nhân vật mỗi SF — cảnh đông thì cắt hoặc tách khung
 
 ## Vận hành & gỡ lỗi hạ tầng
 
@@ -747,3 +748,18 @@ của luật "SF là trạng thái, không phải khoảnh khắc".
 thoại bắt đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng khẩu hình sai.
 Nhưng KHÔNG viết "khép" — user sửa lại: môi mím trông gồng và giả. Đúng là "tự nhiên, thả
 lỏng, không mím chặt".
+
+
+## 43. Trần cứng 4 nhân vật mỗi SF — cảnh đông thì cắt hoặc tách khung
+
+*Bối cảnh:* một SF cảnh đông người đính ref cho 5 nhân vật = 10 ảnh người + master. User chốt
+trần: **tối đa 4 nhân vật mỗi SF**.
+
+**Nguyên tắc:** đính đủ cặp portrait + full cho từng người, nhưng KHÔNG quá 4 người. Đây là
+trần cứng, ghi đè câu "REF không có trần số ảnh" cũ — câu đó nói về việc *không bớt ref của
+người đã có trong khung*, không phải cho phép nhồi bao nhiêu người cũng được.
+
+**Khung cần hơn 4 người, xử lý theo thứ tự:** cắt bớt người khỏi khung (hỏi từng người có
+thuộc beat này không) → tách thành hai khung mỗi khung ≤4 người → nếu buộc phải giữ đủ thì
+đính ref cho 4 người gần/rõ mặt nhất, số còn lại mô tả bằng chữ như quần chúng nền (mờ, không
+rõ mặt). **Người có thoại luôn nằm trong nhóm 4 được đính ref.**
