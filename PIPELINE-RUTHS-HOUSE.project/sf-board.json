@@ -1,6 +1,6 @@
 {
   "film": "Not One Would Care for a Dying Billionaire — Until the Maid's Baby Brought the Cold Old Man to Tears",
-  "updated_at": "2026-07-31 12:58:19",
+  "updated_at": "2026-07-31 14:26:01",
   "scenes": [
     {
       "id": "REF",
@@ -4785,24 +4785,6 @@
           }
         },
         {
-          "id": "SF-S9-THORNTON-MAYA",
-          "label": "Two-shot Maya hỏi Thornton về cánh cửa thứ sáu",
-          "desc": "Nghi ngờ bắt đầu.",
-          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium two-shot, camera ngang tầm ngực, ống kính 40mm.\n\nBỐ CỤC: MAYA ở 18-48% khung, MRS. THORNTON ở 54-84%, đứng đối diện trong sảnh.\n\nBIỂU CẢM — QUAN TRỌNG: Maya hỏi thẳng, mắt không rời. Thornton — LẦN ĐẦU TRONG PHIM VẺ MẶT BÀ CÓ SỢ HÃI: mắt hơi mở, một tay siết vào tay kia, người hơi lùi. Bà biết điều gì đó.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, khớp tự nhiên. KHÔNG chữ đọc được ngoài phần được nêu, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp.",
-          "status": "approved",
-          "notes": "",
-          "usedBy": [],
-          "refs": {
-            "chars": [
-              "REF_MAYA_PORTRAIT",
-              "REF_MAYA_UNIFORM_FULL",
-              "REF_THORNTON_PORTRAIT",
-              "REF_THORNTON_FULL"
-            ],
-            "bg": "SF-M-FOYER"
-          }
-        },
-        {
           "id": "SF-S9-EASTWING-PEEK",
           "label": "★★ Maya nhìn qua cánh cửa hé — thoáng thấy tấm ảnh",
           "desc": "Gieo cho S13.",
@@ -4838,78 +4820,6 @@
           }
         },
         {
-          "id": "SF-S9-THORNTON-CU",
-          "label": "CU Mrs. Thornton — 'That door stays closed'",
-          "desc": "Bà biết bí mật và sợ.",
-          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic close-up, camera ngang tầm mắt, ống kính 65mm.\n\nBỐ CỤC: MRS. THORNTON chiếm 55% khung ở NỬA TRÁI, nhìn chếch PHẢI. Rìa phải tiền cảnh là vai Maya out nét.\n\nBIỂU CẢM — QUAN TRỌNG: đây là khung duy nhất bà để lộ sự SỢ HÃI. Mắt hơi mở, một bên môi hơi giật, ánh mắt đảo đi rồi quay lại. Bà biết điều gì đó và không muốn nói.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được ngoài phần được nêu, KHÔNG watermark, KHÔNG nhân vật trùng lặp.",
-          "status": "approved",
-          "notes": "",
-          "usedBy": [],
-          "refs": {
-            "chars": [
-              "REF_THORNTON_PORTRAIT",
-              "REF_THORNTON_FULL",
-              "REF_MAYA_PORTRAIT",
-              "REF_MAYA_UNIFORM_FULL"
-            ],
-            "bg": "SF-M-FOYER"
-          }
-        },
-        {
-          "id": "SF-S9-TWO-34",
-          "label": "Medium 3/4 Maya và Thornton lệch 45° trong sảnh",
-          "desc": "Đổi nhịp cho cụm 12 shot.",
-          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master.\n\nNHÂN DẠNG MAYA: phụ nữ MỸ GỐC PHI, DA NÂU, 30 tuổi, TÓC ĐEN XOĂN vấn búi. KHÔNG vẽ thành da trắng / Nam Á / châu Á, KHÔNG tóc thẳng.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium two-shot lệch 45 độ, camera ngang tầm ngực, ống kính 45mm.\n\nBỐ CỤC: thấy chéo cả hai — MAYA ở 22-55% khung, MRS. THORNTON ở 58-88%, cả hai thấy 3/4 gương mặt. Hậu cảnh là cầu thang gỗ lớn và những mảng tường bạc màu nơi ảnh từng treo.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được ngoài phần nêu, KHÔNG watermark, KHÔNG nhân vật trùng lặp.",
-          "status": "approved",
-          "notes": "",
-          "usedBy": [],
-          "refs": {
-            "chars": [
-              "REF_MAYA_PORTRAIT",
-              "REF_MAYA_UNIFORM_FULL",
-              "REF_THORNTON_PORTRAIT",
-              "REF_THORNTON_FULL"
-            ],
-            "bg": "SF-M-FOYER"
-          }
-        },
-        {
-          "id": "SF-S9-MAYA-CU",
-          "label": "CU Maya — 'Something is very wrong in this house'",
-          "desc": "Câu chốt cảnh.",
-          "prompt": "NGƯỜI Ở TIỀN CẢNH — ĐẶC BIỆT LƯU Ý, CHỖ NÀY HAY SAI: dù out nét/quay lưng/chỉ thấy vai gáy, người tiền cảnh VẪN PHẢI đúng nhân dạng và đúng bộ đồ theo ảnh ref đính kèm của họ. Màu áo, màu da, kiểu tóc phải khớp — sai một thứ là khung OTS lộ ngay.\n\nKHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master.\n\nNHÂN DẠNG MAYA: phụ nữ MỸ GỐC PHI, DA NÂU, 30 tuổi, TÓC ĐEN XOĂN vấn búi. KHÔNG vẽ thành da trắng / Nam Á / châu Á, KHÔNG tóc thẳng.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic close-up, camera ngang tầm mắt, ống kính 65mm.\n\nBỐ CỤC: MAYA chiếm khoảng 55% khung ở NỬA PHẢI, thấy từ ngực lên. Rìa TRÁI tiền cảnh là vai người đối diện, OUT NÉT MẠNH, chỉ làm khung viền — KHÔNG thấy mặt họ.\n\nBIỂU CẢM: bình thản nhưng cứng — người vừa xâu chuỗi ba manh mối lại với nhau và biết mình đúng.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được ngoài phần nêu, KHÔNG watermark, KHÔNG nhân vật trùng lặp.",
-          "status": "approved",
-          "notes": "người tiền cảnh chưa đúng ( tại sao có Thornton ở đây mà không tham chiếu)",
-          "usedBy": [],
-          "refs": {
-            "chars": [
-              "REF_MAYA_PORTRAIT",
-              "REF_MAYA_UNIFORM_FULL",
-              "REF_THORNTON_PORTRAIT",
-              "REF_THORNTON_FULL"
-            ],
-            "bg": "SF-M-FOYER"
-          }
-        },
-        {
-          "id": "SF-S9-STAIRS",
-          "label": "Two-shot chân cầu thang — Thornton chặn Maya lại",
-          "desc": "Đổi vị trí trong cùng sảnh.",
-          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master.\n\nNHÂN DẠNG MAYA: phụ nữ MỸ GỐC PHI, DA NÂU, 30 tuổi, TÓC ĐEN XOĂN vấn búi. KHÔNG vẽ thành da trắng / Nam Á / châu Á, KHÔNG tóc thẳng.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium-wide, camera ngang tầm ngực, ống kính 35mm.\n\nBỐ CỤC: MRS. THORNTON đứng ở BẬC CẦU THANG THỨ HAI ở 45-75% khung nên CAO HƠN, một tay đặt trên tay vịn gỗ. MAYA đứng dưới sàn ở 15-42%, ngẩng nhìn lên.\n\nTRẠNG THÁI CAO-THẤP là nội dung: quản gia ở trên, người mới ở dưới.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được ngoài phần nêu, KHÔNG watermark, KHÔNG nhân vật trùng lặp.\n\nÁNH SÁNG — ĐỦ SÁNG ĐỂ NHÌN RÕ: đèn tường sảnh bật vàng ấm, cộng ánh ngày từ ô kính cửa chính. Cả hai gương mặt và toàn bộ chân cầu thang phải NHÌN RÕ. TUYỆT ĐỐI KHÔNG mảng đen đặc, KHÔNG ngược sáng làm nhân vật thành bóng đen.",
-          "status": "approved",
-          "notes": "ảnh này lỗi hay sao khong nhìn thấy vậy",
-          "usedBy": [],
-          "refs": {
-            "chars": [
-              "REF_MAYA_PORTRAIT",
-              "REF_MAYA_UNIFORM_FULL",
-              "REF_THORNTON_PORTRAIT",
-              "REF_THORNTON_FULL"
-            ],
-            "bg": "SF-M-FOYER"
-          }
-        },
-        {
           "id": "SF-S9-LOCK",
           "label": "Cận ổ khóa đồng cánh cửa thứ sáu — tay Maya chạm rồi dừng",
           "desc": "Cận ổ khóa đồng cánh cửa thứ sáu — tay Maya chạm rồi dừng",
@@ -4926,31 +4836,22 @@
           }
         },
         {
-          "id": "SF-S9-STAIRS-V2",
-          "label": "Two-shot chân cầu thang — Thornton chặn Maya lại (take 2)",
-          "desc": "Take 2 của SF-S9-STAIRS — cùng góc, vi sai tự nhiên.",
-          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master.\n\nNHÂN DẠNG MAYA: phụ nữ MỸ GỐC PHI, DA NÂU, 30 tuổi, TÓC ĐEN XOĂN vấn búi. KHÔNG vẽ thành da trắng / Nam Á / châu Á, KHÔNG tóc thẳng.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium-wide, camera ngang tầm ngực, ống kính 35mm.\n\nBỐ CỤC: MRS. THORNTON đứng ở BẬC CẦU THANG THỨ HAI ở 45-75% khung nên CAO HƠN, một tay đặt trên tay vịn gỗ. MAYA đứng dưới sàn ở 15-42%, ngẩng nhìn lên.\n\nTRẠNG THÁI CAO-THẤP là nội dung: quản gia ở trên, người mới ở dưới.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được ngoài phần nêu, KHÔNG watermark, KHÔNG nhân vật trùng lặp.\n\nĐÂY LÀ TAKE THỨ 2 CỦA CÙNG MỘT GÓC MÁY: giữ NGUYÊN toàn bộ bố cục, cỡ cảnh, vị trí camera và trục 180 độ như bản gốc — CHỈ thay đổi vi mô tư thế, hướng ánh mắt, nhịp cơ thể của nhân vật cho tự nhiên, như hai khoảnh khắc liền nhau của cùng một cảnh quay.",
-          "status": "approved",
-          "notes": "",
-          "usedBy": [],
+          "id": "SF-M-KITCHEN",
+          "label": "★ MASTER — Bếp phục vụ của dinh thự (S9)",
+          "desc": "Master mới. Cụm thoại Maya–Thornton chuyển từ sảnh về đây: hai người giúp việc nói chuyện kín thì bếp tự nhiên hơn giữa sảnh lớn; sảnh cũng đang gánh 37 SF con toàn phim.",
+          "status": "proposed",
           "refs": {
-            "chars": [
-              "REF_MAYA_PORTRAIT",
-              "REF_MAYA_UNIFORM_FULL",
-              "REF_THORNTON_PORTRAIT",
-              "REF_THORNTON_FULL"
-            ],
+            "chars": [],
             "bg": "SF-M-FOYER"
-          }
+          },
+          "prompt": "KHÓA LOOK — CÙNG MỘT DINH THỰ VỚI ẢNH BỐI CẢNH ĐÍNH KÈM: đây là BẾP PHỤC VỤ của chính ngôi nhà trong ảnh, nên bố cục khác nhưng phải CÙNG mức sống, CÙNG thời kỳ kiến trúc, CÙNG chiều cao trần lớn, CÙNG tông gỗ sẫm và CÙNG kiểu khung cửa. TUYỆT ĐỐI KHÔNG nâng cấp thành bếp hiện đại bóng loáng, KHÔNG bếp chung cư, KHÔNG thiết bị inox mới.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic wide shot, ống kính 28mm, camera đặt Ở CỬA PHỤC VỤ nhìn vào trong bếp, ngang tầm ngực người đứng.\n\nKHÔNG GIAN: BẾP PHỤC VỤ của dinh thự cũ, rộng và cao trần. Ở GIỮA là ĐẢO BẾP GỖ SẪM MẶT ĐÁ TRẮNG XÁM đã sờn vết dao. Tường trái là DÃY TỦ BẾP GỖ SƠN XANH XÁM BẠC MÀU với BẾP LÒ GANG ĐEN cỡ lớn và dãy XOONG ĐỒNG treo trên thanh sắt. Tường phải là TỦ CHÉN BÁT KÍNH cao kịch trần, đầy bát đĩa sứ trắng viền xanh. Cuối bếp là BA CỬA SỔ CAO khung gỗ nhìn ra vườn, dưới cửa sổ là BỒN RỬA ĐÁ ĐÔI với vòi đồng cũ. Sàn lát GẠCH ĐẤT NUNG ĐỎ NÂU mòn vẹt. Một CÁNH CỬA GỖ ở góc phải dẫn ra hành lang phục vụ.\n\nVẬT DỤNG THUỘC VỀ BẾP: giá gia vị gỗ, thớt dựng nghiêng, khăn lau vắt trên thanh lò, một lọ hoa dại cắm tạm, rổ khoai tây dưới gầm đảo bếp. Tả khái quát, cho lùi ra nền.\n\nTRÊN ĐẢO BẾP: một KHAY GỖ đang được xếp dở — ấm trà sứ trắng, một tách, một đĩa bánh quy, và MỘT HỘP THUỐC NHỎ CHIA NGĂN. Đây là khay chiều của ông chủ.\n\nKHÔNG có người trong khung này.\n\nÁNH SÁNG: ban ngày, nắng xiên qua ba cửa sổ cuối bếp tạo vệt sáng dài trên sàn gạch, cộng một bóng đèn quả treo trên đảo bếp. SÁNG RÕ, ấm, đọc được mọi chất liệu. TUYỆT ĐỐI KHÔNG u ám.\n\nBẢNG MÀU: gỗ sẫm, xanh xám bạc màu, đỏ nâu của gạch, ánh đồng — trầm ấm, cùng họ với sảnh.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-M-KITCHEN_v1.png"
         },
         {
-          "id": "SF-S9-THORNTON-MAYA-V2",
-          "label": "Two-shot Maya hỏi Thornton về cánh cửa thứ sáu (take 2)",
-          "desc": "Take 2 của SF-S9-THORNTON-MAYA — cùng góc, vi sai tự nhiên.",
-          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium two-shot, camera ngang tầm ngực, ống kính 40mm.\n\nBỐ CỤC: MAYA ở 18-48% khung, MRS. THORNTON ở 54-84%, đứng đối diện trong sảnh.\n\nBIỂU CẢM — QUAN TRỌNG: Maya hỏi thẳng, mắt không rời. Thornton — LẦN ĐẦU TRONG PHIM VẺ MẶT BÀ CÓ SỢ HÃI: mắt hơi mở, một tay siết vào tay kia, người hơi lùi. Bà biết điều gì đó.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, khớp tự nhiên. KHÔNG chữ đọc được ngoài phần được nêu, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp.\n\nĐÂY LÀ TAKE THỨ 2 CỦA CÙNG MỘT GÓC MÁY: giữ NGUYÊN toàn bộ bố cục, cỡ cảnh, vị trí camera và trục 180 độ như bản gốc — CHỈ thay đổi vi mô tư thế, hướng ánh mắt, nhịp cơ thể của nhân vật cho tự nhiên, như hai khoảnh khắc liền nhau của cùng một cảnh quay.",
-          "status": "approved",
-          "notes": "",
-          "usedBy": [],
+          "id": "SF-S9-KT-TWO",
+          "label": "Two-shot hai bên đảo bếp — Maya xếp khay, Thornton đối diện",
+          "desc": "Trạng thái A. Camera nhìn NGANG qua đảo bếp, hậu cảnh là dãy tủ bếp và bếp lò.",
+          "status": "proposed",
           "refs": {
             "chars": [
               "REF_MAYA_PORTRAIT",
@@ -4958,17 +4859,16 @@
               "REF_THORNTON_PORTRAIT",
               "REF_THORNTON_FULL"
             ],
-            "bg": "SF-M-FOYER"
-          }
+            "bg": "SF-M-KITCHEN"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên chất liệu, đồ đạc, bảng màu, hướng và nhiệt độ ánh sáng, mức sống. Chữ nào xung đột với ảnh thì THEO ẢNH.\nNHƯNG VỊ TRÍ CAMERA THÌ TỰ DO — khung này đứng ở chỗ khác trong CÙNG căn bếp đó, không lặp lại góc của master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium two-shot, ống kính 40mm, camera ngang tầm ngực, đặt Ở CẠNH DÀI CỦA ĐẢO BẾP nhìn ngang qua mặt đá — KHÁC hẳn góc master.\n\nHƯỚNG NHÌN: hậu cảnh sau lưng Thornton là DÃY TỦ BẾP XANH XÁM và BẾP LÒ GANG ĐEN với xoong đồng treo. KHÔNG thấy ba cửa sổ cuối bếp trong khung này.\n\nBỐ CỤC: MAYA ở 18-48% khung, ĐỨNG bên này đảo bếp, hai tay đang xếp KHAY GỖ (ấm trà, tách, hộp thuốc chia ngăn). MRS. THORNTON ở 54-84%, ĐỨNG bên kia đảo bếp đối diện, hai tay chắp trước bụng. Mặt đá đảo bếp chạy ngang tiền cảnh dưới.\n\nTRẠNG THÁI KHÔNG GIAN: hai người ĐỨNG, NGANG TẦM nhau, cách nhau đúng chiều rộng đảo bếp.\n\nBIỂU CẢM (mức nền): Maya vừa làm vừa nghe, điềm tĩnh. Thornton kín kẽ, nghề nghiệp.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa · MRS. THORNTON = phụ nữ DA TRẮNG ngoài 55 tuổi, TÓC BẠC PHA NÂU CẮT NGẮN NGANG CẰM, mặt gầy xương gò má rõ. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc, KHÔNG vẽ Thornton trẻ hơn hay tóc dài.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S9-KT-TWO_v2.png"
         },
         {
-          "id": "SF-S9-TWO-34-V2",
-          "label": "Medium 3/4 Maya và Thornton lệch 45° trong sảnh (take 2)",
-          "desc": "Take 2 của SF-S9-TWO-34 — cùng góc, vi sai tự nhiên.",
-          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master.\n\nNHÂN DẠNG MAYA: phụ nữ MỸ GỐC PHI, DA NÂU, 30 tuổi, TÓC ĐEN XOĂN vấn búi. KHÔNG vẽ thành da trắng / Nam Á / châu Á, KHÔNG tóc thẳng.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium two-shot lệch 45 độ, camera ngang tầm ngực, ống kính 45mm.\n\nBỐ CỤC: thấy chéo cả hai — MAYA ở 22-55% khung, MRS. THORNTON ở 58-88%, cả hai thấy 3/4 gương mặt. Hậu cảnh là cầu thang gỗ lớn và những mảng tường bạc màu nơi ảnh từng treo.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được ngoài phần nêu, KHÔNG watermark, KHÔNG nhân vật trùng lặp.\n\nĐÂY LÀ TAKE THỨ 2 CỦA CÙNG MỘT GÓC MÁY: giữ NGUYÊN toàn bộ bố cục, cỡ cảnh, vị trí camera và trục 180 độ như bản gốc — CHỈ thay đổi vi mô tư thế, hướng ánh mắt, nhịp cơ thể của nhân vật cho tự nhiên, như hai khoảnh khắc liền nhau của cùng một cảnh quay.",
-          "status": "approved",
-          "notes": "",
-          "usedBy": [],
+          "id": "SF-S9-KT-OTS-MAYA",
+          "label": "OTS qua vai Maya — Thornton rõ mặt, hậu cảnh cửa sổ vườn",
+          "desc": "Chiều shot/reverse: THORNTON là người rõ mặt. Camera xoay về phía cuối bếp.",
+          "status": "proposed",
           "refs": {
             "chars": [
               "REF_MAYA_PORTRAIT",
@@ -4976,105 +4876,191 @@
               "REF_THORNTON_PORTRAIT",
               "REF_THORNTON_FULL"
             ],
-            "bg": "SF-M-FOYER"
-          }
+            "bg": "SF-M-KITCHEN"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên chất liệu, đồ đạc, bảng màu, hướng và nhiệt độ ánh sáng, mức sống. Chữ nào xung đột với ảnh thì THEO ẢNH.\nNHƯNG VỊ TRÍ CAMERA THÌ TỰ DO — khung này đứng ở chỗ khác trong CÙNG căn bếp đó, không lặp lại góc của master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium over-the-shoulder, ống kính 50mm, camera ngang tầm mắt, đặt SAU VAI PHẢI CỦA MAYA nhìn về phía Thornton.\n\nHƯỚNG NHÌN: hậu cảnh sau lưng Thornton là BA CỬA SỔ CAO nhìn ra vườn và BỒN RỬA ĐÁ ĐÔI — hướng CUỐI BẾP. Nắng xiên qua cửa sổ làm viền sáng quanh vai bà.\n\nBỐ CỤC: VAI PHẢI VÀ MỘT PHẦN ĐẦU SAU CỦA MAYA làm tiền cảnh mềm ở 0-30% khung — thấy vai áo tunic xám xanh và búi tóc xoăn thấp, out nét nhẹ. MRS. THORNTON là chủ thể NÉT RÕ ở 36-80% khung, ĐỨNG, thấy từ thắt lưng lên.\nNGƯỜI Ở TIỀN CẢNH VẪN PHẢI ĐÚNG NHÂN VẬT: vai và búi tóc của Maya phải khớp ảnh ref (da nâu sẫm, tóc đen xoăn búi thấp, tunic xám xanh) dù quay lưng và mờ.\n\nTRẠNG THÁI KHÔNG GIAN: hai người ĐỨNG hai bên đảo bếp, NGANG TẦM nhau.\n\nBIỂU CẢM (mức nền): Thornton nói khẽ, mắt liếc nhanh về phía cửa hành lang — thói quen của người quen giữ chuyện trong nhà.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa · MRS. THORNTON = phụ nữ DA TRẮNG ngoài 55 tuổi, TÓC BẠC PHA NÂU CẮT NGẮN NGANG CẰM, mặt gầy xương gò má rõ. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc, KHÔNG vẽ Thornton trẻ hơn hay tóc dài.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S9-KT-OTS-MAYA_v1.png"
+        },
+        {
+          "id": "SF-S9-KT-OTS-TH",
+          "label": "OTS qua vai Thornton — Maya rõ mặt, hậu cảnh tủ chén bát",
+          "desc": "Chiều ngược của cặp shot/reverse: MAYA là người rõ mặt. Trục 180 độ giữ nguyên.",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL",
+              "REF_THORNTON_PORTRAIT",
+              "REF_THORNTON_FULL"
+            ],
+            "bg": "SF-M-KITCHEN"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên chất liệu, đồ đạc, bảng màu, hướng và nhiệt độ ánh sáng, mức sống. Chữ nào xung đột với ảnh thì THEO ẢNH.\nNHƯNG VỊ TRÍ CAMERA THÌ TỰ DO — khung này đứng ở chỗ khác trong CÙNG căn bếp đó, không lặp lại góc của master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium over-the-shoulder, ống kính 50mm, camera ngang tầm mắt, đặt SAU VAI TRÁI CỦA MRS. THORNTON nhìn về phía Maya — TRỤC NGƯỢC LẠI với khung OTS qua vai Maya, vẫn tôn trọng trục 180 độ.\n\nHƯỚNG NHÌN: hậu cảnh sau lưng Maya là TỦ CHÉN BÁT KÍNH cao kịch trần đầy sứ trắng viền xanh, và CÁNH CỬA GỖ dẫn ra hành lang phục vụ ở rìa khung.\n\nBỐ CỤC: VAI TRÁI VÀ MỘT PHẦN GÁY TÓC BẠC CỦA MRS. THORNTON làm tiền cảnh mềm ở 70-100% khung — thấy vai gi-lê len xanh đen, out nét nhẹ. MAYA là chủ thể NÉT RÕ ở 20-64% khung, ĐỨNG sau đảo bếp, thấy từ thắt lưng lên, một tay còn đặt trên mép khay gỗ.\nNGƯỜI Ở TIỀN CẢNH VẪN PHẢI ĐÚNG NHÂN VẬT: vai và tóc bạc ngắn của Thornton phải khớp ảnh ref.\n\nTRẠNG THÁI KHÔNG GIAN: hai người ĐỨNG hai bên đảo bếp, NGANG TẦM nhau.\n\nBIỂU CẢM (mức nền): Maya bình tĩnh, ánh mắt thẳng — người đang lắp ghép các mảnh rời.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa · MRS. THORNTON = phụ nữ DA TRẮNG ngoài 55 tuổi, TÓC BẠC PHA NÂU CẮT NGẮN NGANG CẰM, mặt gầy xương gò má rõ. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc, KHÔNG vẽ Thornton trẻ hơn hay tóc dài.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S9-KT-OTS-TH_v1.png"
+        },
+        {
+          "id": "SF-S9-KT-MAYA-CU",
+          "label": "CU Maya trong bếp — vai Thornton làm khung viền",
+          "desc": "Cận cho những câu đắt nhất của Maya.",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL",
+              "REF_THORNTON_PORTRAIT",
+              "REF_THORNTON_FULL"
+            ],
+            "bg": "SF-M-KITCHEN"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên chất liệu, đồ đạc, bảng màu, hướng và nhiệt độ ánh sáng, mức sống. Chữ nào xung đột với ảnh thì THEO ẢNH.\nNHƯNG VỊ TRÍ CAMERA THÌ TỰ DO — khung này đứng ở chỗ khác trong CÙNG căn bếp đó, không lặp lại góc của master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic close-up, ống kính 65mm, camera ngang tầm mắt, hơi chếch từ phía Thornton.\n\nHƯỚNG NHÌN: hậu cảnh phía sau Maya là TỦ CHÉN BÁT KÍNH nhoè mềm, ánh đồng của xoong treo lọt vào một góc.\n\nBỐ CỤC: MAYA chiếm 52-92% khung ở NỬA PHẢI, thấy từ ngực lên, nhìn chếch TRÁI. Rìa TRÁI tiền cảnh là VAI GI-LÊ XANH ĐEN CỦA MRS. THORNTON, OUT NÉT MẠNH, chỉ làm khung viền — KHÔNG thấy mặt bà.\nNGƯỜI Ở TIỀN CẢNH VẪN PHẢI ĐÚNG NHÂN VẬT: khối vai đó phải là gi-lê len xanh đen của Thornton, đúng ảnh ref.\n\nTRẠNG THÁI KHÔNG GIAN: cả hai vẫn ĐỨNG hai bên đảo bếp.\n\nBIỂU CẢM (mức nền): tập trung, nghiêm, không xúc động mạnh — người đang nói ra điều mình đã cân nhắc kỹ.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa · MRS. THORNTON = phụ nữ DA TRẮNG ngoài 55 tuổi, TÓC BẠC PHA NÂU CẮT NGẮN NGANG CẰM, mặt gầy xương gò má rõ. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc, KHÔNG vẽ Thornton trẻ hơn hay tóc dài.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S9-KT-MAYA-CU_v1.png"
+        },
+        {
+          "id": "SF-S9-KT-TH-CU",
+          "label": "CU Mrs. Thornton trong bếp — vai Maya làm khung viền",
+          "desc": "Cận cho những câu Thornton phòng thủ hoặc buột miệng.",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL",
+              "REF_THORNTON_PORTRAIT",
+              "REF_THORNTON_FULL"
+            ],
+            "bg": "SF-M-KITCHEN"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên chất liệu, đồ đạc, bảng màu, hướng và nhiệt độ ánh sáng, mức sống. Chữ nào xung đột với ảnh thì THEO ẢNH.\nNHƯNG VỊ TRÍ CAMERA THÌ TỰ DO — khung này đứng ở chỗ khác trong CÙNG căn bếp đó, không lặp lại góc của master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic close-up, ống kính 65mm, camera ngang tầm mắt, hơi chếch từ phía Maya.\n\nHƯỚNG NHÌN: hậu cảnh phía sau Thornton là DÃY CỬA SỔ CAO nhoè mềm, ánh nắng trắng bạc tràn vào làm nền sáng sau bà.\n\nBỐ CỤC: MRS. THORNTON chiếm 12-52% khung ở NỬA TRÁI, thấy từ ngực lên, nhìn chếch PHẢI. Rìa PHẢI tiền cảnh là VAI ÁO TUNIC XÁM XANH CỦA MAYA, OUT NÉT MẠNH, chỉ làm khung viền — KHÔNG thấy mặt cô.\nNGƯỜI Ở TIỀN CẢNH VẪN PHẢI ĐÚNG NHÂN VẬT: khối vai đó phải là tunic xám xanh của Maya, đúng ảnh ref.\n\nTRẠNG THÁI KHÔNG GIAN: cả hai vẫn ĐỨNG hai bên đảo bếp.\n\nBIỂU CẢM (mức nền): kín kẽ, cảnh giác — người đã chín năm sống bằng cách không hỏi.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa · MRS. THORNTON = phụ nữ DA TRẮNG ngoài 55 tuổi, TÓC BẠC PHA NÂU CẮT NGẮN NGANG CẰM, mặt gầy xương gò má rõ. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc, KHÔNG vẽ Thornton trẻ hơn hay tóc dài.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S9-KT-TH-CU_v1.png"
+        },
+        {
+          "id": "SF-S9-KT-TURN",
+          "label": "★ Thornton quay nghiêng về bồn rửa — kết thúc câu chuyện",
+          "desc": "Trạng thái B: bà né, quay đi. Phục vụ đoạn \"That door stays closed\".",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL",
+              "REF_THORNTON_PORTRAIT",
+              "REF_THORNTON_FULL"
+            ],
+            "bg": "SF-M-KITCHEN"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên chất liệu, đồ đạc, bảng màu, hướng và nhiệt độ ánh sáng, mức sống. Chữ nào xung đột với ảnh thì THEO ẢNH.\nNHƯNG VỊ TRÍ CAMERA THÌ TỰ DO — khung này đứng ở chỗ khác trong CÙNG căn bếp đó, không lặp lại góc của master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n- MRS. THORNTON: VÁY LIỀN THÂN XÁM THAN cổ bẻ trắng và ÁO GI-LÊ LEN XANH ĐEN, giày da đen gót thấp, đồng hồ quả quýt ở túi gi-lê.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium-wide, ống kính 35mm, camera đặt Ở GÓC CHÉO CUỐI BẾP nhìn ngược về phía đảo bếp — góc THỨ TƯ, khác cả master lẫn hai khung OTS.\n\nHƯỚNG NHÌN: từ vị trí này thấy được CẢ BỒN RỬA ĐÁ dưới cửa sổ Ở TIỀN CẢNH TRÁI và ĐẢO BẾP cùng CÁNH CỬA HÀNH LANG ở hậu cảnh phải.\n\nBỐ CỤC: MRS. THORNTON ở 20-52% khung, đã RỜI ĐẢO BẾP và ĐỨNG QUAY NGHIÊNG về phía BỒN RỬA, một tay đặt lên mép bồn — nhưng mặt vẫn thấy 3/4, KHÔNG quay lưng hoàn toàn. MAYA ở 58-86% khung, vẫn ĐỨNG tại đảo bếp, người hướng theo bà.\n\nTRẠNG THÁI KHÔNG GIAN — QUAN TRỌNG: Thornton đã BƯỚC RA KHỎI vị trí đối diện ở đảo bếp, khoảng cách giữa hai người XA HƠN hẳn các khung trước. Cả hai vẫn ĐỨNG, ngang tầm nhau.\n\nBIỂU CẢM (mức nền): Thornton khép lại, không nhìn thẳng. Maya không đuổi theo, chỉ đứng yên nhìn — cả hai đều biết câu chuyện vừa chạm vào chỗ cấm.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa · MRS. THORNTON = phụ nữ DA TRẮNG ngoài 55 tuổi, TÓC BẠC PHA NÂU CẮT NGẮN NGANG CẰM, mặt gầy xương gò má rõ. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc, KHÔNG vẽ Thornton trẻ hơn hay tóc dài.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S9-KT-TURN_v1.png"
         }
       ],
       "shots": [
         {
           "id": "V-S9-1",
-          "sf": "SF-S9-THORNTON-MAYA",
+          "sf": "SF-S9-KT-TWO",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MRS. THORNTON: \"Ms. Bennett, Mr. Prescott is here again. That's the fourth time this week.\"\nMAYA: \"The lawyer? What do they talk about in there?\"",
           "prompt_text": "MRS. THORNTON: \"Ms. Bennett, Mr. Prescott is here again. That's the fourth time this week.\"\nMAYA: \"The lawyer? What do they talk about in there?\"",
-          "prompt": "REFS · Start frame: SF-S9-THORNTON-MAYA\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"Ms. Bennett, Mr. Prescott is here again. That's the fourth time this week.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"The lawyer? What do they talk about in there?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-TWO\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"Ms. Bennett, Mr. Prescott is here again. That's the fourth time this week.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"The lawyer? What do they talk about in there?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-2",
-          "sf": "SF-S9-TWO-34",
-          "dur": 10,
+          "sf": "SF-S9-KT-OTS-MAYA",
+          "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
-          "text": "MRS. THORNTON: \"I don't ask. But I can hear through the door.\"\nEDMUND: \"Change everything, Henry. All of it. Every line.\"\nHENRY PRESCOTT: \"Edmund, these are significant revisions. Your children —\"",
-          "prompt_text": "MRS. THORNTON: \"I don't ask. But I can hear through the door.\"\nEDMUND: \"Change everything, Henry. All of it. Every line.\"\nHENRY PRESCOTT: \"Edmund, these are significant revisions. Your children —\"",
-          "prompt": "REFS · Start frame: SF-S9-TWO-34\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; HENRY PRESCOTT = luật sư nam da trắng 65 tuổi, kính gọng kim loại mảnh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"I don't ask. But I can hear through the door.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nEDMUND — weary, guarded:\n\"Change everything, Henry. All of it. Every line.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nHENRY PRESCOTT — suspicious, careful:\n\"Edmund, these are significant revisions. Your children —\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "text": "MRS. THORNTON: \"I don't ask. But I can hear through the door.\"",
+          "prompt_text": "MRS. THORNTON: \"I don't ask. But I can hear through the door.\"",
+          "prompt": "REFS · Start frame: SF-S9-KT-OTS-MAYA\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = phụ nữ da trắng ngoài 55, tóc bạc pha nâu ngắn ngang cằm, váy quản gia xám than + gi-lê xanh đen. Mọi người NÓI đều có mặt trong khung.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay.\n\nMRS. THORNTON — lowered voice, glancing at the corridor door:\n\"I don't ask. But I can hear through the door.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
-          "id": "V-S9-3",
+          "id": "V-S9-2B",
+          "dur": 6,
           "sf": "SF-S9-HENRY",
-          "dur": 10,
+          "text": "EDMUND: \"Change everything, Henry. All of it. Every line.\"\nHENRY PRESCOTT: \"Edmund, these are significant revisions. Your children —\"",
+          "prompt_text": "EDMUND: \"Change everything, Henry. All of it. Every line.\"\nHENRY PRESCOTT: \"Edmund, these are significant revisions. Your children —\"",
+          "prompt": "REFS · Start frame: SF-S9-HENRY\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi ngồi xe lăn, tóc bạc trắng, nhẫn vàng cũ · HENRY PRESCOTT = luật sư nam da trắng 65 tuổi, kính gọng kim loại mảnh. Mọi người NÓI đều có mặt trong khung.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay.\n\nCẮT SANG THƯ PHÒNG — đây là những gì Thornton nghe được qua cánh cửa.\n\nEDMUND — flat, final:\n\"Change everything, Henry. All of it. Every line.\"\n\nHENRY PRESCOTT — careful, testing:\n\"Edmund, these are significant revisions. Your children —\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật."
+        },
+        {
+          "id": "V-S9-3",
+          "sf": "SF-S9-HENRY-CU",
+          "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "EDMUND: \"My children didn't answer the phone when I was dying on the floor. Change it. All of it.\"",
           "prompt_text": "EDMUND: \"My children didn't answer the phone when I was dying on the floor. Change it. All of it.\"",
-          "prompt": "REFS · Start frame: SF-S9-HENRY\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — weary, guarded:\n\"My children didn't answer the phone when I was dying on the floor. Change it. All of it.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-HENRY-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Chỉ một người trong khung nói.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — weary, guarded:\n\"My children didn't answer the phone when I was dying on the floor. Change it. All of it.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-4",
-          "sf": "SF-S9-THORNTON-MAYA-V2",
+          "sf": "SF-M-KITCHEN",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MRS. THORNTON: \"And every time Mr. Prescott leaves, Vivian calls. Every single time. Like clockwork.\"\nMAYA: \"What does she want?\"",
           "prompt_text": "MRS. THORNTON: \"And every time Mr. Prescott leaves, Vivian calls. Every single time. Like clockwork.\"\nMAYA: \"What does she want?\"",
-          "prompt": "REFS · Start frame: SF-S9-THORNTON-MAYA-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"And every time Mr. Prescott leaves, Vivian calls. Every single time. Like clockwork.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"What does she want?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-M-KITCHEN\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"And every time Mr. Prescott leaves, Vivian calls. Every single time. Like clockwork.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"What does she want?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-5",
-          "sf": "SF-S9-TWO-34-V2",
+          "sf": "SF-S9-KT-TH-CU",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MRS. THORNTON: \"She wants to know what's in the new will. I tell her he's not taking calls. She doesn't like that answer.\"",
           "prompt_text": "MRS. THORNTON: \"She wants to know what's in the new will. I tell her he's not taking calls. She doesn't like that answer.\"",
-          "prompt": "REFS · Start frame: SF-S9-TWO-34-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"She wants to know what's in the new will. I tell her he's not taking calls. She doesn't like that answer.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-TH-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"She wants to know what's in the new will. I tell her he's not taking calls. She doesn't like that answer.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-6",
-          "sf": "SF-S9-STAIRS",
+          "sf": "SF-S9-KT-TWO",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"Mrs. Thornton — that door on the east wing. The sixth one. It was open today.\"\nMRS. THORNTON: \"You didn't go inside.\"",
           "prompt_text": "MAYA: \"Mrs. Thornton — that door on the east wing. The sixth one. It was open today.\"\nMRS. THORNTON: \"You didn't go inside.\"",
-          "prompt": "REFS · Start frame: SF-S9-STAIRS\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily; MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"Mrs. Thornton — that door on the east wing. The sixth one. It was open today.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"You didn't go inside.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-TWO\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily; MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"Mrs. Thornton — that door on the east wing. The sixth one. It was open today.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"You didn't go inside.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-7",
-          "sf": "SF-S9-STAIRS-V2",
+          "sf": "SF-S9-KT-OTS-TH",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
-          "text": "MAYA: \"I looked in. There's a photograph on the wall. A young Black woman in a maid's apron, holding a blond baby. She's wearing a gold chain, and on that chain — there's a ring. A small gold ring.\"",
-          "prompt_text": "MAYA: \"I looked in. There's a photograph on the wall. A young Black woman in a maid's apron, holding a blond baby. She's wearing a gold chain, and on that chain — there's a ring. A small gold ring.\"",
-          "prompt": "REFS · Start frame: SF-S9-STAIRS-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"I looked in. There's a photograph on the wall. A young Black woman in a maid's apron, holding a blond baby. She's wearing a gold chain, and on that chain — there's a ring. A small gold ring.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "text": "MAYA: \"I looked in. There's a photograph on the wall. A young Black woman in a maid's apron, holding a blond baby.\"",
+          "prompt_text": "MAYA: \"I looked in. There's a photograph on the wall. A young Black woman in a maid's apron, holding a blond baby.\"",
+          "prompt": "REFS · Start frame: SF-S9-KT-OTS-TH\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc xoăn búi thấp, đồng phục xám xanh. Mọi người NÓI đều có mặt trong khung.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay.\n\nMAYA — quiet, choosing words carefully:\n\"I looked in. There's a photograph on the wall. A young Black woman in a maid's apron, holding a blond baby.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
+          "id": "V-S9-7B",
+          "dur": 6,
+          "sf": "SF-S9-KT-MAYA-CU",
+          "text": "MAYA: \"She's wearing a gold chain, and on that chain — there's a ring. A small gold ring.\"",
+          "prompt_text": "MAYA: \"She's wearing a gold chain, and on that chain — there's a ring. A small gold ring.\"",
+          "prompt": "REFS · Start frame: SF-S9-KT-MAYA-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc xoăn búi thấp, đồng phục xám xanh. Mọi người NÓI đều có mặt trong khung.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay.\n\nMAYA — slower, landing each detail:\n\"She's wearing a gold chain, and on that chain — there's a ring. A small gold ring.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật."
+        },
+        {
           "id": "V-S9-8",
-          "sf": "SF-S9-THORNTON-CU",
+          "sf": "SF-S9-KT-TH-CU",
           "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MRS. THORNTON: \"Ms. Bennett —\"",
           "prompt_text": "MRS. THORNTON: \"Ms. Bennett —\"",
-          "prompt": "REFS · Start frame: SF-S9-THORNTON-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Chỉ một người trong khung nói.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"Ms. Bennett —\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-TH-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Chỉ một người trong khung nói.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"Ms. Bennett —\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
@@ -5097,106 +5083,106 @@
         },
         {
           "id": "V-S9-9",
-          "sf": "SF-S9-THORNTON-MAYA",
+          "sf": "SF-S9-KT-OTS-TH",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"It's the same ring he wears. The one he twists when he's thinking. The one that's too simple and too worn for a billionaire. Mrs. Thornton — who is she?\"",
           "prompt_text": "MAYA: \"It's the same ring he wears. The one he twists when he's thinking. The one that's too simple and too worn for a billionaire. Mrs. Thornton — who is she?\"",
-          "prompt": "REFS · Start frame: SF-S9-THORNTON-MAYA\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"It's the same ring he wears. The one he twists when he's thinking. The one that's too simple and too worn for a billionaire. Mrs. Thornton — who is she?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-OTS-TH\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"It's the same ring he wears. The one he twists when he's thinking. The one that's too simple and too worn for a billionaire. Mrs. Thornton — who is she?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-10",
-          "sf": "SF-S9-TWO-34",
+          "sf": "SF-S9-KT-TURN",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MRS. THORNTON: \"That door stays closed, Ms. Bennett.\"\nMAYA: \"Your eyes just changed. You're scared. What are you scared of?\"",
           "prompt_text": "MRS. THORNTON: \"That door stays closed, Ms. Bennett.\"\nMAYA: \"Your eyes just changed. You're scared. What are you scared of?\"",
-          "prompt": "REFS · Start frame: SF-S9-TWO-34\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"That door stays closed, Ms. Bennett.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"Your eyes just changed. You're scared. What are you scared of?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-TURN\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"That door stays closed, Ms. Bennett.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"Your eyes just changed. You're scared. What are you scared of?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-11",
-          "sf": "SF-S9-THORNTON-MAYA-V2",
+          "sf": "SF-S9-KT-TURN",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MRS. THORNTON: \"I've kept this house running for nine years by not asking questions. I suggest you do the same.\"",
           "prompt_text": "MRS. THORNTON: \"I've kept this house running for nine years by not asking questions. I suggest you do the same.\"",
-          "prompt": "REFS · Start frame: SF-S9-THORNTON-MAYA-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"I've kept this house running for nine years by not asking questions. I suggest you do the same.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-TURN\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"I've kept this house running for nine years by not asking questions. I suggest you do the same.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-12",
-          "sf": "SF-S9-STAIRS",
+          "sf": "SF-S9-KT-TWO",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"Something else, Mrs. Thornton. Vivian's been bringing his evening medication. She comes every day now with that leather case.\"\nMRS. THORNTON: \"She's his daughter-in-law. She's allowed.\"",
           "prompt_text": "MAYA: \"Something else, Mrs. Thornton. Vivian's been bringing his evening medication. She comes every day now with that leather case.\"\nMRS. THORNTON: \"She's his daughter-in-law. She's allowed.\"",
-          "prompt": "REFS · Start frame: SF-S9-STAIRS\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily; MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"Something else, Mrs. Thornton. Vivian's been bringing his evening medication. She comes every day now with that leather case.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"She's his daughter-in-law. She's allowed.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-TWO\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily; MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"Something else, Mrs. Thornton. Vivian's been bringing his evening medication. She comes every day now with that leather case.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"She's his daughter-in-law. She's allowed.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-13",
-          "sf": "SF-S9-MAYA-CU",
+          "sf": "SF-S9-KT-MAYA-CU",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"I give him his morning pills. Twenty milligrams of Lisinopril. I know what they look like. The pills Vivian gives him — they're smaller. Different shade of white.\"",
           "prompt_text": "MAYA: \"I give him his morning pills. Twenty milligrams of Lisinopril. I know what they look like. The pills Vivian gives him — they're smaller. Different shade of white.\"",
-          "prompt": "REFS · Start frame: SF-S9-MAYA-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — low, precise, urgent:\n\"I give him his morning pills. Twenty milligrams of Lisinopril. I know what they look like. The pills Vivian gives him — they're smaller. Different shade of white.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-MAYA-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — low, precise, urgent:\n\"I give him his morning pills. Twenty milligrams of Lisinopril. I know what they look like. The pills Vivian gives him — they're smaller. Different shade of white.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-13B",
-          "dur": 10,
-          "sf": "SF-S9-STAIRS-V2",
+          "dur": 6,
+          "sf": "SF-S9-KT-OTS-TH",
           "text": "MAYA: \"And since she started coming, he's going downhill. Gray skin. Tremors worse. Sleeping fourteen hours a day.\"",
-          "prompt": "REFS · Start frame: SF-S9-STAIRS-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — pressing, counting the evidence:\n\"And since she started coming, he's going downhill. Gray skin. Tremors worse. Sleeping fourteen hours a day.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-OTS-TH\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — pressing, counting the evidence:\n\"And since she started coming, he's going downhill. Gray skin. Tremors worse. Sleeping fourteen hours a day.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "prompt_text": "MAYA: \"And since she started coming, he's going downhill. Gray skin. Tremors worse. Sleeping fourteen hours a day.\""
         },
         {
           "id": "V-S9-14",
-          "sf": "SF-S9-STAIRS-V2",
+          "sf": "SF-M-KITCHEN",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MRS. THORNTON: \"I'm sure there's an explanation.\"\nMAYA: \"Are you? Because my daughter told me something last night that I can't stop thinking about.\"\nMRS. THORNTON: \"What did she say?\"",
           "prompt_text": "MRS. THORNTON: \"I'm sure there's an explanation.\"\nMAYA: \"Are you? Because my daughter told me something last night that I can't stop thinking about.\"\nMRS. THORNTON: \"What did she say?\"",
-          "prompt": "REFS · Start frame: SF-S9-STAIRS-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"I'm sure there's an explanation.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"Are you? Because my daughter told me something last night that I can't stop thinking about.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"What did she say?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-M-KITCHEN\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"I'm sure there's an explanation.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"Are you? Because my daughter told me something last night that I can't stop thinking about.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"What did she say?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-15",
-          "sf": "SF-S9-TWO-34-V2",
+          "sf": "SF-M-KITCHEN",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"She said, 'Mama, why does the pretty lady smile at Mr. Edmund but her eyes don't smile?'\"\nMRS. THORNTON: \"... Children notice things.\"",
           "prompt_text": "MAYA: \"She said, 'Mama, why does the pretty lady smile at Mr. Edmund but her eyes don't smile?'\"\nMRS. THORNTON: \"... Children notice things.\"",
-          "prompt": "REFS · Start frame: SF-S9-TWO-34-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily; MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"She said, 'Mama, why does the pretty lady smile at Mr. Edmund but her eyes don't smile?'\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"... Children notice things.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-M-KITCHEN\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily; MRS. THORNTON = quản gia nữ da trắng ngoài 55 tuổi, tóc bạc pha nâu cắt ngắn ngang cằm. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"She said, 'Mama, why does the pretty lady smile at Mr. Edmund but her eyes don't smile?'\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMRS. THORNTON — clipped, professional, guarded:\n\"... Children notice things.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S9-16",
-          "sf": "SF-S9-MAYA-CU",
+          "sf": "SF-S9-KT-MAYA-CU",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"Yes. They do. A lawyer rewriting everything. A hidden photograph of a Black woman with his ring. And pills that don't look right. Something is very wrong in this house, Mrs. Thornton.\"",
           "prompt_text": "MAYA: \"Yes. They do. A lawyer rewriting everything. A hidden photograph of a Black woman with his ring. And pills that don't look right. Something is very wrong in this house, Mrs. Thornton.\"",
-          "prompt": "REFS · Start frame: SF-S9-MAYA-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"Yes. They do. A lawyer rewriting everything. A hidden photograph of a Black woman with his ring. And pills that don't look right. Something is very wrong in this house, Mrs. Thornton.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S9-KT-MAYA-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — calm, even, steady:\n\"Yes. They do. A lawyer rewriting everything. A hidden photograph of a Black woman with his ring. And pills that don't look right. Something is very wrong in this house, Mrs. Thornton.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         }
       ],
@@ -5250,7 +5236,7 @@
         },
         {
           "id": "SF-S10-PHONE-NIGHT",
-          "label": "Maya gọi điện ở HÀNH LANG — không có trẻ em trong khung",
+          "label": "Maya gọi điện trong phòng người giúp việc, đêm",
           "desc": "'You can check his blood work or wait until he's dead.'",
           "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium shot, camera ngang tầm ngực, ống kính 50mm.\n\nBỐ CỤC: MAYA đứng ở phần giữa-phải khung trong phòng người giúp việc, ÁP ĐIỆN THOẠI VÀO TAI, tay kia ôm khuỷu tay đối diện.\n\nBIỂU CẢM: Maya nói khẽ để không đánh thức con, nhưng gương mặt quyết liệt, hàm siết. Cô đang đánh cược cả chỗ ở của hai mẹ con.\n\nChỉ có đèn bàn nhỏ bật, phần lớn phòng tối.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, khớp tự nhiên. KHÔNG chữ đọc được ngoài phần được nêu, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp.\n\nAN TOÀN NỘI DUNG — BẮT BUỘC: TUYỆT ĐỐI KHÔNG có trẻ em nào trong khung này. Không trẻ em ngủ, không trẻ em trong bóng tối, không trẻ em cạnh người bệnh hay người bất tỉnh. Nếu mô tả cũ có nhắc trẻ em, BỎ QUA phần đó.",
           "status": "approved",
@@ -5332,7 +5318,7 @@
         },
         {
           "id": "SF-S10-PHONE-WIDE",
-          "label": "Wide hành lang — Maya gọi điện, không có trẻ em",
+          "label": "Wide phòng người giúp việc — Maya gọi điện, đèn bàn",
           "desc": "Wide phòng — Maya gọi điện, con ngủ sau lưng",
           "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, bảng màu, ánh sáng, cùng trục 180 độ với master.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic wide shot, camera góc phòng người giúp việc, ống kính 28mm.\n\nMaya đeo ĐÚNG MỘT dây chuyền vàng mảnh có mặt tròn nhỏ, MỘT vòng tay vàng mỏng ở cổ tay phải nếu thấy cổ tay.\nBỐ CỤC: MAYA đứng ở 55-78% khung, điện thoại áp tai, tay kia ôm khuỷu tay đối diện. Chỉ một đèn bàn nhỏ bật.\n\nÝ ĐỒ: cô đang đặt cược chỗ ở của hai mẹ con ngay trong căn phòng con mình đang ngủ. Khoảng cách giữa cô và giường là nội dung khung.\n\nCinematic depth of field vừa phải. Mọi gương mặt phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được ngoài phần được nêu, KHÔNG watermark.\n\nAN TOÀN NỘI DUNG — BẮT BUỘC: TUYỆT ĐỐI KHÔNG có trẻ em nào trong khung này. Không trẻ em ngủ, không trẻ em trong bóng tối, không trẻ em cạnh người bệnh hay người bất tỉnh. Nếu mô tả cũ có nhắc trẻ em, BỎ QUA phần đó.",
           "status": "approved",
@@ -5378,6 +5364,21 @@
             ],
             "bg": "SF-M-VANITY"
           }
+        },
+        {
+          "id": "SF-S10-COMPARE",
+          "label": "★ Maya cúi soi hai lọ thuốc đặt cạnh nhau — có mặt cô trong khung",
+          "desc": "Thay SF-S10-PILLS (extreme close-up thuần đồ vật, 0 ref nhân vật — vi phạm luật mọi shot phải có người và luật tránh góc cực đoan).",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL"
+            ],
+            "bg": "SF-M-VANITY"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\nNHƯNG VỊ TRÍ CAMERA TỰ DO — khung này đứng chếch hơn góc master, không lặp lại bố cục master.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium close-up, ống kính 50mm, camera đặt CHÉO BÊN TRÁI BÀN TRANG ĐIỂM ngang tầm ngực, nhìn xiên qua mặt bàn lên phía Maya.\n\nBỐ CỤC: MAYA chiếm 45-85% khung, ĐỨNG cúi người trên bàn trang điểm, thấy từ hông lên, GƯƠNG MẶT NHÌN RÕ và hướng xuống mặt bàn. Ở tiền cảnh dưới, trên mặt gỗ sẫm, là HAI LỌ THUỐC NHỰA TRẮNG ĐẶT CẠNH NHAU: lọ bên trái CÓ NHÃN GIẤY TRẮNG VIỀN XANH, lọ bên phải TRƠN KHÔNG NHÃN. Bên cạnh là CHIẾC TÚI DA NÂU đang mở khóa. Gương ba cánh ở hậu cảnh phản chiếu mờ một phần vai và gáy cô.\n\nTRẠNG THÁI KHÔNG GIAN: Maya ĐỨNG một mình bên bàn, không ai khác trong phòng.\n\nBIỂU CẢM (mức nền, KHÔNG đỉnh điểm): tập trung, nghi ngại — người vừa nhận ra một chi tiết không khớp. KHÔNG hoảng hốt, KHÔNG bụm miệng, KHÔNG trợn mắt.\n\nÁNH SÁNG: ban đêm, chỉ đèn bàn trang điểm vàng ấm hắt từ dưới lên mặt bàn và lên mặt cô — nhưng vẫn ĐỦ SÁNG để nhìn rõ gương mặt và hai lọ thuốc. KHÔNG mảng đen đặc.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp. KHÔNG làm sáng da, KHÔNG tóc thẳng.\n\nCinematic depth of field vừa phải: gương mặt NÉT, hai lọ thuốc ở tiền cảnh vẫn đọc được hình dáng. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được trên nhãn, KHÔNG watermark, KHÔNG nhân vật trùng lặp, KHÔNG thêm người.",
+          "picked": "SF-S10-COMPARE_v1.png"
         }
       ],
       "shots": [
@@ -5408,37 +5409,63 @@
         {
           "id": "V-S10-3",
           "sf": "SF-S10-CASE-V2",
-          "dur": 10,
+          "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
-          "text": "MAYA: \"Let me check his nightstand. The pills I give him every morning — here. These are bigger. Darker white. The ones in Vivian's case are half the size. Five milligrams instead of twenty. One-quarter of his dose.\"",
-          "prompt_text": "MAYA: \"Let me check his nightstand. The pills I give him every morning — here. These are bigger. Darker white. The ones in Vivian's case are half the size. Five milligrams instead of twenty. One-quarter of his dose.\"",
-          "prompt": "REFS · Start frame: SF-S10-CASE-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — tense, whispered:\n\"Let me check his nightstand. The pills I give him every morning — here. These are bigger. Darker white. The ones in Vivian's case are half the size. Five milligrams instead of twenty. One-quarter of his dose.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "text": "MAYA: \"Let me check his nightstand. The pills I give him every morning — here. These are bigger. Darker white.\"",
+          "prompt_text": "MAYA: \"Let me check his nightstand. The pills I give him every morning — here. These are bigger. Darker white.\"",
+          "prompt": "REFS · Start frame: SF-S10-CASE-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc xoăn búi thấp, đồng phục xám xanh.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay.\n\nMAYA — 低 whisper, comparing:\n\"Let me check his nightstand. The pills I give him every morning — here. These are bigger. Darker white.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
+          "id": "V-S10-3B",
+          "dur": 10,
+          "sf": "SF-S10-MAYA-CU",
+          "text": "MAYA: \"The ones in Vivian's case are half the size. Five milligrams instead of twenty. One-quarter of his dose.\"",
+          "prompt_text": "MAYA: \"The ones in Vivian's case are half the size. Five milligrams instead of twenty. One-quarter of his dose.\"",
+          "prompt": "REFS · Start frame: SF-S10-MAYA-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc xoăn búi thấp, đồng phục xám xanh.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay.\n\nMAYA — the arithmetic landing:\n\"The ones in Vivian's case are half the size. Five milligrams instead of twenty. One-quarter of his dose.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật."
+        },
+        {
           "id": "V-S10-4",
-          "sf": "SF-S10-CASE",
+          "sf": "SF-M-VANITY",
           "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"And this second bottle — no label. No name. No nothing. What is this?\"",
           "prompt_text": "MAYA: \"And this second bottle — no label. No name. No nothing. What is this?\"",
-          "prompt": "REFS · Start frame: SF-S10-CASE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — tense, whispered:\n\"And this second bottle — no label. No name. No nothing. What is this?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-M-VANITY\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — tense, whispered:\n\"And this second bottle — no label. No name. No nothing. What is this?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
+          "id": "V-S10-B1",
+          "sf": "SF-S10-COMPARE",
+          "dur": 6,
+          "vstatus": "",
+          "ai_request": "",
+          "notes": "",
+          "text": "[KHÔNG THOẠI] ★ Hai loại thuốc đặt cạnh nhau trên mặt bàn",
+          "prompt_text": "",
+          "prompt": "REFS · Start frame: SF-S10-COMPARE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nKHÔNG KHÍ CẦN TẠO RA: một bằng chứng vừa được nhìn thấy và chưa ai kịp che đi.\nKhông có người trong khung. Sức nặng nằm ở chỗ khán giả TỰ SO SÁNH được: viên bên trái to gấp đôi viên bên phải, và cái lọ phía sau không có nhãn. Cả vụ án nằm trong ba vật này, và không cần một chữ nào giải thích.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó — không có một cách diễn nào đúng cho mọi cảm xúc.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): một viên thuốc lăn nhẹ rồi nằm im; ánh đèn bàn hơi lay làm bóng đổ của các lọ dịch một chút; ở nhịp cuối một BÀN TAY vào khung, xoay lọ không nhãn lại để soi mặt lọ trơn không chữ, rồi giữ nguyên.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: tiếng viên thuốc lăn trên mặt gỗ, tiếng nhựa lọ cọ nhẹ, tiếng đồng hồ đêm, và một khoảng im rất dày. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "music": {
+            "emo": "KÌM thriller, KHÔNG LỜI — hai loại thuốc cạnh nhau; bằng chứng câm lặng",
+            "a_kind": "không lời",
+            "a": "Minimal tension cue at 64 BPM; two alternating piano notes a half-step apart repeating like a comparison, low string drone tightening underneath, a thin high violin harmonic entering at the recognition and holding, cut to silence; clinical close mix, piano, strings, evidence, dread, precise",
+            "b_kind": "không lời",
+            "b": "Pulse-drone at 62 BPM; ticking muted percussion like a pill bottle tapped, dark pad swelling by barely perceptible degrees, one sub-bass drop where the truth lands, no resolution; airless forensic mix, percussion, drone, poison, silent-alarm, cold"
+          }
+        },
+        {
           "id": "V-S10-5",
-          "sf": "SF-S10-MAYA-CU",
+          "sf": "SF-S10-LILY-SLEEP",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"Lily, baby — you asleep? Good. Stay asleep. Mama's got to make a phone call that might cost us everything.\"\nDR. CRANE: \"Hello?\"",
           "prompt_text": "MAYA: \"Lily, baby — you asleep? Good. Stay asleep. Mama's got to make a phone call that might cost us everything.\"\nDR. CRANE: \"Hello?\"",
-          "prompt": "REFS · Start frame: SF-S10-MAYA-CU\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — tense, whispered:\n\"Lily, baby — you asleep? Good. Stay asleep. Mama's got to make a phone call that might cost us everything.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nDR. CRANE (off-screen) — tense, whispered:\n\"Hello?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S10-LILY-SLEEP\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nMAYA — tense, whispered:\n\"Lily, baby — you asleep? Good. Stay asleep. Mama's got to make a phone call that might cost us everything.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nDR. CRANE (off-screen) — tense, whispered:\n\"Hello?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
@@ -5504,13 +5531,13 @@
         {
           "id": "V-S10-11",
           "sf": "SF-S10-PHONE-CU2",
-          "dur": 10,
+          "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"Dr. Crane. He was getting better after the hospital. Eating. Talking. Laughing for the first time.\"",
           "prompt_text": "MAYA: \"Dr. Crane. He was getting better after the hospital. Eating. Talking. Laughing for the first time.\"",
-          "prompt": "REFS · Start frame: SF-S10-PHONE-CU2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — hushed, cupping the phone:\n\"Dr. Crane. He was getting better after the hospital. Eating. Talking. Laughing for the first time.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S10-PHONE-CU2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — hushed, cupping the phone:\n\"Dr. Crane. He was getting better after the hospital. Eating. Talking. Laughing for the first time.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
@@ -5531,27 +5558,52 @@
         },
         {
           "id": "V-S10-12",
-          "sf": "SF-S10-HALL",
+          "sf": "SF-S10-MAYA-34",
           "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "DR. CRANE: \"... I'll order bloodwork first thing tomorrow.\"\nMAYA: \"Thank you, Dr. Crane.\"",
           "prompt_text": "DR. CRANE: \"... I'll order bloodwork first thing tomorrow.\"\nMAYA: \"Thank you, Dr. Crane.\"",
-          "prompt": "REFS · Start frame: SF-S10-HALL\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nDR. CRANE (off-screen) — tense, whispered:\n\"... I'll order bloodwork first thing tomorrow.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — tense, whispered:\n\"Thank you, Dr. Crane.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S10-MAYA-34\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: MAYA = nữ da đen 30 tuổi, mẹ của Lily, đồng phục chăm sóc xám xanh. Mọi người trong khung đều rõ mặt.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nDR. CRANE (off-screen) — tense, whispered:\n\"... I'll order bloodwork first thing tomorrow.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — tense, whispered:\n\"Thank you, Dr. Crane.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
-          "id": "V-S10-13",
+          "id": "V-S10-B3",
+          "dur": 6,
           "sf": "SF-S10-HALL",
-          "dur": 10,
+          "text": "[KHÔNG THOẠI] Maya tựa tường hành lang sau khi cúp máy",
+          "prompt": "REFS · Start frame: SF-S10-HALL\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH: cô vừa gọi cho bác sĩ tố cáo con dâu chủ nhà — một người giúp việc không bằng cấp, nói điều có thể khiến cô mất việc và mất chỗ ở của hai mẹ con. Cuộc gọi đã xong, adrenaline rút đi, và giờ cô một mình trong hành lang tối với thứ mình vừa làm.\n\nGợi ý diễn biến (điều chỉnh cho tự nhiên): cô thở ra một hơi dài, bàn tay cầm điện thoại buông dọc thân; mắt mở ra nhìn vào khoảng không; rồi đứng thẳng dậy — vì còn phải đem chiếc túi trả về chỗ cũ. Clip KẾT THÚC khi cô vừa rời tường bước đi. KHÔNG khóc, KHÔNG gục xuống.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường rất nhẹ: đồng hồ quả lắc xa, tiếng gió ngoài cửa sổ. Giữ NHẸ và TỰ NHIÊN, chừa chỗ ghép nhạc.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật."
+        },
+        {
+          "id": "V-S10-13",
+          "sf": "SF-S10-CASE-V2",
+          "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "MAYA: \"Okay. Case back on the vanity. Exactly where she left it. She won't know I touched it.\"",
           "prompt_text": "MAYA: \"Okay. Case back on the vanity. Exactly where she left it. She won't know I touched it.\"",
-          "prompt": "REFS · Start frame: SF-S10-HALL\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — whispering to herself, hands still shaking:\n\"Okay. Case back on the vanity. Exactly where she left it. She won't know I touched it.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S10-CASE-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — whispering to herself, hands still shaking:\n\"Okay. Case back on the vanity. Exactly where she left it. She won't know I touched it.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
+        },
+        {
+          "id": "V-S10-B2",
+          "sf": "SF-S10-CASE",
+          "dur": 6,
+          "vstatus": "",
+          "ai_request": "",
+          "notes": "",
+          "text": "[KHÔNG THOẠI] Đặt chiếc túi lại đúng vị trí cũ",
+          "prompt_text": "",
+          "prompt": "REFS · Start frame: SF-S10-CASE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nCô vừa gọi cho bác sĩ tim mạch lúc chín rưỡi đêm và nói ra điều có thể khiến cô mất chỗ ở của hai mẹ con ngay mai.\nGiờ cô phải đặt chiếc túi lại đúng chỗ, đúng chiều, đúng thế khóa kéo — để người kia không biết. Trong lòng cô là sự bình tĩnh của người đã quyết rồi, lẫn với cái lạnh sống lưng của người biết mình vừa làm gì.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): cô đặt túi xuống, chỉnh lại cho song song mép bàn, kéo khóa về đúng vị trí ban đầu; rồi lùi lại một bước ngắm cho chắc; ở nhịp cuối cô tắt đèn bàn.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: tiếng khóa kéo rất nhẹ, tiếng túi da đặt trên mặt gỗ, tiếng công tắc đèn, im lặng đêm khuya của ngôi nhà lớn. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nClip KẾT THÚC khi cô đặt xong chiếc túi và quay người bước ra cửa — nối sang khung kế ở giường con.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "music": {
+            "emo": "KÌM — đặt chiếc túi lại đúng chỗ; một hành động nhỏ có thể mất tất cả",
+            "a_kind": "không lời",
+            "a": "Held-breath cue at 60 BPM; fingertip percussion and a single pizzicato bass line moving in careful steps, high strings frozen on one chord, releasing only when the case clicks shut into three seconds of pure room tone; taut whisper mix, pizzicato, strings, stealth, risk, exhale",
+            "b_kind": "không lời",
+            "b": "Minimal suspense at 58 BPM; soft clock-tick rim clicks under a two-chord piano sway, a cello entering low and withdrawing, dynamics like someone walking on floorboards, ending mid-tick; nocturnal tight mix, piano, cello, tiptoe, wager, unfinished"
+          }
         },
         {
           "id": "V-S10-13B",
@@ -5568,42 +5620,6 @@
           "text": "MAYA: \"Your mama just did something that might cost us everything. Or save an old man's life. I guess we'll find out in the morning.\"",
           "prompt": "REFS · Start frame: SF-S10-MAYA-34\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): MAYA = nữ Mỹ gốc Phi 30 tuổi, da nâu sẫm, tóc đen xoăn vấn búi thấp, đường nét mềm. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nMAYA — quiet, to the dark room:\n\"Your mama just did something that might cost us everything. Or save an old man's life. I guess we'll find out in the morning.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "prompt_text": "MAYA: \"Your mama just did something that might cost us everything. Or save an old man's life. I guess we'll find out in the morning.\""
-        },
-        {
-          "id": "V-S10-B1",
-          "sf": "SF-S10-PILLS",
-          "dur": 6,
-          "vstatus": "",
-          "ai_request": "",
-          "notes": "",
-          "text": "[KHÔNG THOẠI] ★ Hai loại thuốc đặt cạnh nhau trên mặt bàn",
-          "prompt_text": "",
-          "prompt": "REFS · Start frame: SF-S10-PILLS\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nKHÔNG KHÍ CẦN TẠO RA: một bằng chứng vừa được nhìn thấy và chưa ai kịp che đi.\nKhông có người trong khung. Sức nặng nằm ở chỗ khán giả TỰ SO SÁNH được: viên bên trái to gấp đôi viên bên phải, và cái lọ phía sau không có nhãn. Cả vụ án nằm trong ba vật này, và không cần một chữ nào giải thích.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó — không có một cách diễn nào đúng cho mọi cảm xúc.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): một viên thuốc lăn nhẹ rồi nằm im; ánh đèn bàn hơi lay làm bóng đổ của các lọ dịch một chút; ở nhịp cuối một BÀN TAY vào khung, xoay lọ không nhãn lại để soi mặt lọ trơn không chữ, rồi giữ nguyên.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: tiếng viên thuốc lăn trên mặt gỗ, tiếng nhựa lọ cọ nhẹ, tiếng đồng hồ đêm, và một khoảng im rất dày. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {
-            "emo": "KÌM thriller, KHÔNG LỜI — hai loại thuốc cạnh nhau; bằng chứng câm lặng",
-            "a_kind": "không lời",
-            "a": "Minimal tension cue at 64 BPM; two alternating piano notes a half-step apart repeating like a comparison, low string drone tightening underneath, a thin high violin harmonic entering at the recognition and holding, cut to silence; clinical close mix, piano, strings, evidence, dread, precise",
-            "b_kind": "không lời",
-            "b": "Pulse-drone at 62 BPM; ticking muted percussion like a pill bottle tapped, dark pad swelling by barely perceptible degrees, one sub-bass drop where the truth lands, no resolution; airless forensic mix, percussion, drone, poison, silent-alarm, cold"
-          }
-        },
-        {
-          "id": "V-S10-B2",
-          "sf": "SF-S10-CASE",
-          "dur": 6,
-          "vstatus": "",
-          "ai_request": "",
-          "notes": "",
-          "text": "[KHÔNG THOẠI] Đặt chiếc túi lại đúng vị trí cũ",
-          "prompt_text": "",
-          "prompt": "REFS · Start frame: SF-S10-CASE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nCô vừa gọi cho bác sĩ tim mạch lúc chín rưỡi đêm và nói ra điều có thể khiến cô mất chỗ ở của hai mẹ con ngay mai.\nGiờ cô phải đặt chiếc túi lại đúng chỗ, đúng chiều, đúng thế khóa kéo — để người kia không biết. Trong lòng cô là sự bình tĩnh của người đã quyết rồi, lẫn với cái lạnh sống lưng của người biết mình vừa làm gì.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): cô đặt túi xuống, chỉnh lại cho song song mép bàn, kéo khóa về đúng vị trí ban đầu; rồi lùi lại một bước ngắm cho chắc; ở nhịp cuối cô tắt đèn bàn.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: tiếng khóa kéo rất nhẹ, tiếng túi da đặt trên mặt gỗ, tiếng công tắc đèn, im lặng đêm khuya của ngôi nhà lớn. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {
-            "emo": "KÌM — đặt chiếc túi lại đúng chỗ; một hành động nhỏ có thể mất tất cả",
-            "a_kind": "không lời",
-            "a": "Held-breath cue at 60 BPM; fingertip percussion and a single pizzicato bass line moving in careful steps, high strings frozen on one chord, releasing only when the case clicks shut into three seconds of pure room tone; taut whisper mix, pizzicato, strings, stealth, risk, exhale",
-            "b_kind": "không lời",
-            "b": "Minimal suspense at 58 BPM; soft clock-tick rim clicks under a two-chord piano sway, a cello entering low and withdrawing, dynamics like someone walking on floorboards, ending mid-tick; nocturnal tight mix, piano, cello, tiptoe, wager, unfinished"
-          }
         }
       ],
       "script": "MAYA: \"She left her case. Right here on the vanity. She never forgets this thing.\"\nMAYA: \"It's unzipped. Two bottles inside. First one — Lisinopril, his name on the label. But wait — five milligrams? That's not right. His prescription is twenty.\"\nMAYA: \"Let me check his nightstand. The pills I give him every morning — here. These are bigger. Darker white. The ones in Vivian's case are half the size. Five milligrams instead of twenty. One-quarter of his dose.\"\nMAYA: \"And this second bottle — no label. No name. No nothing. What is this?\"\nMAYA: \"Lily, baby — you asleep? Good. Stay asleep. Mama's got to make a phone call that might cost us everything.\"\nDR. CRANE: \"Hello?\"\nMAYA: \"Dr. Crane, this is Maya Bennett. I'm Mr. Whitmore's caregiver.\"\nDR. CRANE: \"It's nine-thirty at night, Ms. Bennett.\"\nMAYA: \"I know, and I'm sorry. But something is wrong with his medication. The pills his daughter-in-law brings every evening — they're not the right dosage.\"\nDR. CRANE: \"And you are... a medical professional?\"\nMAYA: \"No, sir. I'm his maid. But I give him his morning pills every day. I know what twenty milligram Lisinopril looks like. These pills are five milligrams. And there's a second bottle with no label.\"\nDR. CRANE: \"Ms. Bennett, medication management is handled by the family. I'm sure —\"\nMAYA: \"Dr. Crane. He was getting better after the hospital. Eating. Talking. Laughing for the first time. Then she started bringing his evening pills and in two weeks he went right back to where he was. Gray skin. Tremors. Fourteen hours of sleep. You can check his blood work or you can wait until he's dead. But I'm telling you — something is wrong.\"\nDR. CRANE: \"... I'll order bloodwork first thing tomorrow.\"\nMAYA: \"Thank you, Dr. Crane.\"\nMAYA: \"Okay. Case back on the vanity. Exactly where she left it. She won't know I touched it. Lily, baby — are you asleep? Good. Stay asleep. Your mama just did something that might cost us everything. Or save an old man's life. I guess we'll find out in the morning.\""

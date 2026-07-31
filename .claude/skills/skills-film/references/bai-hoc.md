@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-39 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+40 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -47,6 +47,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 37. Người ở tiền cảnh quay lưng / out nét VẪN phải có ref
 - 38. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
 - 39. Master khoá KHÔNG GIAN chứ không khoá góc máy — và địa điểm phải được CHỌN
+- 40. Khoá ánh sáng theo master khi scene khác giờ = ra lệnh trái ngược
 
 ## Vận hành & gỡ lỗi hạ tầng
 
@@ -690,3 +691,20 @@ Skill cũ chỉ có luật chống-lệch (địa điểm đã có thì phải t
 nhắc chọn — kết quả là dồn hết vào một chỗ cho tiện. Liệt kê 2–3 phương án, chọn nơi phục vụ
 kể chuyện tốt nhất. Ngưỡng cảnh báo: một master gánh **quá ~25 SF** trên cả phim là dấu hiệu
 phải rà lại.
+
+
+## 40. Khoá ánh sáng theo master khi scene khác giờ = ra lệnh trái ngược
+
+*Bối cảnh:* user chỉ ra trong cùng một scene ban đêm, có SF cửa sổ sáng trắng như ban ngày, có
+SF cửa sổ tối. Cả ba master mà scene bám vào đều khai ban ngày ("ánh sáng qua cửa sổ"), còn SF
+con viết "ban đêm, phần lớn phòng tối" — nhưng vẫn giữ nguyên câu chuẩn *"khóa look từ master:
+giữ nguyên hướng và nhiệt độ ánh sáng"*.
+
+**Nguyên tắc:** master khoá **không gian và chất liệu**; **thời điểm trong ngày thuộc về SCENE**.
+Khi scene diễn ra vào giờ khác master, phải THAY câu khoá ánh sáng bằng khối nêu rõ: giữ gì
+(đồ đạc, bố cục, màu tường, mức sống), bỏ gì (ánh sáng master), nguồn sáng duy nhất là gì, và
+**ngoài cửa sổ thấy gì** — đây là chi tiết lộ nhất khi hai clip cắt vào nhau. Mọi SF cùng scene
+copy y nguyên khối đó.
+
+**Cách rà không tin được:** quét từ khoá "ban đêm" bỏ lọt những SF viết "phần lớn phòng tối" mà
+không nói giờ. Phải đọc dòng thời điểm của từng SF trong scene và đối chiếu thủ công.

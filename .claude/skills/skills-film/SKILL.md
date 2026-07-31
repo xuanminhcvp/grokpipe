@@ -10,7 +10,7 @@ tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.j
 dự án `PIPELINE-*.project`.
 
 Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
-đó là đủ. `references/bai-hoc.md` là **kho lịch sử 39 bài** (~15k token): chỉ mở khi (a) gặp
+đó là đủ. `references/bai-hoc.md` là **kho lịch sử 40 bài** (~15k token): chỉ mở khi (a) gặp
 lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
 viết prompt** — luật đã được chưng cất lên đây rồi.
 
@@ -123,7 +123,10 @@ hành động của beat này (giữ, tả rõ), hay nó chỉ được cài và
 9. **Thời điểm và mức độ đông đúc** — giờ nào trong ngày, ngày thường hay cuối tuần, vắng hay
    đông. **Rà kịch bản xem có câu thoại nào đã ấn định chi tiết này chưa** (vd. nhân vật nhắc
    "giờ cao điểm", "sáng sớm") — nếu có thì bắt buộc khớp, đây là chi tiết dễ bỏ sót nhất.
-10. **Bảng màu và ánh sáng** — khóa ở master, các SF sau bám theo.
+10. **Bảng màu và ánh sáng** — bảng màu/chất liệu khóa ở master. NHƯNG **thời điểm trong
+   ngày là của SCENE, không của master** — nếu scene diễn ra vào giờ khác master, xem mục
+   "Cùng phòng, khác thời điểm" bên dưới. Mỗi scene khai MỘT thời điểm duy nhất và mọi SF
+   trong scene ghi giống nhau từng chữ.
 11. **Danh sách chữ được phép xuất hiện** — liệt kê đủ mọi bảng tên/biển số (nguyên lý 13), kèm
    yêu cầu in RÕ RÀNG DỄ ĐỌC, không nhòe thành ký tự vô nghĩa.
 12. **Câu chặn lỗi cuối** — không watermark, không nhân vật trùng lặp, không logo méo.
@@ -166,6 +169,33 @@ cùng một cụm hội thoại.
 
 Hệ quả quan trọng: **một bối cảnh khai thác đủ hướng cho 6–8 góc thật sự khác nhau.** Phải
 cạn góc rồi mới dùng tới take V2 — phần lớn V2 bị lạm dụng là vì quên rằng còn xoay được.
+
+## Cùng phòng, KHÁC THỜI ĐIỂM — ánh sáng KHÔNG bám master
+
+Khối "KHÓA LOOK TỪ MASTER" mặc định ghi *giữ nguyên hướng và nhiệt độ ánh sáng*. Khi scene
+diễn ra vào **giờ khác với master**, câu đó thành **lệnh trái ngược** với phần mô tả bên
+dưới: model vừa nhìn ảnh master có cửa sổ sáng, vừa đọc chữ bảo phòng tối — nó xử lý ngẫu
+nhiên, nên cùng một căn phòng mà **khung này cửa sổ sáng, khung kia cửa sổ tối**.
+
+**Cách viết đúng — thay câu khoá ánh sáng bằng khối này:**
+
+```
+KHÓA LOOK TỪ MASTER — GIỮ NGUYÊN: đồ đạc, bố cục phòng, màu tường, chất liệu sàn,
+mức sống. KHÔNG giữ ánh sáng của master.
+THỜI ĐIỂM CỦA CẢNH NÀY LÀ <BAN ĐÊM / RẠNG SÁNG / CHIỀU MUỘN> — khác master.
+- Nguồn sáng duy nhất: <đèn bàn vàng ấm ở góc trái>. Không có nguồn nào khác.
+- NGOÀI CỬA SỔ LÀ ĐÊM ĐEN: chỉ thấy phản chiếu mờ của đèn trong phòng trên mặt kính.
+  TUYỆT ĐỐI KHÔNG có ánh sáng ban ngày, KHÔNG rèm hắt sáng trắng, KHÔNG thấy cây cối
+  hay bầu trời qua cửa sổ.
+- Vẫn ĐỦ SÁNG để nhìn rõ gương mặt. KHÔNG mảng đen đặc.
+```
+
+**Cửa sổ là chỗ lộ nhất** — khán giả bắt lỗi ngay khi hai clip liền nhau cắt vào nhau. Mọi
+SF cùng scene phải copy y nguyên khối này, đừng viết lại mỗi cái một kiểu.
+
+**Cách rà:** liệt kê mọi SF của scene, đọc dòng thời điểm — phải giống nhau từng chữ. Quét
+theo từ khoá ("ban đêm") là KHÔNG đủ: một SF viết *"phần lớn phòng tối"* mà không nói "đêm"
+sẽ lọt lưới trong khi master vẫn đang nói *"ánh sáng qua cửa sổ"*.
 
 ## SF là TRẠNG THÁI, không phải KHOẢNH KHẮC
 
@@ -323,4 +353,4 @@ thuộc SF/shot nào là tàn dư của kịch bản cũ.
 - **Viết prompt video (có thoại / nhịp lặng) và prompt nhạc Suno** → [references/prompt-video.md](references/prompt-video.md)
 - **Nguyên lý nền: ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** → [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Bài học tích lũy (39 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
+- **Bài học tích lũy (40 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
