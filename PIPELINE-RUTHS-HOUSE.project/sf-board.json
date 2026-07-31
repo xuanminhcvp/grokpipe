@@ -1,6 +1,6 @@
 {
   "film": "Not One Would Care for a Dying Billionaire — Until the Maid's Baby Brought the Cold Old Man to Tears",
-  "updated_at": "2026-07-31 11:10:43",
+  "updated_at": "2026-07-31 12:58:19",
   "scenes": [
     {
       "id": "REF",
@@ -4517,31 +4517,99 @@
             ],
             "bg": "SF-M-EDMUND-DARK"
           }
+        },
+        {
+          "id": "SF-S8-STAND",
+          "label": "★ Maya ĐỨNG trước Edmund ngồi xe lăn — trước khi ông mời ngồi",
+          "desc": "Trạng thái MỞ MÀN scene. Phục vụ V-S8-1 (\"Sit down\" / \"I'm fine standing\").",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_EDMUND_PORTRAIT",
+              "REF_EDMUND_CARDIGAN_FULL",
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL"
+            ],
+            "bg": "SF-M-EDMUND-DARK"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- EDMUND: SƠ MI XANH NHẠT cài kín và ÁO LEN CARDIGAN XÁM THAN CÓ HAI TÚI, quần âu xám than, giày da lười nâu sẫm.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium two-shot, camera ngang tầm ngực người đứng, ống kính 40mm.\n\nBỐ CỤC: EDMUND NGỒI trên XE LĂN ở 22-52% khung, ngẩng mặt lên nhìn về phía Maya. MAYA ĐỨNG ở 58-86% khung, hai tay buông tự nhiên trước người, thân người hơi hướng về phía ông. Một CHIẾC GHẾ GỖ ĐANG TRỐNG đặt bên cạnh cô, hướng về phía Edmund — chiếc ghế ông vừa mời.\n\nTRẠNG THÁI KHÔNG GIAN — QUAN TRỌNG: đây là trạng thái TRƯỚC khi Maya ngồi xuống. Cô ĐỨNG, ông NGỒI, nên đầu cô CAO HƠN HẲN đầu ông; ghế còn trống. Khoảng cách giữa hai người khoảng một sải tay rưỡi.\n\nBIỂU CẢM (mức nền, KHÔNG đỉnh điểm): Edmund điềm tĩnh, ánh mắt kiên quyết của người quen ra lệnh. Maya giữ khoảng cách nghề nghiệp, lễ độ nhưng chưa nhận lời.\n\nTrong khung: một NGĂN KÉO BÀN đầu giường ĐANG ĐÓNG.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: EDMUND = ông già DA TRẮNG 81 tuổi, tóc bạc trắng, gầy, gương mặt khắc khổ, NHẪN VÀNG CŨ ngón áp út tay trái · MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc bất kỳ ai.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, khớp tự nhiên. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S8-STAND_v1.png"
+        },
+        {
+          "id": "SF-S8-OTS-ED",
+          "label": "OTS qua vai Edmund nhìn Maya ngồi đối diện",
+          "desc": "Shot/reverse cho trạng thái hai người ngồi. Trạng thái này gánh 11 shot nên bắt buộc có OTS.",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_EDMUND_PORTRAIT",
+              "REF_EDMUND_CARDIGAN_FULL",
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL"
+            ],
+            "bg": "SF-M-EDMUND-DARK"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- EDMUND: SƠ MI XANH NHẠT cài kín và ÁO LEN CARDIGAN XÁM THAN CÓ HAI TÚI, quần âu xám than, giày da lười nâu sẫm.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium over-the-shoulder, ống kính 50mm, camera ngang tầm mắt người ngồi.\n\nBỐ CỤC: VAI TRÁI VÀ MỘT PHẦN ĐẦU SAU CỦA EDMUND làm tiền cảnh mềm ở 0-32% khung — thấy vai áo cardigan xám than và tóc bạc trắng, out nét nhẹ. MAYA là chủ thể nét rõ ở 38-82% khung, NGỒI trên ghế gỗ, thấy từ thắt lưng lên, mặt hướng về phía ông.\n\nNGƯỜI Ở TIỀN CẢNH VẪN PHẢI ĐÚNG NHÂN VẬT: khối vai và tóc của Edmund phải khớp ảnh ref của ông (tóc bạc trắng, cardigan xám than) dù quay lưng và mờ.\n\nTRẠNG THÁI KHÔNG GIAN: cả hai đã NGỒI, ngang tầm mắt nhau, cách một sải tay.\n\nBIỂU CẢM (mức nền): Maya điềm tĩnh, không kể công, không xúc động quá mức.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: EDMUND = ông già DA TRẮNG 81 tuổi, tóc bạc trắng, gầy, gương mặt khắc khổ, NHẪN VÀNG CŨ ngón áp út tay trái · MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc bất kỳ ai.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, khớp tự nhiên. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S8-OTS-ED_v1.png"
+        },
+        {
+          "id": "SF-S8-OTS-MAYA",
+          "label": "OTS qua vai Maya nhìn Edmund trên xe lăn",
+          "desc": "Chiều ngược của cặp shot/reverse cho trạng thái hai người ngồi.",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_EDMUND_PORTRAIT",
+              "REF_EDMUND_CARDIGAN_FULL",
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL"
+            ],
+            "bg": "SF-M-EDMUND-DARK"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- EDMUND: SƠ MI XANH NHẠT cài kín và ÁO LEN CARDIGAN XÁM THAN CÓ HAI TÚI, quần âu xám than, giày da lười nâu sẫm.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium over-the-shoulder, ống kính 50mm, camera ngang tầm mắt người ngồi — TRỤC NGƯỢC LẠI với khung OTS qua vai Edmund, vẫn tôn trọng trục 180 độ.\n\nBỐ CỤC: VAI PHẢI VÀ MỘT PHẦN ĐẦU SAU CỦA MAYA làm tiền cảnh mềm ở 68-100% khung — thấy vai áo tunic xám xanh và búi tóc xoăn thấp, out nét nhẹ. EDMUND là chủ thể nét rõ ở 18-62% khung, NGỒI trên xe lăn, thấy từ thắt lưng lên, mặt hướng về phía cô.\n\nNGƯỜI Ở TIỀN CẢNH VẪN PHẢI ĐÚNG NHÂN VẬT: khối vai và búi tóc của Maya phải khớp ảnh ref của cô (da nâu sẫm, tóc đen xoăn búi thấp, tunic xám xanh) dù quay lưng và mờ.\n\nTRẠNG THÁI KHÔNG GIAN: cả hai đã NGỒI, ngang tầm mắt nhau, cách một sải tay.\n\nBIỂU CẢM (mức nền): Edmund đã mềm nhiều so với đầu phim — vẫn cứng cỏi nhưng không lạnh.\n\nTrong khung: NGĂN KÉO BÀN đầu giường ĐANG MỞ, thấy được ở rìa khung.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: EDMUND = ông già DA TRẮNG 81 tuổi, tóc bạc trắng, gầy, gương mặt khắc khổ, NHẪN VÀNG CŨ ngón áp út tay trái · MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc bất kỳ ai.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, khớp tự nhiên. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S8-OTS-MAYA_v2.png"
+        },
+        {
+          "id": "SF-S8-DRAWER",
+          "label": "★ Edmund mở ngăn kéo lấy sổ séc — có mặt ông trong khung",
+          "desc": "Phục vụ nhịp lặng V-S8-B1. Thay SF-S8-CHECKBOOK (khung chỉ có bàn tay và cuốn sổ, vi phạm luật mọi shot phải có người).",
+          "status": "proposed",
+          "refs": {
+            "chars": [
+              "REF_EDMUND_PORTRAIT",
+              "REF_EDMUND_CARDIGAN_FULL",
+              "REF_MAYA_PORTRAIT",
+              "REF_MAYA_UNIFORM_FULL"
+            ],
+            "bg": "SF-M-EDMUND-DARK"
+          },
+          "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- EDMUND: SƠ MI XANH NHẠT cài kín và ÁO LEN CARDIGAN XÁM THAN CÓ HAI TÚI, quần âu xám than, giày da lười nâu sẫm.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium shot hơi chếch từ phía Maya, ống kính 40mm, camera ngang tầm mắt người ngồi.\n\nBỐ CỤC: EDMUND chiếm 30-72% khung, NGỒI trên xe lăn, người NGHIÊNG VỀ PHÍA BÀN ĐẦU GIƯỜNG bên trái, MỘT TAY ĐẶT TRÊN MÉP NGĂN KÉO GỖ ĐANG MỞ. Trong ngăn kéo thấy rõ một CUỐN SỔ SÉC BÌA DA NÂU SẪM, một cây bút mực và vài phong bì cũ. Gương mặt ông NHÌN RÕ, mắt nhìn xuống cuốn sổ.\n\nVAI VÀ MỘT PHẦN CÁNH TAY CỦA MAYA làm tiền cảnh mềm ở 82-100% khung mép phải — thấy vai áo tunic xám xanh, out nét. Cô vẫn ngồi trên ghế, không cử động.\nNGƯỜI Ở TIỀN CẢNH VẪN PHẢI ĐÚNG NHÂN VẬT: khối vai của Maya phải khớp ảnh ref của cô.\n\nTRẠNG THÁI KHÔNG GIAN: cả hai đã ngồi, cách một sải tay; ngăn kéo ĐÃ MỞ.\n\nBIỂU CẢM (mức nền, KHÔNG đỉnh điểm): Edmund trầm ngâm nhìn cuốn sổ — đây là ngôn ngữ duy nhất ông từng biết để trả ơn ai đó. Không xúc động mạnh, không nước mắt.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: EDMUND = ông già DA TRẮNG 81 tuổi, tóc bạc trắng, gầy, gương mặt khắc khổ, NHẪN VÀNG CŨ ngón áp út tay trái · MAYA = nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hòa. KHÔNG làm sáng da Maya, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc bất kỳ ai.\n\nCinematic depth of field vừa phải. Mọi gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, khớp tự nhiên. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài hai người đã nêu.",
+          "picked": "SF-S8-DRAWER_v1.png"
         }
       ],
       "shots": [
         {
           "id": "V-S8-1",
-          "sf": "SF-S8-TWOSHOT",
+          "sf": "SF-S8-STAND",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "EDMUND: \"Sit down.\"\nMAYA: \"I'm fine standing, Mr. Whitmore.\"\nEDMUND: \"I said sit. It's the first time I've offered you a chair. Don't make me ask twice.\"\nMAYA: \"... Alright.\"",
           "prompt_text": "EDMUND: \"Sit down.\"\nMAYA: \"I'm fine standing, Mr. Whitmore.\"\nEDMUND: \"I said sit. It's the first time I've offered you a chair. Don't make me ask twice.\"\nMAYA: \"... Alright.\"",
-          "prompt": "REFS · Start frame: SF-S8-TWOSHOT\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"Sit down.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"I'm fine standing, Mr. Whitmore.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"I said sit. It's the first time I've offered you a chair. Don't make me ask twice.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"... Alright.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S8-STAND\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"Sit down.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"I'm fine standing, Mr. Whitmore.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"I said sit. It's the first time I've offered you a chair. Don't make me ask twice.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"... Alright.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
           "id": "V-S8-2",
           "sf": "SF-S8-WIDE",
-          "dur": 10,
+          "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "EDMUND: \"I have a checkbook in this drawer. I want you to give me a number.\"\nMAYA: \"A number?\"",
           "prompt_text": "EDMUND: \"I have a checkbook in this drawer. I want you to give me a number.\"\nMAYA: \"A number?\"",
-          "prompt": "REFS · Start frame: SF-S8-WIDE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"I have a checkbook in this drawer. I want you to give me a number.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"A number?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S8-WIDE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"I have a checkbook in this drawer. I want you to give me a number.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"A number?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
@@ -4582,14 +4650,14 @@
         },
         {
           "id": "V-S8-B1",
-          "sf": "SF-S8-CHECKBOOK",
+          "sf": "SF-S8-DRAWER",
           "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "[KHÔNG THOẠI] Cuốn sổ séc trong ngăn kéo mở",
           "prompt_text": "",
-          "prompt": "REFS · Start frame: SF-S8-CHECKBOOK\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nÔng vừa hỏi cô muốn bao nhiêu tiền và cô nói không muốn gì. Cả đời ông giải quyết mọi chuyện bằng cuốn sổ này: mua sự im lặng, mua lòng trung thành, mua thời gian.\nĐây là lần đầu nó vô dụng. Trong lòng ông là cảm giác của người vừa mất đi công cụ duy nhất mình biết dùng — và nhận ra thứ mình vừa nhận thì không mua được.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó — không có một cách diễn nào đúng cho mọi cảm xúc.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): bàn tay già đặt lên cuốn sổ, ngón tay miết dọc bìa da; rồi bàn tay RÚT VỀ và ngăn kéo được đẩy đóng lại rất chậm; ở nhịp cuối chỉ còn mặt gỗ.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: tiếng ngăn kéo gỗ trượt trên ray, tiếng bìa da cọ nhẹ, đồng hồ tích tắc xa, im lặng của căn phòng đóng. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S8-DRAWER\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nÔng vừa hỏi cô muốn bao nhiêu tiền và cô nói không muốn gì. Cả đời ông giải quyết mọi chuyện bằng cuốn sổ này: mua sự im lặng, mua lòng trung thành, mua thời gian.\nĐây là lần đầu nó vô dụng. Trong lòng ông là cảm giác của người vừa mất đi công cụ duy nhất mình biết dùng — và nhận ra thứ mình vừa nhận thì không mua được.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó — không có một cách diễn nào đúng cho mọi cảm xúc.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): bàn tay già đặt lên cuốn sổ, ngón tay miết dọc bìa da; rồi bàn tay RÚT VỀ và ngăn kéo được đẩy đóng lại rất chậm; ở nhịp cuối chỉ còn mặt gỗ.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: tiếng ngăn kéo gỗ trượt trên ray, tiếng bìa da cọ nhẹ, đồng hồ tích tắc xa, im lặng của căn phòng đóng. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {
             "emo": "KÌM — cuốn sổ séc trong ngăn kéo; tiền là ngôn ngữ duy nhất ông từng biết",
             "a_kind": "có lời",
@@ -4624,14 +4692,14 @@
         },
         {
           "id": "V-S8-8",
-          "sf": "SF-S8-TWO-34",
+          "sf": "SF-S8-OTS-ED",
           "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "EDMUND: \"I imagine she will. That child doesn't listen to anyone.\"\nMAYA: \"She gets that from me.\"",
           "prompt_text": "EDMUND: \"I imagine she will. That child doesn't listen to anyone.\"\nMAYA: \"She gets that from me.\"",
-          "prompt": "REFS · Start frame: SF-S8-TWO-34\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"I imagine she will. That child doesn't listen to anyone.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"She gets that from me.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S8-OTS-ED\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; MAYA = nữ da đen 30 tuổi, mẹ của Lily. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 6 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — quiet, disarmed, unsure how to say it:\n\"I imagine she will. That child doesn't listen to anyone.\"\n\nNgười kia phản ứng bằng ánh mắt và một cử chỉ nhỏ trước khi đáp.\n\nMAYA — calm, even, steady:\n\"She gets that from me.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {}
         },
         {
@@ -4649,9 +4717,9 @@
         {
           "id": "V-S8-9B",
           "dur": 10,
-          "sf": "SF-S8-TWO-34",
+          "sf": "SF-S8-OTS-MAYA",
           "text": "EDMUND: \"And not one of those people sat on a hospital floor in a wet uniform all night because they were worried about me. Not one.\"",
-          "prompt": "REFS · Start frame: SF-S8-TWO-34\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): EDMUND = ông già da trắng 81 tuổi, tóc bạc trắng, gầy, gương mặt khắc khổ, đeo nhẫn vàng cũ. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nEDMUND — voice thinning, looking at her:\n\"And not one of those people sat on a hospital floor in a wet uniform all night because they were worried about me. Not one.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S8-OTS-MAYA\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện nhân vật (bám ảnh frame): EDMUND = ông già da trắng 81 tuổi, tóc bạc trắng, gầy, gương mặt khắc khổ, đeo nhẫn vàng cũ. AI KHÔNG có mặt trong frame tham chiếu thì TUYỆT ĐỐI không hiện hình — chỉ được nghe giọng (off-screen).\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH, rung nhẹ như cầm tay. Nhân vật diễn tự nhiên theo đúng cảm xúc lời thoại, cử chỉ nhỏ, không kịch.\n\nEDMUND — voice thinning, looking at her:\n\"And not one of those people sat on a hospital floor in a wet uniform all night because they were worried about me. Not one.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "prompt_text": "EDMUND: \"And not one of those people sat on a hospital floor in a wet uniform all night because they were worried about me. Not one.\""
         },
         {
