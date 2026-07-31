@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-52 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+38 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -8,7 +8,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 
 ## Mục lục
 
-- 1. Mô tả bằng chữ không đủ để đồng bộ trang phục giữa các nhân vật
+- 1. REF trang phục: cần giống ảnh nào thì ĐÍNH ảnh đó, mỗi bộ đồ một REF
 - 2. Ngoại hình nhân vật phải chủ động phủ định tín hiệu cốt truyện chưa nên lộ
 - 3. Dặn "không dùng làm mặt" một lần là không đủ trọng số — model vẫn copy mặt
 - 4. Master frame mô tả bố cục bằng văn xuôi khiến địa lý bị đọc sai
@@ -19,61 +19,61 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 9. Sót nội thất cơ bản vì "hiển nhiên", lại thừa đạo cụ vì "khai thác kịch bản"
 - 10. Chữ nhỏ trong ảnh wide dễ nhòe thành ký tự vô nghĩa
 - 11. Skill dạy viết từng prompt nhưng không dạy thiết kế BỘ góc của cả scene
-- 12. Mỗi shot chỉ được một người nói, nhưng đừng vì thế mà lạm dụng khung solo
-- 13. Chia shot quá vụn; và quy tắc lip-sync đúng là "người nói phải trong khung"
-- 14. Thoại "gọi/triệu tập" không cùng không gian với phần còn lại của cảnh
-- 15. Prompt video có FORM CHUẨN riêng — không được tự chế format
-- 16. Ba chuẩn ràng buộc lẫn nhau — 10s, 2-3 lượt thoại, khung hai người
-- 17. Sửa thoại sau khi prompt đã viết → prompt lệch âm thầm
-- 18. SF insert thuần đạo cụ là khung chết khi thành video
-- 19. Tái dùng master trước khi nghĩ tới dựng SF mới
-- 20. Phải TÍNH số từ trước khi chia shot, không ước lượng bằng cảm giác
-- 21. Thoại phải khớp với BỐ CỤC KHÔNG GIAN mình vừa dựng ra
-- 22. Cảnh 3 người cần tầng "rộng vừa", không nhảy thẳng từ master xuống cận
-- 23. Nhân vật đổi chỗ giữa hai shot mà không có nhịp chuyển → video khựng
-- 24. Nhân vật đổi trang phục qua các cảnh → phải tạo REF RIÊNG cho từng bộ
-- 25. "Nghèo" không có nghĩa là "xấu và quê" — trang phục nhân vật chính vẫn phải đẹp
-- 26. SF là frame ĐẦU clip → phải bằng trạng thái KẾT THÚC của clip trước
-- 27. Quy tắc REF trang phục áp dụng cho MỌI nhân vật, không riêng nhân vật chính
-- 28. Board TỰ ĐỘNG kèm _FULL → đính thêm FULL trạng thái gây thừa ảnh
-- 29. Khối "Nhận diện" tả trang phục càng chi tiết, model vẽ càng láo
-- 30. Trang phục nhân vật chính phải MÁT và NHẸ, không chỉ "đẹp"
-- 31. Cùng một không gian thì phải THAM CHIẾU master cũ, kể cả khi là phòng khác
-- 32. Phim toàn thoại là phim không có nhịp thở
-- 33. Ghi bài học rồi vẫn vi phạm, vì áp dụng sai phạm vi
-- 34. Lạm dụng chữa bằng lệnh cấm là sai, chữa bằng danh sách cũng sai
-- 35. Nhịp không thoại ≈ 15% số shot thoại, tính theo cả phim
-- 36. Chuyển động không có tác nhân — lỗi phi vật lý trong nhịp không thoại
-- 37. Nhạc nền — quyết VAI TRÒ trước, viết prompt sau
-- 38. User thay ảnh master thì mọi khối "khóa look" con thành nói dối
-- 39. Nhân dạng lệch dù có REF — và một chẩn đoán sai đã bị user sửa lại: REF không có trần
-- 40. Kịch bản người viết có hard-cut trong một clip — tách thành hai shot, và nói rõ vì sao
-- 41. Khung ba lớp chiều sâu đẩy model lên góc bird's-eye — và câu phủ định vẫn vẽ ra thứ bị cấm
-- 42. Thoại nhân vật chính lúc làm việc tốt — người tốt thật không thuyết minh việc tốt của mình
-- 43. Hành động đỉnh điểm ở GIỮA chuyển động là thứ model không vẽ nổi — thiết kế khoảnh khắc TRƯỚC hoặc SAU nó
-- 44. Tinh chỉnh thoại nhiều vòng sẽ đánh rơi câu gốc — diff bằng máy sau mỗi vòng, đừng tin trí nhớ
-- 45. Nhiều job lỗi cùng lúc = nghi hạ tầng TRƯỚC, đừng vội sửa prompt
-- 46. Trang phục trong portrait rò sang SF — user quyết KHÔNG xử lý, và bài học là về tôi
-- 47. Công thức mật độ SF do user chốt — phút × 4; và góc cận-vật bị hạ cấp
-- 48. Người ở tiền cảnh quay lưng / out nét VẪN phải có ref
-- 49. Xoá hay đổi tên SF xong PHẢI quét shot mồ côi
-- 50. Cổng chặn bị NỔ trông y hệt cổng chặn ĐANG LÀM VIỆC
-- 51. Cơ chế tự chữa im lặng không chạy vì thiếu MỘT từ khoá nhận diện
-- 52. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
+- 12. Ba ràng buộc của một shot — và đừng phát biểu quy tắc chặt hơn thực tế
+- 13. Thoại "gọi/triệu tập" không cùng không gian với phần còn lại của cảnh
+- 14. Prompt video có FORM CHUẨN riêng — không được tự chế format
+- 15. Sửa thoại sau khi prompt đã viết → prompt lệch âm thầm
+- 16. SF insert thuần đạo cụ là khung chết khi thành video
+- 17. Tái dùng master trước khi nghĩ tới dựng SF mới
+- 18. Thoại phải khớp với BỐ CỤC KHÔNG GIAN mình vừa dựng ra
+- 19. Cảnh 3 người cần tầng "rộng vừa", không nhảy thẳng từ master xuống cận
+- 20. SF là frame ĐẦU clip → phải bằng trạng thái KẾT THÚC của clip trước
+- 21. Nhân vật chính phải LUÔN đẹp — 'nghèo' nằm ở bối cảnh, không ở bộ đồ
+- 22. Khối "Nhận diện" tả trang phục càng chi tiết, model vẽ càng láo
+- 23. Cùng một không gian thì phải THAM CHIẾU master cũ, kể cả khi là phòng khác
+- 24. Nhịp không thoại — vì sao cần, loại nào, bao nhiêu là đủ
+- 25. Ghi bài học rồi vẫn vi phạm, vì áp dụng sai phạm vi
+- 26. Lạm dụng chữa bằng lệnh cấm là sai, chữa bằng danh sách cũng sai
+- 27. Chuyển động không có tác nhân — lỗi phi vật lý trong nhịp không thoại
+- 28. Nhạc nền — quyết VAI TRÒ trước, viết prompt sau
+- 29. User thay ảnh master thì mọi khối "khóa look" con thành nói dối
+- 30. Nhân dạng lệch dù có REF — và một chẩn đoán sai đã bị user sửa lại: REF không có trần
+- 31. Kịch bản người viết có hard-cut trong một clip — tách thành hai shot, và nói rõ vì sao
+- 32. Khung ba lớp chiều sâu đẩy model lên góc bird's-eye — và câu phủ định vẫn vẽ ra thứ bị cấm
+- 33. Thoại nhân vật chính lúc làm việc tốt — người tốt thật không thuyết minh việc tốt của mình
+- 34. Hành động đỉnh điểm ở GIỮA chuyển động là thứ model không vẽ nổi — thiết kế khoảnh khắc TRƯỚC hoặc SAU nó
+- 35. Tinh chỉnh thoại nhiều vòng sẽ đánh rơi câu gốc — diff bằng máy sau mỗi vòng, đừng tin trí nhớ
+- 36. Công thức mật độ SF do user chốt — phút × 4; và góc cận-vật bị hạ cấp
+- 37. Người ở tiền cảnh quay lưng / out nét VẪN phải có ref
+- 38. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
 
-## 1. Mô tả bằng chữ không đủ để đồng bộ trang phục giữa các nhân vật
+## Vận hành & gỡ lỗi hạ tầng
 
-*Bối cảnh:* User phát hiện REF của một nhân vật phụ (đồng nghiệp cùng nghề với nhân vật chính) chỉ được viết "mặc đồng phục giống [nhân vật chính]" bằng lời, không đính kèm ảnh nhân vật chính làm tham chiếu.
+Không phải bài học viết prompt, nhưng đủ đắt để ghi lại.
 
-**Nguyên tắc rút ra:** bất cứ khi nào cần một nhân vật/đạo cụ trông "giống" một ảnh đã tạo
-trước đó, phải đính ảnh đó vào `refs.chars` (không chỉ nhắc tên trong lời văn), và khi ảnh
-tham chiếu đó phục vụ nhiều mục đích khác nhau (ví dụ vừa là chuẩn trang phục vừa có khuôn
-mặt của người khác), phải ghi rõ trong prompt: dùng ảnh này cho phần nào, KHÔNG dùng cho phần
-nào (đặc biệt là khuôn mặt — nguy cơ model copy nhầm mặt của ảnh tham chiếu chéo).
-(Đã đưa vào SKILL.md nguyên lý 2 và 3.)
+- **Nhiều job lỗi cùng lúc = nghi HẠ TẦNG trước, đừng vội sửa prompt.** Hết RAM, Chrome crash, tab treo đều biểu hiện thành 'ảnh ra sai' hàng loạt. Sửa prompt khi gốc là hạ tầng thì vừa mất công vừa làm hỏng prompt đang đúng.
+- **Cơ chế tự chữa im lặng phải kiểm CẢ HAI chiều.** Hàm nhận diện 'tab chết' thiếu đúng một từ khoá (`target crashed`) là mọi job crash chết luôn thay vì tự mở lại phiên — mà nhìn từ ngoài không phân biệt được.
+- **`except: return False` biến lỗi lập trình thành trạng thái hợp lệ.** Cổng chặn bị nổ `NameError` vẫn hiện đúng chữ 'ĐANG KHÓA'; user không mở được mà không ai biết vì sao. Với code bảo vệ, log exception trước khi trả về mặc định an toàn.
+- **Xoá/đổi tên SF xong PHẢI quét shot mồ côi** — `shots[].sf` trỏ vào id đã chết sẽ hỏng ngay khi render video. Quét lần cuối ngay trước khi render hàng loạt. (Đã lên SKILL.md.)
+- **Không tự leo thang khi user chưa yêu cầu.** Gặp lỗi tỉ lệ thấp, đề xuất một cách rồi chờ; đừng tự chuyển sang giải pháp mạnh hơn (crop ảnh, sửa ảnh đã duyệt). Bản user đã duyệt hoặc tự dán vào là **chuẩn tuyệt đối** — nghi sai thì báo, để user quyết.
+
+## 1. REF trang phục: cần giống ảnh nào thì ĐÍNH ảnh đó, mỗi bộ đồ một REF
+
+*Gộp từ 3 lần user bắt cùng một lỗi ở ba mức: nhân vật phụ, nhân vật chính đổi đồ, và trang phục 'hiển nhiên theo bối cảnh'.*
+
+**1. Cần trông giống một ảnh đã có thì phải đính ảnh đó vào `refs.chars`** — không chỉ nhắc tên trong lời văn. Mô tả bằng chữ chỉ là gợi ý mơ hồ, model tự tưởng tượng lại và lệch dần qua mỗi lần tạo.
+
+**2. Mỗi bộ trang phục là một REF riêng.** Rà kịch bản NGAY TỪ ĐẦU liệt kê các trạng thái trang phục của mỗi nhân vật (thường trùng các chặng cốt truyện), tạo cặp `REF_<TÊN>_<TRẠNG THÁI>_PORTRAIT` + `_FULL` cho từng bộ. SF đính đúng REF của trạng thái đó — không bao giờ mô tả bộ đồ mới bằng chữ trên nền REF mặc bộ khác.
+
+Cách tạo REF trang phục mới: đính REF gốc để lấy KHUÔN MẶT + TÓC + TÔNG DA, rồi chống copy trang phục bằng nhiều lớp (xem bài về lệnh cấm nhiều lớp) nhưng đảo chiều — nêu ĐÍCH DANH bộ đồ trong ảnh tham chiếu và cấm dùng nó, mô tả bộ mới bằng đặc điểm TƯƠNG PHẢN cụ thể, nhắc lại lệnh cấm ở cuối prompt.
+
+**3. Áp cho MỌI nhân vật, không riêng nhân vật chính.** Rút ra một quy tắc REF thì phải QUÉT TOÀN BỘ dự án. Cách quét rẻ: grep từ khóa trang phục (tên món đồ, chất liệu, phụ kiện) trong prompt mọi SF — chỗ nào có nghĩa là chỗ đó đang tả bằng chữ thay vì đính REF.
+
+Trang phục 'bắt buộc theo bối cảnh' (đồng phục bệnh nhân, đồ bảo hộ, áo tù) **cũng là một trạng thái cần REF riêng** — dễ bỏ qua vì cảm giác nó hiển nhiên nên tả bằng chữ là đủ.
+
+**4. Tối đa 1 portrait + 1 full-body cho mỗi nhân vật trong một SF** — đúng bộ đồ của cảnh đó. Board chỉ tự kèm `REF_X_FULL` khi SF chưa chỉ định sẵn bản `REF_X_*_FULL` nào.
 
 ---
-
 ## 2. Ngoại hình nhân vật phải chủ động phủ định tín hiệu cốt truyện chưa nên lộ
 
 *Bối cảnh:* User yêu cầu một nhân vật (thân phận thật sự giàu có nhưng cần giấu ở đầu phim) phải trông "bình thường" để hành động giúp đỡ của nhân vật chính không bị đọc là "thấy giàu mới giúp".
@@ -86,7 +86,6 @@ theo tuổi tác/chủng tộc/bối cảnh sẵn có.
 (Đã đưa vào SKILL.md nguyên lý 4.)
 
 ---
-
 ## 3. Dặn "không dùng làm mặt" một lần là không đủ trọng số — model vẫn copy mặt
 
 *Bối cảnh:* Áp dụng bài học 1 (đính ảnh nhân vật A làm chuẩn trang phục cho nhân vật B, kèm một câu dặn "không dùng làm khuôn mặt") vẫn ra kết quả khuôn mặt B giống hệt A.
@@ -106,7 +105,6 @@ chỉ để đối chiếu trang phục ở bước sau, tách hẳn 2 bước t
 (Đã cập nhật SKILL.md nguyên lý 3.)
 
 ---
-
 ## 4. Master frame mô tả bố cục bằng văn xuôi khiến địa lý bị đọc sai
 
 *Bối cảnh:* Prompt master chỉ viết bằng câu văn "phía sau [nhân vật chính] có khách xếp hàng" mà không gắn mốc vị trí cụ thể.
@@ -117,7 +115,6 @@ tách bằng một khoảng trống hoặc landmark trung gian rõ ràng thay v�
 (Đã đưa vào SKILL.md nguyên lý 11.)
 
 ---
-
 ## 5. Không liệt kê hết bảng tên hợp lệ → model tự bịa tên cho nhân vật còn lại
 
 *Bối cảnh:* Master có 2 nhân vật đeo bảng tên nhưng câu chặn cuối chỉ nêu "không chữ dễ đọc ngoài bảng tên [nhân vật A]" — không nhắc bảng tên của nhân vật B.
@@ -128,7 +125,6 @@ chính xác — không liệt kê một phần rồi mặc định phần còn l
 (Đã đưa vào SKILL.md nguyên lý 13.)
 
 ---
-
 ## 6. Đừng vá triệu chứng — hỏi trước xem nhân vật có cần ở đó không
 
 *Bối cảnh:* Sau khi vá bài học 4 và 5 (thêm bản đồ vị trí + danh sách chữ hợp lệ) cho một master có 3 nhân vật, user chỉ ra gốc rễ: nhân vật thứ ba (một nhân viên khác) CHƯA hề hành động hay được nhắc tới ở đúng khoảnh khắc của master — cô ấy chỉ xuất hiện vài câu thoại sau, và đã có một SF riêng giới thiệu…
@@ -141,7 +137,6 @@ nhân vật đó thật sự phải đồng-hiện diện vì cùng hành độn
 (Đã đưa vào SKILL.md nguyên lý 11, đặt trước nguyên lý 12-13 để nhắc kiểm tra điều kiện này trước.)
 
 ---
-
 ## 7. Đạo cụ bị bỏ trống mô tả là bỏ lỡ cơ hội nối với chi tiết kịch bản khác
 
 *Bối cảnh:* Xe đẩy hàng của một nhân vật chỉ được nhắc chung chung ("xe đẩy hàng của bà") mà không tả nội dung cụ thể.
@@ -156,7 +151,6 @@ vơi, đồ bình dân, không món gì đắt tiền, nếu nhân vật đó c�
 biết" trong SKILL.md.)
 
 ---
-
 ## 8. Thiếu checklist hệ thống → sót thành phần khung hình lần lượt từng cái một
 
 *Bối cảnh:* User phải chỉ ra từng thứ bị thiếu qua nhiều lượt: khách hàng đứng sai chỗ → đạo cụ giỏ hàng chưa tả → khách xếp hàng không có xe đẩy → nền không có người mua sắm → mức độ đông đúc sai với chi tiết kịch bản.
@@ -175,7 +169,6 @@ mâu thuẫn nội tại giữa hình và lời, khán giả cảm nhận đư�
 (Đã thêm mục "CHECKLIST BẮT BUỘC" 9 điểm vào đầu SKILL.md, trước phần nguyên lý.)
 
 ---
-
 ## 9. Sót nội thất cơ bản vì "hiển nhiên", lại thừa đạo cụ vì "khai thác kịch bản"
 
 *Bối cảnh:* master phòng làm việc thiếu GHẾ — cơ bản đến mức không ai nghĩ phải viết ra; một SF con lại yêu cầu nhân vật "ngồi xuống ghế" nên buộc phải bịa ra chiếc ghế không tồn tại.
@@ -191,7 +184,6 @@ mâu thuẫn nội tại giữa hình và lời, khán giả cảm nhận đư�
    tải mạnh hơn qua ngôn ngữ cơ thể và biểu cảm.
 
 ---
-
 ## 10. Chữ nhỏ trong ảnh wide dễ nhòe thành ký tự vô nghĩa
 
 *Bối cảnh:* Bảng tên nhân vật trong một ảnh medium-wide render ra thành các ký tự méo mó vô nghĩa, dù prompt đã liệt kê đúng danh sách chữ được phép (bài học 5).
@@ -203,7 +195,6 @@ sắc nét ở các SF cận, thay vì kỳ vọng mọi khung đều đọc đ�
 (Đã bổ sung vào mục 9 của CHECKLIST trong SKILL.md.)
 
 ---
-
 ## 11. Skill dạy viết từng prompt nhưng không dạy thiết kế BỘ góc của cả scene
 
 *Bối cảnh:* Sau khi render đủ bộ SF một cảnh hội thoại dài (~53s), user nhận xét: các góc đều đúng nhưng phần hội thoại chính chỉ ping-pong giữa 2 góc cận lặp đi lặp lại — cần thêm 2-3 góc bổ sung (gần hơn, hoặc nghiêng 3/4), không cần khác hoàn toàn, và không được cực đoan.
@@ -220,38 +211,22 @@ BỘ GÓC (coverage) của cả scene, quyết định trước khi viết từn
 (Đã thêm mục "Bộ góc máy (coverage) của một scene" vào SKILL.md, giữa CHECKLIST và Nguyên lý cốt lõi.)
 
 ---
+## 12. Ba ràng buộc của một shot — và đừng phát biểu quy tắc chặt hơn thực tế
 
-## 12. Mỗi shot chỉ được một người nói, nhưng đừng vì thế mà lạm dụng khung solo
+**Ba chuẩn là hệ quả của nhau, không phải ba luật rời:** 10 giây/clip → 2–3 lượt thoại → cần khung hai người. Nắm sợi dây nhân quả thì áp dụng nhất quán; coi là ba luật rời thì rất dễ thỏa mãn cái này mà vi phạm cái kia.
 
-*Bối cảnh:* Sau khi bổ sung các góc đơn nhân vật, user chỉ ra hai điều liên tiếp: 1.
+**Ước lượng:** tiếng Anh ~2,5 từ/giây → 10s ≈ 25 từ. Nhắm sát mức đó, không dư quá 2 giây. Phải TÍNH số từ, đừng ước lượng bằng cảm giác.
 
-**Nguyên tắc rút ra:** phân biệt rõ "một người NÓI" với "một người TRONG KHUNG". Quy tắc cứng chỉ
-là cái thứ nhất. Two-shot vẫn hợp lệ khi một người nói còn người kia phản ứng im lặng — và thường
-là khung giàu hơn vì thấy được cả phản ứng người nghe. Nhắm khoảng 35-45% số shot dùng khung từ
-2 người trở lên; để dành cận đơn cho câu đắt nhất và khoảnh khắc nội tâm. Khi phải tách một câu
-dài thành hai shot, giữ nguyên 100% chữ của kịch bản gốc, chỉ đổi góc giữa chừng.
+**Tỉ lệ thời lượng: 70% shot 10s, 30% shot 6s.** Khi tỉ lệ này xung đột với việc lấp kín thời lượng thì **lấp kín thắng** — thà một shot 6s đầy còn hơn 10s có 3 giây nhân vật đứng im.
 
-Đây lại là một lần phản ứng quá tay theo hướng ngược lại (xem thêm bài học 9) — sửa một lỗi rồi
-đẩy sang thái cực đối diện. Khi nhận một quy tắc cứng, phải hỏi thêm: quy tắc này ràng buộc CHÍNH
-XÁC cái gì, và cái gì vẫn còn tự do?
-(Đã thêm mục "Chia câu vào shot" và "Prompt video (Grok image-to-video)" vào SKILL.md.)
+**Tách một câu dài thành hai shot thì giữ nguyên 100% chữ của kịch bản gốc**, chỉ đổi góc giữa chừng — không cắt bớt, không diễn đạt lại.
+
+**Phân biệt 'một người NÓI' với 'một người TRONG KHUNG'.** Quy tắc cứng chỉ là cái thứ nhất. Two-shot vẫn hợp lệ khi một người nói còn người kia phản ứng im lặng — thường là khung giàu hơn vì thấy được phản ứng người nghe. Nhắm **35–45% số shot** dùng khung từ 2 người trở lên; để dành cận đơn cho câu đắt nhất và khoảnh khắc nội tâm.
+
+*Bài học meta:* khi phát biểu một quy tắc cứng, phát biểu đúng ở mức ràng buộc THẬT SỰ, không chặt hơn cho 'an toàn' — quy tắc quá chặt chặn mất lựa chọn hợp lệ và đẩy sang lỗi khác (ở đây: chia vụn shot, lạm dụng khung solo). Khi một ràng buộc mới làm quy tắc cũ bất khả thi, thường là quy tắc cũ bị phát biểu sai chứ không phải ràng buộc mới sai.
 
 ---
-
-## 13. Chia shot quá vụn; và quy tắc lip-sync đúng là "người nói phải trong khung"
-
-*Bối cảnh:* User chốt chuẩn thời lượng: **70% shot 10s, 30% shot 6s**.
-
-**Nguyên tắc rút ra:** khi phát biểu một quy tắc cứng, phải phát biểu đúng ở mức ràng buộc THẬT SỰ
-của nó, không phát biểu ở mức chặt hơn cho "an toàn" — vì một quy tắc quá chặt sẽ chặn mất những
-lựa chọn hợp lệ và đẩy công việc sang một lỗi khác (ở đây: chia vụn shot, lạm dụng khung solo).
-Khi một ràng buộc mới (thời lượng) làm quy tắc cũ trở nên bất khả thi, đó thường là dấu hiệu quy
-tắc cũ bị phát biểu sai chứ không phải hai yêu cầu mâu thuẫn nhau.
-(Đã sửa mục "Chia câu vào shot" trong SKILL.md: thêm chuẩn thời lượng và phát biểu lại quy tắc.)
-
----
-
-## 14. Thoại "gọi/triệu tập" không cùng không gian với phần còn lại của cảnh
+## 13. Thoại "gọi/triệu tập" không cùng không gian với phần còn lại của cảnh
 
 *Bối cảnh:* User chỉ ra một câu thoại mở đầu cảnh (kiểu "Vào phòng tôi ngay") bị gán vào SF master của cảnh đó — nhưng câu ấy xảy ra TRƯỚC khi hai nhân vật đối diện nhau, ở một không gian khác (người quản lý gọi vọng từ cửa phòng ra khu làm việc).
 
@@ -269,8 +244,7 @@ trong phòng" vì model sẽ mặc định về bố cục quen thuộc của ma
 (Đã thêm vào mục "Chia câu vào shot" trong SKILL.md.)
 
 ---
-
-## 15. Prompt video có FORM CHUẨN riêng — không được tự chế format
+## 14. Prompt video có FORM CHUẨN riêng — không được tự chế format
 
 *Bối cảnh:* Các prompt video đầu tiên được viết theo format tự nghĩ ra (một đoạn mô tả chuyển động + đuôi khóa, thoại để riêng trong field text).
 
@@ -280,20 +254,7 @@ form chuẩn hiện có TRƯỚC khi tự thiết kế format mới — kể c�
 âm thanh) mà format tự chế sẽ bỏ sót. (Đã thay toàn bộ mục "Prompt video" trong SKILL.md bằng form chuẩn.)
 
 ---
-
-## 16. Ba chuẩn ràng buộc lẫn nhau — 10s, 2-3 lượt thoại, khung hai người
-
-*Bối cảnh:* User siết lại ba chuẩn cùng lúc, và chúng thực chất là MỘT hệ quả dây chuyền chứ không phải ba yêu cầu rời rạc: 1.
-
-**Nguyên tắc rút ra:** khi nhận nhiều yêu cầu cùng lúc, tìm xem chúng có phải hệ quả của nhau
-không — nắm được sợi dây nhân quả thì áp dụng đúng và nhất quán, còn coi chúng là ba luật rời
-rạc thì rất dễ thỏa mãn luật này mà vi phạm luật kia. Ước lượng thời lượng thoại: tiếng Anh
-~2,5 từ/giây, nên 10s ≈ 25 từ; nhắm sát mức đó, không dư quá 2 giây.
-(Đã cập nhật mục "Chia câu vào shot" và "Bộ góc máy" trong SKILL.md.)
-
----
-
-## 17. Sửa thoại sau khi prompt đã viết → prompt lệch âm thầm
+## 15. Sửa thoại sau khi prompt đã viết → prompt lệch âm thầm
 
 *Bối cảnh:* User ghép thoại của hai shot làm một rồi xóa shot kia, nhưng prompt video của shot còn lại vẫn là bản viết cho lời thoại cũ (chỉ một câu) — không có gì báo hiệu, chỉ phát hiện khi đọc lại.
 
@@ -306,8 +267,7 @@ mốc này cho khớp.
 trên, và nút "✓ đã khớp" để đánh dấu thủ công sau khi prompt được viết lại.)
 
 ---
-
-## 18. SF insert thuần đạo cụ là khung chết khi thành video
+## 16. SF insert thuần đạo cụ là khung chết khi thành video
 
 *Bối cảnh:* User xem lại các SF insert (cận màn hình giám sát, cận tờ giấy trên bàn) và chốt: "sau không cần các SF như thế này đâu, chi tiết quá mà không có người".
 
@@ -323,8 +283,7 @@ này có đẹp không". Một khung tĩnh giàu chi tiết có thể là một 
 (Đã sửa mục "Bộ góc máy" và "Chia câu vào shot" trong SKILL.md.)
 
 ---
-
-## 19. Tái dùng master trước khi nghĩ tới dựng SF mới
+## 17. Tái dùng master trước khi nghĩ tới dựng SF mới
 
 *Bối cảnh:* Sau khi bỏ hai SF insert thuần đạo cụ (bài học 18), phản xạ đầu tiên là dựng HAI SF two-shot mới để thay thế — mỗi cái cho một đạo cụ.
 
@@ -339,23 +298,7 @@ phản ứng quá tay khi sửa (xem bài học 9 và 12) — nhưng lần này 
 vì tái dùng tài nguyên sẵn có".
 
 ---
-
-## 20. Phải TÍNH số từ trước khi chia shot, không ước lượng bằng cảm giác
-
-*Bối cảnh:* User nhìn badge ước lượng trên board và chỉ ra hàng loạt shot lãng phí thời lượng: 3.3s/10s, 3.0s/10s, 1.7s/6s, 1.3s/6s — có shot chỉ dùng 1/3 số giây, phần còn lại là nhân vật đứng im.
-
-**Nguyên tắc rút ra:** khi hệ thống đã có sẵn một công thức định lượng (ở đây là hàm ước lượng
-thời lượng ngay trong code giao diện), phải ĐỌC và DÙNG ĐÚNG công thức đó làm ràng buộc khi thiết
-kế, thay vì ước lượng bằng cảm giác rồi để người dùng phát hiện lệch. Quy trình đúng: đếm từ của
-cụm thoại → suy ra thời lượng → mới quyết định gộp mấy câu và chọn 6s hay 10s.
-
-Khi hai chuẩn xung đột (tỷ lệ 90% shot 10s vs. lấp kín thời lượng) thì **lấp kín thắng** — thà
-dùng 6s cho một cụm thoại ngắn còn hơn ép lên 10s rồi để trống 4 giây.
-(Đã viết lại mục "Chia câu vào shot" trong SKILL.md với công thức số từ và ngưỡng cụ thể.)
-
----
-
-## 21. Thoại phải khớp với BỐ CỤC KHÔNG GIAN mình vừa dựng ra
+## 18. Thoại phải khớp với BỐ CỤC KHÔNG GIAN mình vừa dựng ra
 
 *Bối cảnh:* Master của một cảnh được thiết kế là hai không gian THÔNG NHAU không có tường ngăn (để hợp lý hoá việc nhân vật ở phòng bên nghe được tiếng cửa mở).
 
@@ -370,8 +313,7 @@ Cách sửa tốt: đổi câu thoại sang một hành vi hợp bố cục mà 
 vào, vừa giữ nguyên món ăn đó làm đạo cụ gieo-trả cho cảnh sau). Đừng chỉ xoá câu vướng.
 
 ---
-
-## 22. Cảnh 3 người cần tầng "rộng vừa", không nhảy thẳng từ master xuống cận
+## 19. Cảnh 3 người cần tầng "rộng vừa", không nhảy thẳng từ master xuống cận
 
 *Bối cảnh:* User hỏi vì sao cảnh có ba nhân vật mà không có thêm 1-2 góc rộng vừa (nhỏ hơn master nhưng không cận) để có thêm khung hình đủ cả ba người.
 
@@ -384,149 +326,28 @@ hình nặng hơn hẳn một two-shot thường.
 (Đã bổ sung vào mục "Bộ góc máy" trong SKILL.md.)
 
 ---
+## 20. SF là frame ĐẦU clip → phải bằng trạng thái KẾT THÚC của clip trước
 
-## 23. Nhân vật đổi chỗ giữa hai shot mà không có nhịp chuyển → video khựng
+**Hệ quả 1: mọi hành động chuyển trạng thái phải nằm ở CUỐI clip TRƯỚC** (nơi SF vẫn còn ở trạng thái cũ), rồi clip sau mở đầu bằng câu xác nhận: *'đã ngồi yên trên sofa, đúng như frame tham chiếu'*.
 
-*Bối cảnh:* User phát hiện: shot trước nhân vật còn đứng ở khu bếp, shot sau đã ngồi nắm tay nhân vật khác ở bàn ăn — nhảy vị trí tức thì, mắt người xem vấp.
+**Hệ quả 2: mỗi SF phải GHI RÕ trạng thái không gian** — ai đứng/ngồi, cách nhau bao xa, ai cao hơn, quay hướng nào.
 
-**Nguyên tắc rút ra:** sau khi chốt SF cho từng shot, phải duyệt các CẶP SHOT LIỀN NHAU và hỏi
-"ai đổi chỗ giữa hai khung này?". Ba cách xử lý theo mức độ:
-1. Chèn một shot CHUYỂN khi đổi khu vực — dùng khung rộng thấy trọn đường đi, SF của shot chuyển
-   lấy theo vị trí XUẤT PHÁT (khớp cuối shot trước), rồi mô tả nhân vật di chuyển tới bố cục của
-   shot kế tiếp trong prompt.
-2. Cho nhân vật VỪA ĐI VỪA NÓI — mượn luôn câu mở đầu của lượt thoại kế làm lời cho nhịp chuyển,
-   khỏi tốn một shot câm (user gợi ý chính cách này).
-3. Với quãng ngắn cùng khung: chỉ cần mô tả bước di chuyển ở CUỐI prompt shot trước.
-
-Kèm một ngoại lệ quan trọng: **shot chuyển được miễn quy tắc lấp kín thời lượng** (bài học 20),
-vì nội dung của nó là hành động di chuyển chứ không phải thoại — 6s mà chỉ có 3-5 từ là hợp lệ,
-phần còn lại dành cho việc đi, kéo ghế, ngồi xuống. Đừng nhồi thoại vào cho đủ giây.
-(Đã thêm vào mục "Chia câu vào shot" trong SKILL.md.)
+**Duyệt theo CẶP SHOT LIỀN NHAU** sau khi chốt SF, hỏi *'ai đổi chỗ giữa hai khung này?'*. Ba cách xử lý theo mức độ:
+1. Chèn một shot CHUYỂN khi đổi khu vực — khung rộng thấy trọn đường đi; SF của shot chuyển lấy theo vị trí XUẤT PHÁT (khớp cuối shot trước), rồi tả nhân vật di chuyển tới bố cục của shot kế trong prompt.
+2. Cho nhân vật VỪA ĐI VỪA NÓI — mượn luôn thời lượng thoại làm thời lượng di chuyển.
+3. Đổi chỗ nhỏ trong cùng khu vực thì chỉ cần mô tả trong prompt clip trước.
 
 ---
+## 21. Nhân vật chính phải LUÔN đẹp — 'nghèo' nằm ở bối cảnh, không ở bộ đồ
 
-## 24. Nhân vật đổi trang phục qua các cảnh → phải tạo REF RIÊNG cho từng bộ
+**1. 'Nghèo' ≠ 'xấu và quê'.** Trong melodrama đại chúng, nhân vật chính phải luôn đẹp và cuốn hút — cả gương mặt LẪN trang phục. Cái nghèo thể hiện ở BỐI CẢNH (căn nhà, đồ đạc, khu phố) và ở CỐT TRUYỆN. Người thu nhập thấp ngoài đời vẫn chọn bộ đẹp nhất, chỉn chu nhất khi đi việc quan trọng — mô tả 'vải thường', 'đã sờn', 'giày cũ', 'không có gu' là vừa sai thực tế vừa phản tác dụng.
 
-*Bối cảnh:* Một nhân vật chính đổi trang phục theo mốc thời gian của phim (đồng phục lúc đi làm → đồ ở nhà sau khi mất việc → đồ lịch sự đi gặp đối tác → đồng phục nghề mới...).
+**2. Đồ ở nhà: ÍT LỚP, VẢI MỎNG, DÁNG THOÁNG** — cotton/linen mỏng, tay ngắn hoặc lỡ, một lớp là đủ. Chỉ thêm lớp dày khi kịch bản có lý do rõ (ngoài trời lạnh, mùa đông có nêu). Ghi thẳng điều cấm vào prompt: *KHÔNG áo len dày, KHÔNG đồ nỉ, KHÔNG đồ nhiều lớp*.
 
-**Nguyên tắc rút ra:** rà toàn bộ kịch bản NGAY TỪ ĐẦU để liệt kê các "trạng thái trang phục" của
-mỗi nhân vật chính (thường tương ứng với các chặng của cốt truyện), rồi tạo một cặp
-`REF_<TÊN>_<TRẠNG THÁI>_PORTRAIT` + `_FULL` cho từng bộ. SF của mỗi cảnh đính đúng REF của trạng
-thái đó — không bao giờ mô tả bộ đồ mới bằng chữ trên nền một REF mặc bộ khác.
-
-Cách tạo REF trang phục mới: đính REF gốc để lấy KHUÔN MẶT + TÓC + TÔNG DA, và chống copy trang
-phục bằng nhiều lớp giống bài học 3 nhưng đảo chiều — (a) cảnh báo ở đầu prompt nêu ĐÍCH DANH bộ
-đồ trong ảnh tham chiếu và cấm dùng nó; (b) mô tả bộ đồ mới bằng đặc điểm TƯƠNG PHẢN cụ thể
-(không cổ áo, không cúc, không màu đó, không bảng tên); (c) nhắc lại lệnh cấm ở cuối prompt. Đóng
-khung bằng "CÙNG MỘT NGƯỜI nhưng mặc đồ hoàn toàn khác" — ngược với bài học 3 là "MỘT NGƯỜI HOÀN
-TOÀN KHÁC nhưng mặc đồ giống".
-
-**ĐÍNH CHÍNH NGAY SAU ĐÓ (cùng ngày) — hai điểm user sửa tiếp:**
-
-1. **Kiến trúc REF gọn hơn nhiều: mỗi nhân vật chỉ cần MỘT portrait cho cả phim.** Portrait là ảnh
-   chuẩn của KHUÔN MẶT, dùng mãi. Mỗi bộ trang phục mới chỉ cần thêm MỘT ảnh FULL (đính portrait
-   gốc để lấy mặt, thay phần trang phục). Không tạo lại portrait cho từng bộ đồ — vừa tốn ảnh phải
-   render, vừa tạo thêm nguy cơ khuôn mặt trôi dần qua các bản. SF của cảnh thì đính CẢ HAI:
-   portrait (mặt) + FULL của đúng bộ đồ (trang phục).
-
-2. **TUYỆT ĐỐI KHÔNG hạ nhan sắc nhân vật chính để "hợp hoàn cảnh".** Bản đầu tiên tôi thêm vào
-   REF: quầng thâm dưới mắt, ánh mắt trĩu xuống, tóc xuề xòa, "không trang điểm" — user bác thẳng:
-   "sao lại biến nhân vật chính thành xấu như này, dù hoàn cảnh nào cũng không được như kiểu này".
-   Đây là quy tắc cứng của thể loại: khán giả phải muốn nhìn và muốn bênh nhân vật chính suốt phim.
-   Hoàn cảnh khó khăn kể bằng BỐI CẢNH + TRANG PHỤC + DIỄN XUẤT TỪNG KHUNG, không bao giờ bằng
-   cách làm xấu ảnh nhân vật gốc.
-
-   Phân vai rõ để lần sau không lẫn: **REF giữ NHÂN DẠNG CHUẨN (luôn đẹp, bất biến cả phim);
-   SF và prompt video mới là nơi diễn TRẠNG THÁI CẢM XÚC** (vai sụp, mắt đỏ, tóc rối trong đúng
-   một khung). Nhét cảm xúc vào REF là nhét sai tầng — nó sẽ dính vào mọi cảnh dùng REF đó.
-(Đã đưa vào SKILL.md: mục "Cấu trúc dữ liệu cần biết" và nguyên lý 4b.)
+*Bài học meta:* 'ấm áp' là tính từ của KHÔNG KHÍ CẢNH (ánh sáng vàng, khung hình), không phải của QUẦN ÁO — đừng dịch cảm giác cảnh thành chất liệu vải.
 
 ---
-
-## 25. "Nghèo" không có nghĩa là "xấu và quê" — trang phục nhân vật chính vẫn phải đẹp
-
-*Bối cảnh:* Viết REF trang phục công sở cho nữ chính (một người thu nhập thấp đi gặp nhân vật giàu), tôi mô tả: "bộ đồ tử tế nhất cô có", "vải thường", "giày đã đi nhiều", "KHÔNG phải đồ hiệu", "phải đọc ra ngay là người bình thường mặc đồ đẹp nhất mình có".
-
-**Nguyên tắc rút ra:** trong melodrama đại chúng, nhân vật chính phải LUÔN đẹp và cuốn hút — cả
-gương mặt LẪN trang phục. "Nhân vật nghèo" thể hiện ở BỐI CẢNH (căn nhà, đồ đạc, khu phố) và ở
-CỐT TRUYỆN, không phải ở việc cho cô ấy mặc đồ xấu. Người thu nhập thấp ngoài đời vẫn chọn bộ đẹp
-nhất và chỉn chu nhất khi đi việc quan trọng — mô tả "vải thường", "đã sờn", "giày cũ", "không có
-gu" là vừa sai thực tế vừa phản tác dụng thẩm mỹ.
-
-Cách viết đúng: mô tả trang phục bằng từ ngữ TÍCH CỰC (thanh lịch, phom đẹp, có gu, chuyên nghiệp,
-tôn dáng), rồi chỉ dùng lệnh cấm để chặn phía TRÊN (không đồ hiệu phô trương, không trang sức lớn,
-không suit may đo kiểu tài phiệt) — chứ KHÔNG chặn phía dưới bằng cách mô tả sự cũ kỹ. Luôn kèm
-một câu cấm tường minh: "TUYỆT ĐỐI KHÔNG để trang phục trông cũ kỹ, rẻ tiền hay luộm thuộm."
-(Đã bổ sung vào nguyên lý 4b trong SKILL.md.)
-
----
-
-## 26. SF là frame ĐẦU clip → phải bằng trạng thái KẾT THÚC của clip trước
-
-*Bối cảnh:* User nêu quy tắc chọn SF mà tôi chưa hệ thống hóa: logic không gian phải liên tục theo diễn biến kịch bản, trên bốn trục **XA/GẦN → TRÊN/DƯỚI → TRƯỚC/SAU → TRÁI/PHẢI**.
-
-**Nguyên tắc rút ra:** SF là frame ĐẦU của clip, nên nó phải bằng đúng trạng thái KẾT THÚC của
-clip trước. Suy ra hai hệ quả:
-1. **Mọi hành động chuyển trạng thái phải nằm ở CUỐI clip TRƯỚC** (nơi SF vẫn còn ở trạng thái cũ),
-   rồi clip sau mở đầu bằng câu xác nhận: "đã ngồi yên trên sofa (đúng như frame tham chiếu)".
-2. **Mỗi SF phải GHI RÕ trạng thái không gian vào mô tả** — ai đứng/ngồi, cách nhau bao xa, ai cao
-   hơn ai, đã qua ranh giới nào chưa. Không ghi thì không có dữ liệu để đối chiếu, và lệch chỉ lộ
-   ra khi đã render xong.
-
-Quy trình rà bắt buộc sau khi chốt SF cho cả scene: đọc tuần tự từ shot đầu tới shot cuối, ghi ra
-trạng thái không gian ở CUỐI mỗi clip, so với trạng thái ở ĐẦU clip kế. Lệch thì hoặc chèn nhịp
-chuyển, hoặc đẩy hành động sang clip trước.
-(Đã thêm mục "LOGIC KHÔNG GIAN LIÊN TỤC" vào SKILL.md và mục 4 "trạng thái không gian" vào CHECKLIST.)
-
----
-
-## 27. Quy tắc REF trang phục áp dụng cho MỌI nhân vật, không riêng nhân vật chính
-
-*Bối cảnh:* Vừa ghi bài học 24 (đổi trang phục thì phải tạo REF riêng, không mô tả bằng chữ) và áp dụng cho nữ chính, nhưng ngay scene kế tiếp lại mô tả bộ đồ mới của một nhân vật PHỤ bằng chữ trong prompt SF — user bắt lại lần nữa: "nếu cần thì tạo 1 biến thể nhân vật mới, chứ đừng tự ý mô tả trong text…
-
-**Nguyên tắc rút ra:** khi rút ra một quy tắc về REF, phải QUÉT TOÀN BỘ dự án để áp dụng cho mọi
-nhân vật, không chỉ nhân vật đang làm dở. Cách quét rẻ: grep các từ khóa trang phục
-(tên món đồ, chất liệu, phụ kiện) trong prompt của mọi SF — chỗ nào có nghĩa là chỗ đó đang mô tả
-bằng chữ thay vì đính REF.
-
-Lưu ý thêm: trang phục "bắt buộc theo bối cảnh" (đồng phục bệnh nhân, đồ bảo hộ, áo tù...) cũng là
-một trạng thái cần REF riêng — dễ bị bỏ qua vì cảm giác "nó hiển nhiên theo bối cảnh nên tả bằng
-chữ là đủ". Và với những bộ đồ gắn với hoàn cảnh tiêu cực, vẫn phải giữ nguyên tắc 4b: nhân vật
-được khán giả yêu quý thì luôn phải trông sáng sủa, có thần thái — áo bệnh nhân thì phẳng phiu
-sạch sẽ chứ không nhàu nát, dáng đang hồi phục chứ không phải hấp hối.
-
-**NGOẠI LỆ ĐƯỢC PHÉP — chỉnh nhỏ có chủ đích kể chuyện (user xác nhận là hay, nên dùng):**
-Quy tắc "phải tạo REF" áp dụng cho việc ĐỔI CẢ BỘ trang phục. Còn việc BỎ BỚT hoặc nới lỏng một
-món phụ kiện ngay trong prompt SF thì hoàn toàn nên làm, khi nó mang một ý nghĩa cụ thể cho beat
-đó — vì đây là điều chỉnh nhỏ trên nền REF, không phải thay bộ:
-- tháo/nới cà vạt, mở cúc cổ → nhân vật vừa phóng từ chỗ làm tới, hoặc cố ý làm buổi gặp bớt
-  trang trọng;
-- xắn tay áo → đang chịu áp lực, đang "xuống tay" làm việc;
-- tháo bảng tên (còn lại vệt vải sáng và lỗ ghim) → vừa bị tước mất danh phận nghề nghiệp;
-- cởi blazer vắt lên ghế → đã thả lỏng, cuộc nói chuyện chuyển sang thân mật.
-
-Ranh giới: **thêm/bớt MỘT món để nói một điều → viết thẳng trong SF; đổi TOÀN BỘ bộ đồ → tạo REF.**
-Dạng chỉnh nhỏ này không xảy ra thường xuyên, nhưng khi hợp cảnh thì nó kể chuyện rất hiệu quả mà
-không tốn thêm ảnh nào.
-
----
-
-## 28. Board TỰ ĐỘNG kèm _FULL → đính thêm FULL trạng thái gây thừa ảnh
-
-*Bối cảnh:* User phát hiện tạo ảnh bị chậm và chỉ ra nguyên nhân: mỗi nhân vật đang bị đính TỚI 2 ảnh full-body.
-
-**Nguyên tắc rút ra:** mỗi nhân vật trong một SF chỉ được đính TỐI ĐA 1 portrait + 1 full-body —
-đúng bộ đồ của cảnh đó. Đã sửa `_sf_attachments`: chỉ tự kèm `REF_X_FULL` khi SF CHƯA chỉ định sẵn
-bất kỳ bản `REF_X_*_FULL` nào cho nhân vật đó.
-
-Bài học meta: khi thêm một khái niệm mới vào dữ liệu (ở đây là "REF theo trạng thái"), phải rà lại
-các cơ chế TỰ ĐỘNG cũ đang chạy trên dữ liệu đó — chúng được viết cho mô hình cũ và sẽ hành xử sai
-trong mô hình mới, nhưng sai một cách âm thầm vì không báo lỗi. Dấu hiệu để nghi ngờ: hệ thống bỗng
-chậm đi hoặc kết quả lẫn lộn mà không rõ lý do.
-
----
-
-## 29. Khối "Nhận diện" tả trang phục càng chi tiết, model vẽ càng láo
+## 22. Khối "Nhận diện" tả trang phục càng chi tiết, model vẽ càng láo
 
 *Bối cảnh:* Sau khi chuẩn hóa trang phục theo REF, tôi bê luôn mô tả chi tiết đó vào khối "Nhận diện" của prompt video: "blazer camel + blouse lụa kem cổ V + quần âu navy + giày cao gót thấp đen".
 
@@ -540,23 +361,7 @@ riêng (REF = nhân dạng · SF = bố cục và chi tiết khung · prompt vid
 người nói) — sao chép thông tin từ tầng này sang tầng khác "cho chắc" thường phản tác dụng.
 
 ---
-
-## 30. Trang phục nhân vật chính phải MÁT và NHẸ, không chỉ "đẹp"
-
-*Bối cảnh:* Bộ `REF_MAYA_HOME2_FULL` tôi viết là "áo len mỏng cổ tròn nâu ấm/xám khói + bên trong lộ cổ áo thun trắng + quần jogger vải mềm + tất len".
-
-**Nguyên tắc rút ra:** với trang phục ở nhà của nhân vật chính, mặc định chọn **ÍT LỚP, VẢI MỎNG,
-DÁNG THOÁNG** — cotton/linen mỏng, tay ngắn hoặc tay lỡ, một lớp là đủ. Chỉ thêm lớp dày khi
-kịch bản có lý do rõ ràng (ngoài trời lạnh, mùa đông có nêu). Trong prompt nên ghi thẳng cả điều
-CẤM: "KHÔNG áo len dày, KHÔNG đồ nỉ, KHÔNG đồ nhiều lớp".
-
-Bài học meta: "ấm áp" là tính từ của KHÔNG KHÍ CẢNH (ánh sáng vàng, khung hình gần, diễn xuất),
-không phải của VẢI. Tôi đã dịch nhầm cảm xúc muốn có sang chất liệu quần áo. Sự ấm cúng của một
-cảnh gia đình phải đến từ đèn và bố cục, chứ không phải từ việc mặc thêm áo len cho nhân vật.
-
----
-
-## 31. Cùng một không gian thì phải THAM CHIẾU master cũ, kể cả khi là phòng khác
+## 23. Cùng một không gian thì phải THAM CHIẾU master cũ, kể cả khi là phòng khác
 
 *Bối cảnh:* Tôi viết master cho Scene 16 (phòng ngủ của con) và Scene 18 (phòng khách) mà không đính ảnh tham chiếu bối cảnh nào, vì nghĩ "phòng ngủ là không gian mới, chưa có master".
 
@@ -577,42 +382,21 @@ cho MỌI scene diễn ra ở cùng địa điểm về sau. Cần rà lại to�
 chứ không theo số thứ tự, để biết cái nào phải neo vào cái nào.
 
 ---
+## 24. Nhịp không thoại — vì sao cần, loại nào, bao nhiêu là đủ
 
-## 32. Phim toàn thoại là phim không có nhịp thở
-
-*Bối cảnh:* Dựng xong toàn bộ 129 shot, user ghép lại và phản hồi: "các scene chuyển gấp quá, không có đoạn chuyển, và không có những đoạn cảm xúc cao trào... video từ đầu đến cuối cứ đối thoại liên tục".
-
-**Nguyên tắc rút ra:** một scene hội thoại dựng xong chưa phải là một cảnh phim hoàn chỉnh. Phải
-rà thêm một lượt nữa để chèn NHỊP KHÔNG THOẠI, gồm bốn loại:
-
+Một scene hội thoại dựng xong **chưa phải** một cảnh phim hoàn chỉnh. Rà thêm một lượt để chèn nhịp không thoại, gồm bốn loại:
 - **Beat cảm xúc** (6s) — sau câu thoại nặng nhất, giữ mặt nhân vật im lặng cho câu đó ngấm.
-- **Cầu nối** (6-10s) — nhân vật rời khung, đi qua không gian, nối cảnh này sang cảnh kia.
-- **Dựng cảnh** (6s) — ngoại cảnh địa điểm mới trước khi vào thoại; bắt buộc khi nhảy thời gian
-  ("sáu tháng sau", "một năm sau"), vì nếu không khán giả không có tín hiệu nào để hiểu.
-- **Cao trào không lời** (10s) — một hành động cụ thể mang nghĩa, thay cho cả đoạn thoại.
+- **Cầu nối** (6–10s) — nhân vật rời khung, đi qua không gian, nối cảnh này sang cảnh kia.
+- **Dựng cảnh** (6s) — ngoại cảnh địa điểm mới trước khi vào thoại.
+- **Đối tượng/chi tiết** (6s) — cận vật mang nghĩa, chỉ dùng khi vật đó đã có vai trò trong kịch bản.
 
-Mật độ tham khảo: khoảng **1,5-2 nhịp cho mỗi scene**, và luôn có một nhịp ở mỗi chỗ đổi địa
-điểm hoặc nhảy thời gian.
+Trong prompt nhịp không thoại, hai khối bắt buộc viết nguyên văn:
+`KHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.` và `Âm thanh: KHÔNG thoại, KHÔNG nhạc, KHÔNG hiệu ứng. Giữ clip IM LẶNG HOÀN TOÀN.` — khác hẳn khối âm thanh của clip có thoại.
 
-**Prompt video cho nhịp phải theo form khác form thoại**, ba điểm bắt buộc:
-1. `KHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như
-   đang nói.` — thiếu câu này model sẽ tự cho nhân vật lẩm bẩm.
-2. `Âm thanh: KHÔNG thoại, KHÔNG nhạc, KHÔNG hiệu ứng. Giữ clip IM LẶNG HOÀN TOÀN.` — khác hẳn
-   footer của shot thoại; để người dựng ghép nhạc mà không phải chống ambient.
-3. **Mỗi nhịp chỉ một hành động duy nhất.** Nhồi hai việc vào 6s là thành vội — đúng cái bệnh
-   đang muốn chữa.
-
-Mặc định nhịp là **6s**; 10s chỉ dành cho nhịp có hành động thật sự diễn tiến. Nhịp 10s mà không
-có gì xảy ra thì thành lê thê, đổi bệnh này lấy bệnh khác.
-
-Bài học meta: tôi tối ưu đúng từng đơn vị (mỗi shot lấp kín thoại, mỗi scene đủ góc) nhưng chưa
-bao giờ kiểm tra đơn vị lớn hơn — **nhịp của cả phim**. Sau khi dựng xong toàn bộ scene, phải
-xem lại ở tầng tổng thể: chỗ nào chuyển gấp, chỗ nào cảm xúc chưa kịp lắng, chỗ nào khán giả bị
-quăng sang cảnh mới mà không được báo trước.
+**Số lượng: ≈15% số shot có thoại, tính trên TỔNG CẢ PHIM**, không chia đều theo scene. Rải đều mỗi scene 1–2 nhịp cho 'cân đối' là cân về số học nhưng sai về kể chuyện — nhịp phải dồn vào chỗ cảm xúc cần thở.
 
 ---
-
-## 33. Ghi bài học rồi vẫn vi phạm, vì áp dụng sai phạm vi
+## 25. Ghi bài học rồi vẫn vi phạm, vì áp dụng sai phạm vi
 
 *Bối cảnh:* Hôm trước tôi ghi bài học 31 ("cùng một không gian thì phải tham chiếu master cũ") và thêm hẳn mục 0 vào checklist.
 
@@ -628,8 +412,7 @@ không phải vì thiếu nguyên tắc mà vì **phạm vi áp dụng bị hi�
 một bài học, phải nói rõ luôn nó áp dụng cho những loại việc nào.
 
 ---
-
-## 34. Lạm dụng chữa bằng lệnh cấm là sai, chữa bằng danh sách cũng sai
+## 26. Lạm dụng chữa bằng lệnh cấm là sai, chữa bằng danh sách cũng sai
 
 *Bối cảnh:* 43 nhịp không thoại dựng xong, user xem lại: "cứ thấy lặp lại thở dài mãi".
 
@@ -648,24 +431,7 @@ tế và biến hóa, cách đúng ngược lại: cho model **bối cảnh phon
 tiết. Kiểm soát đúng chỗ là kiểm soát Ý ĐỒ, không phải kiểm soát THAO TÁC.
 
 ---
-
-## 35. Nhịp không thoại ≈ 15% số shot thoại, tính theo cả phim
-
-*Bối cảnh:* dựng 43 nhịp cho 129 shot thoại (33%) — user: "nhịp không thoại nhiều quá, bằng 15% cảnh có thoại thôi là được".
-
-**Con số:** số nhịp không thoại ≈ **15% số shot có thoại**, tính trên TỔNG CẢ PHIM, không chia
-đều theo scene. Sai lầm gốc là rải đều mỗi scene 1-2 nhịp cho "cân đối" — cân về số học nhưng
-sai về kể chuyện, vì các scene không bằng nhau về sức nặng.
-
-**Bộ lọc giữ hay bỏ:** với mỗi nhịp, hỏi *"nhịp này gánh việc gì mà thoại không làm thay
-được?"* Không trả lời được thì bỏ. Ba loại luôn xứng đáng giữ: (a) báo nhảy thời gian; (b) mắt
-xích của chuỗi hình ảnh khép vòng — vật gieo đầu phim trả ở cuối; (c) cao trào không lời.
-
-**Khi cắt, đừng xóa:** đánh dấu `rejected` kèm lý do, giữ nguyên prompt và ảnh SF.
-
----
-
-## 36. Chuyển động không có tác nhân — lỗi phi vật lý trong nhịp không thoại
+## 27. Chuyển động không có tác nhân — lỗi phi vật lý trong nhịp không thoại
 
 *Bối cảnh:* Nhịp mở phim `V-S1-B1` là mặt tiền siêu thị lúc sáng sớm.
 
@@ -684,8 +450,7 @@ mặt tiền yên ắng với nắng dịch chậm và tán lá lay thì thật 
 thể tự di chuyển. Khi thấy trống, thêm chuyển động của **ánh sáng** — đừng thêm **vật**.
 
 ---
-
-## 37. Nhạc nền — quyết VAI TRÒ trước, viết prompt sau
+## 28. Nhạc nền — quyết VAI TRÒ trước, viết prompt sau
 
 *Bối cảnh:* Tôi viết 43 bộ prompt nhạc Suno cho các nhịp không thoại.
 
@@ -710,8 +475,7 @@ Lấy ví dụ làm khuôn rồi thay tính từ là cách nhanh nhất để t�
 thật sự cần làm là nghe từng đoạn trong đầu và hỏi nó cần gì.
 
 ---
-
-## 38. User thay ảnh master thì mọi khối "khóa look" con thành nói dối
+## 29. User thay ảnh master thì mọi khối "khóa look" con thành nói dối
 
 *Bối cảnh:* User chốt một ảnh master mới cho Scene 1 (render từ option khác — biển số quầy ĐEN, quầy be, đèn ấm trung tính) và dán vào board.
 
@@ -734,10 +498,7 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
   mắt BẮT ĐẦU đúng như frame và chỉ đạo diễn tiến TĂNG DẦN từ đó.
 
 ---
-
----
-
-## 39. Nhân dạng lệch dù có REF — và một chẩn đoán sai đã bị user sửa lại: REF không có trần
+## 30. Nhân dạng lệch dù có REF — và một chẩn đoán sai đã bị user sửa lại: REF không có trần
 
 *Bối cảnh:* làm một SF hai nhân vật, đính 4 ảnh REF (2 portrait + 2 full) + master.
 
@@ -756,10 +517,7 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
    thêm, hoặc hỏi user — người đã chạy pipeline này nhiều hơn mình.
 
 ---
-
----
-
-## 40. Kịch bản người viết có hard-cut trong một clip — tách thành hai shot, và nói rõ vì sao
+## 31. Kịch bản người viết có hard-cut trong một clip — tách thành hai shot, và nói rõ vì sao
 
 *Bối cảnh:* user gửi lại bản hook đã tự tinh chỉnh, trong đó *"CLIP 8 — 10 GIÂY"* được viết thành hai nửa: 0–5s hai người dưới sàn có thoại, rồi *"Hard cut sang tủ mát"* cho 5–10s Maya chạy đi lấy nước cam.
 
@@ -779,10 +537,7 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
    Sót một chữ là hỏng một clip, mà lỗi này chỉ lộ ra sau khi đã tốn lượt render.
 
 ---
-
----
-
-## 41. Khung ba lớp chiều sâu đẩy model lên góc bird's-eye — và câu phủ định vẫn vẽ ra thứ bị cấm
+## 32. Khung ba lớp chiều sâu đẩy model lên góc bird's-eye — và câu phủ định vẫn vẽ ra thứ bị cấm
 
 *Bối cảnh:* làm SF cầu nối S1→S2, tôi thiết kế một khung ba lớp: tiền cảnh là chỗ sàn trống nơi bà cụ vừa ngồi, lớp giữa là Maya đã quay lại quầy làm việc, lớp sâu là quản lý đứng ở cửa văn phòng cuối cửa hàng nhìn về phía cô. Ý đồ: khán giả thấy mối đe dọa mà nhân vật không thấy.
 
@@ -802,10 +557,7 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
    lỗi cuối — nhưng chỉ hiệu quả khi đã dọn sạch mọi câu mô tả gợi ra nhân vật đó (điểm 3).
 
 ---
-
----
-
-## 42. Thoại nhân vật chính lúc làm việc tốt — người tốt thật không thuyết minh việc tốt của mình
+## 33. Thoại nhân vật chính lúc làm việc tốt — người tốt thật không thuyết minh việc tốt của mình
 
 *Bối cảnh:* viết cảnh nhân vật chính cứu giúp người lạ, tôi cho cô nói những câu nghe "hay": giải thích động cơ (*"I know what it looks like when someone's about to go down and nobody around them is paying attention"*), tuyên bố sẽ ở lại (*"I'm not going anywhere"*, *"Not while I'm here"* — lặp…
 
@@ -827,10 +579,7 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
    tốt / lý do tôi tốt" thì đó là ứng viên cắt đầu tiên.
 
 ---
-
----
-
-## 43. Hành động đỉnh điểm ở GIỮA chuyển động là thứ model không vẽ nổi — thiết kế khoảnh khắc TRƯỚC hoặc SAU nó
+## 34. Hành động đỉnh điểm ở GIỮA chuyển động là thứ model không vẽ nổi — thiết kế khoảnh khắc TRƯỚC hoặc SAU nó
 
 *Bối cảnh:* khoảnh khắc bản lề "nhân vật vượt qua ranh giới quầy để cứu người" — tôi dựng SF cô đang LAO NGƯỜI giữa sải chân.
 
@@ -848,10 +597,7 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
    đồ vật / bỏ hẳn khoảnh khắc), không phải 5 biến thể của cùng một ý.
 
 ---
-
----
-
-## 44. Tinh chỉnh thoại nhiều vòng sẽ đánh rơi câu gốc — diff bằng máy sau mỗi vòng, đừng tin trí nhớ
+## 35. Tinh chỉnh thoại nhiều vòng sẽ đánh rơi câu gốc — diff bằng máy sau mỗi vòng, đừng tin trí nhớ
 
 *Bối cảnh:* sau vài vòng gộp/tách/viết lại shot theo feedback, tôi làm rơi mất một câu thoại gốc của kịch bản (*"Tanya, orange juice from the cooler.
 
@@ -867,59 +613,7 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
    danh sách đó sau mỗi vòng.
 
 ---
-
----
-
-## 45. Nhiều job lỗi cùng lúc = nghi hạ tầng TRƯỚC, đừng vội sửa prompt
-
-*Bối cảnh:* hai chân dung REF liên tiếp báo "cả 2 bản đều lỗi".
-
-**Nguyên tắc rút ra:**
-1. **Phân biệt lỗi theo PHẠM VI trước khi chẩn đoán.** Một job lỗi → nghi prompt. NHIỀU job
-   khác nội dung cùng lỗi một kiểu → nghi hạ tầng (Chrome chết, đăng xuất, hết lượt, mất mạng).
-   Sửa prompt trong trường hợp thứ hai là sửa nhầm chỗ và còn làm hỏng prompt đang đúng.
-2. **Đọc log trước khi đoán.** Thông báo lỗi mà pipeline trả về đã bị gộp thành một câu chung
-   chung; log mới có nguyên nhân thật. Mất 10 giây đọc log tiết kiệm được vài lượt render.
-3. **Không bắn lại quá hai lần mà chưa biết vì sao.** Lần một có thể là nhiễu; lần hai cùng
-   lỗi thì phải điều tra. Tôi đã bắn lại ba lần trước khi mở log — đó là ba lượt phí.
-4. **Sửa ở gốc, không sửa ở nhánh.** Bản `sfboard.py` trong repo chính là nguồn chuẩn; các bản
-   copy ở dự án khác ăn theo. Vá gốc thì mọi dự án cùng khỏi.
-
----
-
----
-
-## 46. Trang phục trong portrait rò sang SF — user quyết KHÔNG xử lý, và bài học là về tôi
-
-*Bối cảnh:* **Hiện tượng có thật:** ảnh chân dung gốc của một nhân vật mặc áo thun vàng; mọi SF của nhân vật đó đều đính ĐỦ cặp portrait (lấy mặt) + full-body (lấy trang phục) và prompt ghi rõ ảnh nào dùng cho phần nào — nhưng một số SF vẫn cho nhân vật mặc áo vàng của portrait.
-
-**Bài học thật của lần này không phải về portrait — mà về cách tôi phản ứng.** Tôi đã leo thang
-ba nhịp liền trên một hướng user chỉ mới NÊU RA, chứ chưa yêu cầu:
-1. User bảo trang phục Lily không đồng bộ → tôi thêm khối chữ khóa vào **91 SF**.
-2. User nói "portrait chỉ cho lấy mặt, đừng để lộ áo" → tôi **crop cả 13 portrait**.
-3. Vẫn lộ cổ áo → tôi crop lại **1:1** và trong lúc đó **lấy nhầm ảnh Maya**: dùng bản AI
-   render trong `versions/` (tóc tết cornrow) thay cho bản user tự dán (tóc xoăn búi cao) —
-   hai người hoàn toàn khác nhau.
-4. User phải dừng lại: *"mà thôi đừng có cắt thế... làm như cũ là được"*.
-
-**Nguyên tắc rút ra:**
-1. **Một nhận xét của user không phải một lệnh đổi quy trình.** "Portrait đừng để lộ áo" là mô
-   tả một mong muốn; biến nó thành thao tác sửa hàng loạt 13 ảnh và 91 prompt là tự ý leo thang.
-   Sửa ĐÚNG chỗ được chỉ, rồi hỏi trước khi mở rộng phạm vi.
-2. **TUYỆT ĐỐI KHÔNG sửa ảnh user đã duyệt mà không xin phép** — kể cả khi có bản lưu để hoàn
-   tác. Ảnh đã duyệt là quyết định của user, không phải dữ liệu để mình tối ưu.
-3. **Ảnh user TỰ DÁN VÀO là bản chuẩn tuyệt đối, không có ngoại lệ.** Nó có thể nhỏ hơn, chất
-   lượng thấp hơn, khác hẳn các bản AI render nằm cạnh trong `versions/` — không quan trọng.
-   Đừng bao giờ "nâng cấp" nó lên bản nét hơn: bản nét hơn thường là một người khác.
-4. **Cân nhắc tỉ lệ lỗi trước khi đổi quy trình.** Hỏi: lỗi này xảy ra ở bao nhiêu phần trăm
-   khung? Nếu nhỏ thì render lại vài khung rẻ hơn nhiều so với đổi cả hệ REF — và ít rủi ro
-   hơn hẳn.
-
----
-
----
-
-## 47. Công thức mật độ SF do user chốt — phút × 4; và góc cận-vật bị hạ cấp
+## 36. Công thức mật độ SF do user chốt — phút × 4; và góc cận-vật bị hạ cấp
 
 *Bối cảnh:* phim 44 phút chia SF không theo chuẩn nào — scene 4,9 phút chỉ có 11 SF (một khung gánh 7-8 shot liên tiếp).
 
@@ -935,8 +629,7 @@ chỉ giữ cho vài nhịp không thoại đắt nhất mang tính gieo-trả, 
 trong board.
 
 ---
-
-## 48. Người ở tiền cảnh quay lưng / out nét VẪN phải có ref
+## 37. Người ở tiền cảnh quay lưng / out nét VẪN phải có ref
 
 *Bối cảnh:* dựng bộ SF cho một phim, các khung OTS và CU đều mô tả kiểu *"rìa trái tiền cảnh là vai và gáy của Edmund, out nét mạnh, chỉ làm khung viền"* — và tôi chỉ đính ref của người nét rõ.
 
@@ -953,38 +646,7 @@ trong board.
 4. Liên quan bài học 39 (REF không có trần): đừng tiếc ref, cứ đính đủ.
 
 ---
-
-## 49. Xoá hay đổi tên SF xong PHẢI quét shot mồ côi
-
-*Bối cảnh:* Đợt duyệt ảnh xoá 4 SF (`SF-S1-WIDE`, `SF-S7-LILY-GLASS`, `SF-S14-WIDE-V2`, `SF-S15-REPORTER`) nhưng 9 shot vẫn trỏ vào id đã chết — nếu không quét trước khi render video thì 9 clip đó sẽ hỏng ngay khi cổng mở.
-
-**Nguyên tắc:** mọi thao tác xoá/đổi tên SF phải kèm một lượt quét toàn bộ `shots[].sf` đối chiếu danh sách SF còn sống; shot mồ côi thì gán lại góc cùng pha không gian hoặc dựng lại SF. Chạy lượt quét này lần cuối NGAY TRƯỚC khi mở cổng video.
-
----
-
-## 50. Cổng chặn bị NỔ trông y hệt cổng chặn ĐANG LÀM VIỆC
-
-*Bối cảnh:* `_gate_path()` tham chiếu biến `PROJ` chưa từng tồn tại → mọi lần user bấm nút mở cổng video đều nổ `NameError`, và vì hàm đọc cờ bọc trong `try/except: return False` nên giao diện vẫn hiện đúng chữ 'ĐANG KHÓA'.
-
-**Nguyên tắc:** viết xong cơ chế chặn phải kiểm CẢ HAI chiều — chiều từ chối *và* chiều cho phép. Riêng cơ chế mà chỉ user được kích hoạt thì tôi không được tự thử chiều cho phép; thay vào đó phải kiểm từng mắt riêng lẻ (hàm đọc/ghi cờ chạy không lỗi, thư mục ghi được, nút có handler) và ĐỌC LOG tìm exception, chứ không suy ra 'chưa ai bấm' từ việc không thấy gì xảy ra. `except: return False` che lỗi lập trình thành trạng thái hợp lệ — với code bảo vệ, hãy log exception trước khi trả về mặc định an toàn.
-
----
-
-## 51. Cơ chế tự chữa im lặng không chạy vì thiếu MỘT từ khoá nhận diện
-
-*Bối cảnh:* board có sẵn cơ chế "tab chết → mở lại phiên → thử lại", nhưng danh sách từ khoá nhận diện thiếu `target crashed` — chính thông báo khi renderer bị hệ thống giết vì hết RAM. Suốt nhiều giờ mỗi lần Chrome sập là job chết luôn, phải bắn lại tay, trong khi code tự chữa nằm ngay đó không bao giờ được kích hoạt.
-
-**Nguyên tắc:** cơ chế phục hồi dựa trên **so khớp chuỗi thông báo lỗi** là loại code hỏng
-im lặng — thiếu một từ khoá thì nó không báo gì, chỉ đơn giản không chạy. Khi thấy mình phải
-làm tay một việc mà hệ thống *lẽ ra* tự làm, hãy **đọc điều kiện kích hoạt trước khi viết
-thêm code mới** — thường là cơ chế đã có, chỉ không nhận ra tình huống.
-
-**Áp dụng:** danh sách từ khoá lỗi phải phủ cả lỗi *bị hệ thống giết* (`target crashed`,
-`page crashed`) chứ không chỉ lỗi *đóng chủ động* (`target closed`). Và với mỗi lần phục hồi,
-ghi log rõ ràng để lần sau biết nó có chạy hay không.
-
-
-## 52. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
+## 38. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
 
 Scene 5 dài 5:18 với 29 SF (thừa so với công thức 22), nhưng user vẫn phải **tự cắt 5 frame
 từ video và kéo thêm 2 ảnh ngoài vào** để có khung mà dùng. Nghịch lý đó lộ ra hai lỗi cùng gốc:
@@ -1001,3 +663,5 @@ và thiếu OTS tương ứng cho từng trạng thái.
 xuất để prompt video lo. Phép thử: một SF phải phục vụ được ≥2–3 câu thoại khác nhau. Thứ tự
 làm: đủ trạng thái → OTS của từng trạng thái → wide/cận vật → take V2 chỉ khi một SF còn gánh
 >3 shot. Dấu hiệu làm sai thứ tự: phải đi cắt frame từ video ra vá.
+
+---

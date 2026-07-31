@@ -282,4 +282,4 @@ thuộc SF/shot nào là tàn dư của kịch bản cũ.
 - **Viết prompt video (có thoại / nhịp lặng) và prompt nhạc Suno** → [references/prompt-video.md](references/prompt-video.md)
 - **Nguyên lý nền: ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** → [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Bài học tích lũy (51 bài)** → [references/bai-hoc.md](references/bai-hoc.md)
+- **Bài học tích lũy (38 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
