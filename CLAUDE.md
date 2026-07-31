@@ -58,7 +58,7 @@ hàng đợi và job video đang chạy dở sẽ không kịp lưu thành bản
 
 ## Quy tắc dựng phim
 
-Chi tiết nằm trong skill `tao-prompt-sf` (tự kích hoạt khi làm SF/prompt). Bốn điều
+Chi tiết nằm trong skill `skills-film` (tự kích hoạt khi làm SF/prompt). Bốn điều
 hay sai nhất, nhắc ở đây:
 
 - **Một clip = một shot liền.** Không chuyển cảnh trong một clip. Đổi không gian → clip khác.
@@ -70,7 +70,7 @@ hay sai nhất, nhắc ở đây:
 
 | Skill | Dùng khi |
 |---|---|
-| `tao-prompt-sf` | viết/sửa prompt ảnh nhân vật, SF, prompt video, prompt nhạc |
+| `skills-film` | viết/sửa prompt ảnh nhân vật, SF, prompt video, prompt nhạc |
 | `viet-kich-ban` | viết kịch bản drama từ title hoặc ý tưởng |
 
 Mỗi lần user sửa một lỗi, chưng cất thành **nguyên lý** rồi ghi vào
