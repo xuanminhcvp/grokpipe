@@ -310,7 +310,10 @@ _LOW_RAM_FLAGS = [
     "--disable-sync",
     "--disable-component-update",
     "--disable-features=Translate,MediaRouter,OptimizationHints,CalculateNativeWinOcclusion",
-    "--js-flags=--max-old-space-size=512",
+    # 1024MB thay vì 512: trần 512 làm tab ChatGPT (chat dài + ảnh sinh ra) chạm
+    # trần V8 rồi tự sập với "Target crashed". Đổi lại mỗi cửa sổ tốn RAM hơn —
+    # máy 16GB nên chạy ít cửa sổ cùng lúc.
+    "--js-flags=--max-old-space-size=1024",
     "--disable-backgrounding-occluded-windows=false",
 ]
 
@@ -1803,6 +1806,15 @@ cursor:pointer;transition:.15s}
 .pastebox div:last-child{font-size:11px;opacity:.8}
 /* ---- yêu cầu AI ---- */
 button.ai{border-color:var(--acc);color:var(--acc)}
+/* thứ tự render: MASTER → NEO → góc con. Ảnh gốc phải xong trước. */
+.ordtag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
+padding:2px 7px;border-radius:999px;letter-spacing:.3px}
+.ordtag.m{background:#7c3aed;color:#fff}
+.ordtag.n{background:#b45309;color:#fff}
+.ordtag.c{background:var(--panel2);color:var(--tx2);border:1px solid var(--line)}
+.card.ordm{border-color:#7c3aed}
+.card.ordn{border-color:#b45309}
+.ordnote{font-size:11px;color:var(--tx2);padding:2px 0}
 /* bản đang được dùng làm bản hiển thị/tải về */
 button.vpick{border-color:var(--ok,#1a7f37);color:var(--ok,#1a7f37);font-weight:700}
 button.ai.on{background:var(--acc);color:#fff;border-color:var(--acc)}
@@ -1842,6 +1854,7 @@ border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;color:var(--tx2)
     <option value="all">Tất cả</option><option value="pending">Chờ duyệt</option>
     <option value="revise">Cần sửa</option><option value="approved">Đã duyệt</option>
     <option value="noimg">Chưa có ảnh</option>
+    <option value="root">① Ảnh gốc cần chạy TRƯỚC (master + neo)</option>
   </select>
   <button id="vgate" onclick="toggleGate()" style="font-weight:700;padding:6px 12px"
           title="CHỈ NGƯỜI DÙNG được bấm nút này. Khi đóng, mọi lệnh tạo video đều bị server từ chối.">
@@ -2258,6 +2271,29 @@ function pickSF(id){
 }
 document.addEventListener('input', e=>{ if(e.target.id==='sp-q') drawSFPick(); });
 
+
+// ══ THỨ TỰ RENDER: MASTER → NEO → góc con ══
+// Ảnh nào được SF khác dùng làm refs.bg thì phải render và duyệt TRƯỚC, vì các
+// khung sau bám vào nó để giữ vị trí người / bối cảnh. Xem "ẢNH NEO" trong skill.
+function bgUsers(sc){
+  const m={};
+  (sc.sfs||[]).forEach(f=>{const b=(f.refs||{}).bg; if(b)m[b]=(m[b]||0)+1});
+  return m;
+}
+function sfRank(f,users){
+  const isM = /^SF-M-/.test(f.id);
+  const kids = users[f.id]||0;
+  if(isM) return 0;          // master: gốc bối cảnh
+  if(kids>0) return 1;       // neo: có khung khác bám vào
+  return 2;                  // góc con
+}
+function sfOrderTag(f,users){
+  const r=sfRank(f,users), kids=users[f.id]||0;
+  if(r===0) return `<span class="ordtag m" title="Ảnh gốc bối cảnh — ${kids} khung bám vào. Chạy TRƯỚC TIÊN.">① MASTER${kids?' · '+kids:''}</span>`;
+  if(r===1) return `<span class="ordtag n" title="ẢNH NEO — ${kids} khung bám vào để giữ vị trí người. Chạy và DUYỆT trước khi chạy các khung đó.">② NEO · ${kids}</span>`;
+  return '';
+}
+
 function jumpScene(id){
   const el=document.getElementById('sc-'+id);
   if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
@@ -2288,11 +2324,18 @@ function render(){
     : 'Kéo–thả hoặc <b>Ctrl+V</b> ảnh vào ô “Tạo SF mới” để dùng lại frame · bấm thẻ SF (Shift+bấm nếu đã có ảnh) rồi Ctrl+V để thay ảnh · <b>Tạo ảnh</b> để ChatGPT vẽ';
   if(VIEW==='script'){renderScript();snav();return}
   const fl=$('#filter').value;
-  const keep=f=>fl==='all'?1:fl==='noimg'?!f.image:fl==='pending'?f.status==='proposed':f.status===fl;
+  const _uu=k=>{const m={};DATA.scenes.forEach(sc=>(sc.sfs||[]).forEach(f=>{
+    const b=(f.refs||{}).bg; if(b)m[b]=(m[b]||0)+1}));return m};
+  const _UU=_uu();
+  const keep=f=>fl==='all'?1:fl==='noimg'?!f.image
+    :fl==='root'?(/^SF-M-/.test(f.id)||(_UU[f.id]||0)>0)
+    :fl==='pending'?f.status==='proposed':f.status===fl;
   const root=$('#root');root.innerHTML='';
   if(!DATA.scenes.length){root.innerHTML='<div class="empty-all">Chưa có scene. Bấm “+ Thêm scene”.</div>';return}
   DATA.scenes.forEach(sc=>{
-    const list=sc.sfs.filter(keep);
+    const _u=bgUsers(sc);
+    // MASTER trước, rồi NEO, rồi góc con — đúng thứ tự phải render
+    const list=sc.sfs.filter(keep).slice().sort((a,b)=>sfRank(a,_u)-sfRank(b,_u));
     const el=document.createElement('section');el.className='scene';el.id='sc-'+sc.id;
     // tổng thời lượng scene + mật độ SF, để căn xem scene này cần bao nhiêu góc
     const shs=sc.shots||[];
@@ -2875,6 +2918,8 @@ window.addEventListener('paste',async e=>{
 /* ---------------- CHẾ ĐỘ START FRAME ---------------- */
 function card(sc,f){
   const [cls,txt]=ST[f.status]||ST.proposed;
+  const _bu=bgUsers(sc), _rank=sfRank(f,_bu), _otag=sfOrderTag(f,_bu);
+  const _bg=(f.refs||{}).bg;
   const job=JOBS[f.id]||{};const running=job.state==='running';
   const refs=f.refs||{chars:[],bg:null};
   const d=document.createElement('div');
