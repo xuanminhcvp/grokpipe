@@ -95,7 +95,7 @@ hành động của beat này (giữ, tả rõ), hay nó chỉ được cài và
    phòng khách: SF-S3-MASTER`) và tra bảng đó trước khi viết (bài học 33).
 1. **Nhân vật chính trong khung** — ai, ở đâu (mốc % hoặc landmark), tư thế, **hướng nhìn**
    (2 người thì NHÌN THẲNG VÀO MẮT NHAU), biểu cảm ở mức **cảm xúc chung của scene**, và
-   **môi khép tự nhiên, không mở miệng**. Xem mục "Ánh mắt và cảm xúc".
+   **môi tự nhiên thả lỏng, không mở miệng**. Xem mục "Ánh mắt và cảm xúc".
 2. **Nhân vật phụ có thoại** — có thực sự thuộc beat này không (nguyên lý 11)? Nếu có: vị trí,
    tách bạch rõ với nhóm khác.
 3. **Quần chúng nền** — bối cảnh này ngoài đời có người qua lại không? Bao nhiêu người? Họ đang
@@ -263,9 +263,10 @@ Trước khi viết bộ SF, chốt một câu: *scene này nhân vật X đang 
 (nghi ngại · kiệt sức · phòng thủ · vừa nhận ra điều gì). Đưa đúng trạng thái đó lên mặt mọi
 SF của scene. Diễn xuất theo từng câu là việc của **prompt video** — SF chỉ dựng cái nền.
 
-**Miệng: KHÉP TỰ NHIÊN, KHÔNG MỞ, KHÔNG đang nói.** SF là frame đứng yên trước khi thoại bắt
-đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng một khẩu hình sai. Viết
-thẳng: *"môi khép tự nhiên, KHÔNG mở miệng, KHÔNG đang nói"*.
+**Miệng: TRẠNG THÁI TỰ NHIÊN, KHÔNG MỞ, KHÔNG đang nói.** SF là frame đứng yên trước khi
+thoại bắt đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng khẩu hình sai.
+Nhưng **đừng viết "khép"** — môi mím lại trông gồng và giả. Viết: *"môi ở trạng thái TỰ NHIÊN,
+thả lỏng — KHÔNG mở miệng, KHÔNG đang nói, KHÔNG mím chặt"*.
 
 ## Thứ tự làm SF: PHỦ ĐỦ TRẠNG THÁI TRƯỚC, take sau cùng
 

@@ -743,5 +743,7 @@ câu trạng thái tinh thần cho nhân vật trước khi viết bộ SF, rồ
 Diễn xuất theo từng câu là việc của prompt video — SF chỉ dựng cái nền. Đây là hệ quả trực tiếp
 của luật "SF là trạng thái, không phải khoảnh khắc".
 
-**c. Miệng KHÉP TỰ NHIÊN, KHÔNG mở, KHÔNG đang nói.** SF là frame đứng yên trước khi thoại bắt
-đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng khẩu hình sai.
+**c. Miệng ở TRẠNG THÁI TỰ NHIÊN, KHÔNG mở, KHÔNG đang nói.** SF là frame đứng yên trước khi
+thoại bắt đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng khẩu hình sai.
+Nhưng KHÔNG viết "khép" — user sửa lại: môi mím trông gồng và giả. Đúng là "tự nhiên, thả
+lỏng, không mím chặt".
