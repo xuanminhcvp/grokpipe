@@ -53,9 +53,15 @@ cắt vụn thoại, vừa mất phản ứng của người nghe, vừa xem ch�
   camera lệch ~45° nhưng vẫn ôm trọn cả hai nhân vật. Đừng dựng "3/4 mà chỉ có một người".
 - **OTS (qua vai) tính là khung hai người** — một người rõ mặt, người kia làm foreground framing.
   Đây là cách rẻ nhất để có khung hai người mà vẫn nhấn được vào một gương mặt.
-- SF thật sự đơn (không có ai khác trong khung) chỉ dùng cho: monologue dài một người nói liên
-  tục gần trọn 10s, hoặc beat nội tâm không có ai đối thoại (nhân vật một mình, quay lưng bước
-  ra). Ngoài hai trường hợp đó, luôn chọn khung hai người.
+- **HAI NGƯỜI ĐANG ĐỐI THOẠI THÌ KHÔNG BAO GIỜ ĐƯỢC DỰNG KHUNG CHỈ CÓ MỘT NGƯỜI.** Muốn cận
+  mặt một người thì **bắt buộc là OTS qua vai người kia** — vẫn phải THẤY VAI (hoặc vai + gáy)
+  của người còn lại trong khung, dù out nét. Cắt hẳn người kia ra khỏi khung là cắt luôn mối
+  quan hệ giữa hai người, và người xem mất cảm giác họ đang nói với ai.
+  Sai điển hình: đặt tên `X-CU` hay `X-34` rồi tả mỗi một mình X, trong khi X đang kể chuyện
+  cho Y nghe. Đúng: cùng cỡ cảnh đó, thêm khối vai Y ở rìa khung làm foreground.
+- SF thật sự đơn (không có ai khác trong khung) chỉ dùng khi **trong beat đó nhân vật thật sự
+  chỉ có một mình**: monologue không có người nghe, gọi điện (người kia ở đầu dây), hoặc beat
+  nội tâm một mình. Không áp dụng cho hội thoại mặt đối mặt.
 
 Câu thoại quá dài có thể tách làm hai shot của cùng một người, đổi góc giữa chừng — miễn không
 mất chữ nào so với kịch bản gốc.

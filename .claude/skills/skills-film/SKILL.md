@@ -60,6 +60,9 @@ thấy file bước nói khác chỗ này, **chỗ này đúng**, và báo user 
 - **Mọi shot phải có NGƯỜI trong khung** — cả shot thoại lẫn nhịp không thoại. Khung thuần đạo
   cụ hay cận bàn tay là khung chết.
 - **Người NÓI phải có mặt trong khung** của SF đó, hoặc prompt ghi rõ họ là giọng off-screen.
+- **Hai người đang đối thoại thì KHÔNG BAO GIỜ dựng khung chỉ có một người.** Cận mặt một
+  người thì bắt buộc là **OTS qua vai người kia** — vẫn thấy vai người còn lại trong khung.
+  Khung đơn chỉ dùng khi nhân vật thật sự một mình (monologue, gọi điện, beat nội tâm).
 - **Mọi nhân vật xuất hiện trong khung đều phải có ref** — kể cả người quay lưng, out nét, chỉ
   thấy vai/gáy.
 - **Tối đa HAI lớp chiều sâu** trong một khung.
@@ -103,6 +106,6 @@ user và đề xuất sửa luật** thay vì ghi chồng lên — hai chỗ đ�
 - **Nguyên lý về ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** →
   [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Kho bài học 44 bài** (~15k token) → [references/bai-hoc.md](references/bai-hoc.md). Chỉ mở khi
+- **Kho bài học 45 bài** (~15k token) → [references/bai-hoc.md](references/bai-hoc.md). Chỉ mở khi
   gặp lỗi lạ muốn tra đã từng gặp chưa, hoặc cuối việc để ghi bài mới. **Đừng đọc trước mỗi lần
   viết prompt** — luật đã chưng cất lên đây rồi.

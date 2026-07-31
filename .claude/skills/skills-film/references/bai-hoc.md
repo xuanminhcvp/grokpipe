@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-44 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+45 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -52,6 +52,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 42. Ánh mắt nối nhau, cảm xúc ở tầng SCENE, miệng khép
 - 43. Trần cứng 4 nhân vật mỗi SF — cảnh đông thì cắt hoặc tách khung
 - 44. Tách skill theo BƯỚC, luật cứng gom một chỗ
+- 45. Hai người đối thoại thì cận mặt phải là OTS, không được cắt người kia ra
 
 ## Vận hành & gỡ lỗi hạ tầng
 
@@ -782,3 +783,21 @@ file. Ghi thẳng vào SKILL.md: "file bước nói khác chỗ này thì chỗ 
 câu luật in đậm giữa bản cũ và bản mới. Lần tách này máy bắt được 2 mất mát thật mà đọc tay đã
 bỏ qua: một nhóm gạch đầu dòng bị tách ra rồi quên ghi vào file nào, và một quy trình thi hành
 bị thay bằng bản tóm tắt.
+
+
+## 45. Hai người đối thoại thì cận mặt phải là OTS, không được cắt người kia ra
+
+*Bối cảnh:* user chỉ ra các SF đặt tên kiểu `X-CU` / `X-34` nhưng tả mỗi một mình X, trong khi
+beat đó X đang nói chuyện mặt đối mặt với Y.
+
+**Nguyên tắc:** trong một beat có hai người đối thoại, **mọi khung đều phải thấy cả hai** — cận
+mặt một người thì bắt buộc là **OTS qua vai người kia**, giữ khối vai (hoặc vai + gáy) ở rìa
+khung dù out nét. Cắt hẳn người kia ra là cắt luôn mối quan hệ, người xem mất cảm giác nhân vật
+đang nói với ai.
+
+**Bẫy đặt tên:** cái tên `-CU` hay `-34` không tự nói lên trong khung có mấy người. Phải đọc
+phần BỐ CỤC để biết. Quy tắc rà: với mỗi SF, đối chiếu số người trong BỐ CỤC với số người có
+mặt trong beat — hụt một người là sai, trừ khi beat đó nhân vật thật sự một mình.
+
+Khung đơn thật sự chỉ hợp lệ khi: monologue không có người nghe · gọi điện (người kia ở đầu
+dây) · beat nội tâm một mình.
