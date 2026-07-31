@@ -1,4 +1,4 @@
-# Prompt video và prompt nhạc
+# Bước 5 — Prompt video và prompt nhạc
 
 ## Mục lục
 - Prompt video (Grok image-to-video) — FORM CHUẨN, dùng đúng khung này

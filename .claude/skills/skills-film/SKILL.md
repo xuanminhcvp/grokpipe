@@ -3,413 +3,106 @@ name: skills-film
 description: Viết/sửa prompt ảnh nhân vật và Start Frame (SF) trong sf-board.json cho các dự án PIPELINE-*.project. Dùng skill này mỗi khi tạo REF nhân vật mới, tạo SF cho một scene, hoặc sửa ngoại hình/trang phục nhân vật trong board — kể cả khi user chỉ nói "tạo SF cho scene X" mà không nhắc rõ kỹ thuật.
 ---
 
-# Viết prompt ảnh cho SF Board
+# Làm phim từ kịch bản — quy trình 5 bước
 
-Bạn đang soạn prompt tiếng Việt để một model tạo ảnh (qua ChatGPT/CDP) render ảnh nhân vật
-tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.json` của
-dự án `PIPELINE-*.project`.
+Bạn soạn prompt tiếng Việt để model tạo ảnh (ChatGPT/CDP) render ảnh nhân vật tham chiếu (REF)
+và Start Frame (SF), lưu trong `sf-board.json` của dự án `PIPELINE-*.project`.
 
-Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
-đó là đủ. `references/bai-hoc.md` là **kho lịch sử 43 bài** (~15k token): chỉ mở khi (a) gặp
-lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
-viết prompt** — luật đã được chưng cất lên đây rồi.
+**File này chứa QUY TRÌNH và LUẬT CỨNG.** Cách làm chi tiết của từng bước nằm ở file riêng —
+mở đúng file của bước đang làm, không cần đọc hết.
 
-## Cấu trúc dữ liệu cần biết
+## Quy trình — nhận một kịch bản mới thì đi theo đúng thứ tự này
 
-- Scene `REF` chứa các SF nhân vật: mỗi nhân vật có `REF_<TEN>_PORTRAIT` (chân dung 2:3)
-  và `REF_<TEN>_FULL` (toàn thân 9:16, luôn tham chiếu ngược lại PORTRAIT qua `refs.chars`).
-- **MỖI NHÂN VẬT CHỈ CÓ MỘT PORTRAIT DUY NHẤT, dùng cho cả phim.** Portrait là ảnh chuẩn của
-  KHUÔN MẶT — không tạo lại portrait cho từng bộ đồ.
-- Trang phục trong ảnh portrait có thể rò sang SF ở một tỉ lệ nhỏ. **User đã quyết KHÔNG xử lý việc này** — tỉ lệ lỗi thấp, không đáng đổi cả quy trình. TUYỆT ĐỐI KHÔNG tự ý crop ảnh portrait đã duyệt và không ép portrait về 1:1 cận mặt (xem bài học 46).
-- **Nhân vật đổi trang phục theo chặng truyện thì mỗi bộ chỉ cần THÊM MỘT ẢNH FULL**
-  (`REF_<TEN>_<TRẠNG THÁI>_FULL`, vd. `_HOME`, `_OFFICE`, `_SCRUBS`), luôn đính portrait gốc để
-  lấy khuôn mặt rồi thay phần trang phục. Rà kịch bản ngay từ đầu để liệt kê đủ các trạng thái này.
-- **SF của một cảnh đính CẢ HAI**: portrait gốc (khuôn mặt) + FULL của đúng bộ đồ cảnh đó
-  (trang phục), và ghi rõ trong prompt ảnh nào dùng cho phần nào. Tuyệt đối KHÔNG đính REF bộ cũ
-  rồi mô tả bộ mới bằng chữ — model sẽ vẽ lại bộ trong ảnh (xem bài học 24).
-- Quy tắc trên áp dụng cho **MỌI nhân vật**, kể cả vai phụ và kể cả trang phục "bắt buộc theo bối
-  cảnh" (áo bệnh nhân, đồ bảo hộ...). Khi rút ra một quy tắc REF mới, quét lại cả dự án để áp dụng
-  đồng loạt, đừng chỉ sửa nhân vật đang làm dở (bài học 27).
-- **Nhưng CHỈNH NHỎ có chủ đích kể chuyện thì viết thẳng trong SF, không cần REF mới**: tháo/nới
-  cà vạt, xắn tay áo, tháo bảng tên (còn vệt vải và lỗ ghim), cởi blazer vắt ghế... Ranh giới:
-  **thêm/bớt MỘT món để nói một điều → viết trong SF; đổi TOÀN BỘ bộ đồ → tạo REF.**
-- Mỗi scene có 1 SF **master** (không có `refs.bg`) — SF còn lại của scene đều đặt
-  `refs.bg = "<ID-master>"` để bám theo bối cảnh/bảng màu/ánh sáng của master.
-- `refs.chars` là danh sách ID ảnh **thật sự được đính kèm** cho model xem — khác với việc
-  chỉ nhắc tên nhân vật trong lời văn.
-- **MỌI NHÂN VẬT XUẤT HIỆN TRONG KHUNG ĐỀU PHẢI CÓ REF — KỂ CẢ NGƯỜI Ở TIỀN CẢNH QUAY LƯNG,
-  OUT NÉT, HAY CHỈ THẤY VAI/GÁY.** Đây là chỗ cực dễ sót: khung OTS hay CU thường mô tả "rìa
-  trái là vai và gáy của X, out nét làm khung viền" rồi chỉ đính ref của người nét rõ. Sai —
-  cái vai out nét đó vẫn phải ĐÚNG NGƯỜI và ĐÚNG BỘ ĐỒ, nếu không model tự bịa ra một người
-  khác với quần áo khác, và khung OTS lộ ngay vì màu áo lệch với khung đối diện.
-  Quy tắc rà: **tên nhân vật nào xuất hiện trong prompt thì phải có cặp portrait + full của
-  đúng bộ đồ cảnh đó trong `refs.chars`** — trừ khi prompt ghi rõ "X KHÔNG có trong khung".
-- **TRẦN CỨNG: TỐI ĐA 4 NHÂN VẬT được đính ref trong một SF** (= 8 ảnh người + 1 master ≈ 9
-  ảnh). Mỗi nhân vật đính CẢ portrait (khuôn mặt) LẪN full-body của đúng bộ đồ cảnh đó — đủ
-  cặp, không đính thiếu, nhưng KHÔNG quá 4 người.
-  **Khung cần hơn 4 người thì xử lý theo thứ tự:**
-  1. **Cắt bớt người khỏi khung** — hỏi lại từng người có thật sự thuộc beat này không.
-  2. **Tách thành hai khung**, mỗi khung ≤4 người, rồi dựng thành hai shot.
-  3. **Chỉ khi buộc phải giữ đủ**: đính ref cho 4 người ĐỨNG GẦN/RÕ MẶT nhất; những người còn
-     lại mô tả bằng chữ như QUẦN CHÚNG NỀN — mờ, không rõ mặt, không phải nhân vật có tên.
-     Người có thoại thì LUÔN nằm trong nhóm 4 được đính ref.
-  Khi nhân dạng ra lệch, KHÔNG chữa bằng cách bỏ bớt ref của người vẫn còn trong khung: chữa
-  bằng render lại, kiểm tra ảnh có thật sự được đính không, và dòng khóa chữ ngắn.
-- Luôn kèm **một dòng ngắn** khóa những gì ảnh không tự nói nổi: chủng tộc, kiểu tóc, màu
-  quần áo. Phim này Maya da đen / Helen da trắng là điểm cốt lõi — dòng khóa chủng tộc phải
-  có ở mọi SF có hai người, kể cả khi ref đang ra đúng.
-- Trước khi viết prompt master của một scene, đọc lại field `script` của scene đó **và các
-  scene khác trong phim** để tìm chi tiết/đạo cụ được nhắc tới bằng lời ở nơi khác (một món đồ,
-  một hành động cụ thể) — nếu có, cố tình cho đạo cụ trong khung trùng khớp để tạo hiệu ứng
-  "gieo trước, trả sau" thay vì mô tả đạo cụ chung chung không có nội dung cụ thể.
+| Bước | Việc | Đọc file |
+|---|---|---|
+| **1** | Ảnh **portrait** mọi nhân vật trong kịch bản | [1-portrait.md](references/1-portrait.md) |
+| **2** | Ảnh **full-body** cho từng bộ trang phục | [2-fullbody.md](references/2-fullbody.md) |
+| **3** | **Master · Ảnh neo · SF con** cho từng scene | [3-master-neo-sf.md](references/3-master-neo-sf.md) |
+| **4** | **Chia câu vào shot**, gán SF, chèn nhịp lặng | [4-chia-shot.md](references/4-chia-shot.md) |
+| **5** | **Prompt video** và prompt nhạc | [5-prompt-video.md](references/5-prompt-video.md) |
 
-## CHECKLIST BẮT BUỘC — rà đủ trước khi viết bất kỳ prompt SF nào
-
-Không được bỏ qua mục nào. Mỗi mục phải có quyết định rõ ràng viết vào prompt, hoặc một lý do
-chủ động để loại nó khỏi khung. Bỏ trống một mục = model tự bịa, và thường bịa sai.
-
-**Nhưng checklist này là để KHÔNG BỎ SÓT thứ cần thiết, KHÔNG PHẢI để nhồi cho đủ mục.** Với mỗi
-vật thể định đưa vào khung, hỏi: nó thuộc về không gian này một cách tự nhiên (giữ), nó tham gia
-hành động của beat này (giữ, tả rõ), hay nó chỉ được cài vào để minh họa một câu thoại (bỏ)?
-Đừng nhầm hai loại đầu với loại thứ ba mà dọn sạch cả đồ đạc vốn phải có — xem nguyên lý 14.
-
-0. **ĐỊA ĐIỂM NÀY LÀ ĐÂU, VÀ ĐÃ XUẤT HIỆN CHƯA?** Kịch bản không ghi rõ nơi chốn thì
-   **chọn có chủ đích** trước (xem mục "Chọn ĐỊA ĐIỂM trước"), đừng mặc định dùng lại
-   master gần nhất. Chọn xong mới hỏi tiếp: địa điểm đó đã xuất hiện chưa?
-
-   **ĐÃ XUẤT HIỆN RỒI?** — áp dụng cho **MỌI SF**, không riêng master: SF con,
-   nhịp không thoại, toàn cảnh, cầu nối — tất cả. Rà theo ĐỊA ĐIỂM, không theo số scene. Nếu
-   công trình này (ngôi nhà, siêu thị, bệnh viện…) đã có ảnh ở BẤT KỲ scene nào trước đó thì
-   BẮT BUỘC đính ảnh đó vào `refs.bg` kèm khối khóa đặt ngay đầu prompt.
-   Chọn một trong ba mức khóa:
-   - **Cùng đúng căn phòng / đúng góc nhìn** → "dùng lại nguyên vẹn, chỉ đổi thời điểm trong
-     ngày và vị trí người".
-   - **Phòng khác trong cùng công trình** → "bố cục khác, nhưng cùng màu sơn, cùng loại sàn,
-     cùng khung cửa, cùng chiều cao trần, cùng mức sống".
-   - **Cùng khu phố / cùng quần thể** → "mọi công trình trong khung cùng một họ kiến trúc, cùng
-     chất liệu, cùng mật độ, cùng mức sống".
-
-   Luôn kèm khối chặn nâng cấp mức sống — bỏ mục này là model vẽ ra một ngôi nhà đẹp hơn nhà
-   thật của nhân vật (bài học 31).
-
-   **Ngoại cảnh là chỗ dễ sót nhất.** Mặt tiền nhà, con phố, sân, lối vào — master của scene
-   thường là ảnh NỘI THẤT, nên khi dựng một khung ngoại cảnh ta quét danh sách master, không
-   thấy cái nào là "mặt tiền", rồi kết luận nhầm là chưa có. Phải hỏi ngược lại: *công trình
-   này đã từng lên hình TỪ BÊN NGOÀI ở scene nào chưa?* Cách chắc chắn: lập sẵn bảng ảnh gốc
-   theo **công trình + góc nhìn** (`nhà Maya → ngoại thất: SF-S5-MASTER · bếp: SF-S8-MASTER ·
-   phòng khách: SF-S3-MASTER`) và tra bảng đó trước khi viết (bài học 33).
-1. **Nhân vật chính trong khung** — ai, ở đâu (mốc % hoặc landmark), tư thế, **hướng nhìn**
-   (2 người thì NHÌN THẲNG VÀO MẮT NHAU), biểu cảm ở mức **cảm xúc chung của scene**, và
-   **môi tự nhiên thả lỏng, không mở miệng**. Xem mục "Ánh mắt và cảm xúc".
-2. **Nhân vật phụ có thoại** — có thực sự thuộc beat này không (nguyên lý 11)? Nếu có: vị trí,
-   tách bạch rõ với nhóm khác.
-3. **Quần chúng nền** — bối cảnh này ngoài đời có người qua lại không? Bao nhiêu người? Họ đang
-   làm gì, có nhìn về phía sự kiện chính không? Nêu rõ họ là nền mờ, không rõ mặt, không bảng tên.
-   Một không gian công cộng (siêu thị, bệnh viện, sảnh, đường phố) mà khung hình vắng tanh sẽ
-   đọc như phim trường giả.
-4. **TRẠNG THÁI KHÔNG GIAN của nhân vật** — ai đứng/ngồi, cách nhau bao xa, ai cao hơn ai (trên
-   thềm/dưới thềm, đứng/ngồi), ai trước ai sau. Cụm ≥3 shot mà người đứng yên một chỗ thì
-   khoá bằng **ẢNH NEO** (xem mục dưới), đừng để mỗi SF tự tả vị trí một kiểu. Phải ghi vào mô tả SF, vì đây là dữ liệu để đối
-   chiếu continuity giữa các shot (xem mục "LOGIC KHÔNG GIAN LIÊN TỤC").
-5. **NỘI THẤT CƠ BẢN của loại bối cảnh này** — thứ dễ sót nhất vì "hiển nhiên đến mức không ai
-   nghĩ phải viết ra". Phòng làm việc phải có GHẾ (ghế của chủ phòng + ghế khách); phòng ăn phải
-   có bàn ghế; phòng ngủ phải có giường; lớp học phải có bàn học. Thiếu món nội thất cơ bản là
-   khung hình đọc ra ngay như phim trường dựng tạm. Kiểm tra chéo: nếu BẤT KỲ SF con nào của
-   scene yêu cầu một tư thế cần đồ nội thất (ngồi, tựa, nằm), món đồ đó BẮT BUỘC phải có sẵn
-   trong master — nếu không SF con sẽ bịa ra một cái không tồn tại, phá continuity.
-6. **Vật dụng THUỘC VỀ bối cảnh** — thứ loại không gian này ngoài đời luôn có dù thoại không nhắc:
-   giấy tờ/hồ sơ trên bàn làm việc, hàng trên kệ siêu thị, nồi niêu trong bếp. Phải có, tả khái
-   quát và cho lùi ra nền. Thiếu chúng thì không gian trống rỗng giả tạo (nguyên lý 14a).
-7. **Đạo cụ của TỪNG người trong khung** — không chỉ nhân vật chính. Người xếp hàng ở siêu thị
-   phải có xe đẩy/giỏ; người ở bệnh viện phải có hồ sơ/túi xách; người đi làm phải có cặp. Người
-   đứng tay không trong ngữ cảnh cần đạo cụ sẽ trông sai.
-8. **Nội dung cụ thể của đạo cụ THAM GIA HÀNH ĐỘNG** — trong giỏ có gì, vật nào được đưa/đẩy/cầm.
-   Tả cụ thể và đặt tách bạch khỏi nhóm vật dụng nền để mắt nhận ra ngay. Rà kịch bản các scene
-   khác xem có món đồ nào được nhắc bằng lời để cố ý cho trùng khớp (nguyên lý gieo-trả) — nhưng
-   chỉ khi món đó thật sự có vai trò trong hành động, không phải mọi chi tiết thoại đều cần biến
-   thành vật thể trong khung (nguyên lý 14c).
-9. **Thời điểm và mức độ đông đúc** — giờ nào trong ngày, ngày thường hay cuối tuần, vắng hay
-   đông. **Rà kịch bản xem có câu thoại nào đã ấn định chi tiết này chưa** (vd. nhân vật nhắc
-   "giờ cao điểm", "sáng sớm") — nếu có thì bắt buộc khớp, đây là chi tiết dễ bỏ sót nhất.
-10. **Bảng màu và ánh sáng** — bảng màu/chất liệu khóa ở master. NHƯNG **thời điểm trong
-   ngày là của SCENE, không của master** — nếu scene diễn ra vào giờ khác master, xem mục
-   "Cùng phòng, khác thời điểm" bên dưới. Mỗi scene khai MỘT thời điểm duy nhất và mọi SF
-   trong scene ghi giống nhau từng chữ.
-11. **Danh sách chữ được phép xuất hiện** — liệt kê đủ mọi bảng tên/biển số (nguyên lý 13), kèm
-   yêu cầu in RÕ RÀNG DỄ ĐỌC, không nhòe thành ký tự vô nghĩa.
-12. **Câu chặn lỗi cuối** — không watermark, không nhân vật trùng lặp, không logo méo.
-
-- [ ] **SF là TRẠNG THÁI, không phải khoảnh khắc** — không ho, không che miệng, không khóc,
-      không đưa tay ra. Phép thử: khung này dùng được cho ≥2–3 câu thoại khác nhau không?
-- [ ] **Đã phủ đủ trạng thái chưa, rồi mới tới OTS và take V2** — nếu còn phải cắt frame từ
-      video ra vá thì bậc 1 chưa xong. OTS chỉ bắt buộc cho trạng thái gánh ≥3 shot.
-
-## Chọn ĐỊA ĐIỂM trước, rồi mới chọn góc máy
-
-Kịch bản thường chỉ cho thoại, **không ấn định nơi chốn**. Đừng mặc định nhét vào master
-sẵn có cho tiện — đó là cách cả phim quanh quẩn một chỗ.
-
-**Bước bắt buộc trước khi dựng SF cho một cụm thoại không ghi rõ địa điểm:** liệt kê 2–3
-phương án rồi chọn nơi phục vụ kể chuyện tốt nhất. Hai người giúp việc thì thầm về chủ nhà
-→ **bếp** (vừa pha trà vừa nói) tự nhiên hơn đứng giữa sảnh lớn; ai đó nói điều không muốn
-người khác nghe → chọn nơi kín.
-
-**Ngưỡng cảnh báo:** đếm số SF con của mỗi master. Một master gánh **quá ~25 SF** trên cả
-phim là dấu hiệu đang dồn quá nhiều cảnh vào một chỗ — rà lại xem cụm nào chuyển đi nơi khác
-được. Đổi địa điểm còn tạo thêm cơ hội cho ánh sáng và tông màu khác đi.
-
-## Một master = CẢ CĂN PHÒNG, không phải một góc máy
-
-Ảnh master khoá **không gian**, KHÔNG khoá vị trí camera. Hoàn toàn được phép xoay 360° trong
-cùng bối cảnh: góc ngược lại, góc từ trên chiếu nghỉ nhìn xuống, góc từ cửa bên nhìn vào.
-
-Tách bạch trong prompt:
-- **KHOÁ từ master (bất biến):** màu tường, chất liệu sàn, đồ đạc, chiều cao trần, hướng và
-  nhiệt độ ánh sáng, mức sống.
-- **TỰ DO đặt:** vị trí camera, hướng nhìn, cỡ cảnh.
-
-Lỗi hay mắc: viết prompt con **mô tả lại đúng bố cục của master** (cùng landmark ở hậu cảnh,
-cùng hướng nhìn) — thế là mọi SF của bối cảnh đó nhìn về một phía, xem rất lặp.
-
-**Khi xoay sang hướng mới, PHẢI tả thứ đáng lẽ thấy ở hướng đó** (mảng tường nào, cửa nào,
-cửa sổ nào) — không tả thì model bịa ra không gian không khớp master. Giữ trục 180° trong
-cùng một cụm hội thoại.
-
-Hệ quả quan trọng: **một bối cảnh khai thác đủ hướng cho 6–8 góc thật sự khác nhau.** Phải
-cạn góc rồi mới dùng tới take V2 — phần lớn V2 bị lạm dụng là vì quên rằng còn xoay được.
-
-## ẢNH NEO — khoá VỊ TRÍ NGƯỜI khi cả cụm đứng yên một chỗ
-
-Master khoá **không gian**, nhưng master **không có người** — nên vị trí và tư thế nhân vật
-là chiều KHÔNG được khoá, và mỗi SF con tự bịa một kiểu. Hậu quả: một cuộc gọi điện liên tục
-mà nhân vật khi thì đứng giữa hành lang, khi thì ở cuối hành lang — "nhảy" bốn lượt.
-
-**Luật:** một cụm **≥3 shot** mà nhân vật **đứng/ngồi yên một chỗ** → dựng **ẢNH NEO** trước,
-các góc còn lại đặt `refs.bg = <ID ảnh neo>` thay vì bám master.
-
-Ảnh neo mang theo ba thứ chữ không tả nổi: **đúng điểm đứng trong phòng · đúng dáng người và
-đồ đang cầm · đúng ánh sáng đổ lên người ở vị trí đó.**
-
-**Khối bắt buộc trong SF con bám neo** (thiếu là model copy luôn góc máy của neo, ra 5 khung
-giống hệt nhau):
+Checklist copy được khi bắt tay một kịch bản mới:
 
 ```
-KHÓA TỪ ẢNH NEO — GIỮ NGUYÊN: vị trí nhân vật trong phòng, tư thế, tay đang cầm gì,
-hướng người, ánh sáng đổ lên người. Nhân vật KHÔNG di chuyển so với ảnh neo.
-KHÔNG LẤY GÓC MÁY của ảnh neo — camera khung này đứng ở chỗ khác.
+Bước 1 — portrait     : [ ] liệt kê nhân vật  [ ] viết prompt  [ ] chạy ảnh
+Bước 2 — full-body    : [ ] liệt kê trạng thái trang phục  [ ] viết prompt  [ ] chạy ảnh
+Bước 3 — master/neo/SF: [ ] chọn địa điểm  [ ] viết prompt CẢ BA CÙNG LƯỢT
+                        [ ] chạy ảnh theo thứ tự master → neo → SF con
+Bước 4 — chia shot    : [ ] đếm từ  [ ] gán SF  [ ] chèn nhịp lặng  [ ] diff với script
+Bước 5 — prompt video : [ ] form chuẩn  [ ] nhạc cho nhịp lặng
 ```
 
-**Áp dụng:** gọi điện · đứng nói chuyện tại một điểm · ngồi trên ghế suốt cụm · cảnh 3+ người
-cần giữ vị trí tương đối · mặt bàn đã bày sẵn đạo cụ theo một cách cụ thể.
+**Ba lỗi THỨ TỰ hay mắc nhất** — có bản đồ này là để tránh đúng chúng: làm take V2 khi chưa phủ
+đủ OTS · dựng SF khi chưa chọn địa điểm · viết bộ SF khi chưa chốt cảm xúc tầng scene.
 
-**KHÔNG áp dụng** khi nhân vật đổi trạng thái (đứng → ngồi → nắm tay): mỗi trạng thái là một
-khung riêng, neo vào nhau sẽ khoá chết diễn biến.
+## Hai chế độ làm việc
 
-**Ba điều phải nhớ:**
-1. **Neo render và duyệt TRƯỚC**, không chạy song song — neo sai thì cả cụm sai theo.
-2. **Chuỗi chỉ MỘT tầng**: master → neo → góc con. Sâu hơn thì ảnh gốc bị pha loãng.
-3. Kỹ thuật: `refs.bg` chỉ là ID, đính ảnh của SF đó — trỏ vào SF thường hay master đều chạy.
+**A — User làm từng phần, chat trực tiếp.** User bảo làm bước nào thì làm bước đó rồi dừng.
+Riêng bước 3: **viết prompt master + neo + SF con CÙNG MỘT LƯỢT**, không chia nhỏ — vì SF con
+cần biết master trông thế nào, và neo cần biết có những SF con nào. **User tự chạy ảnh**, mình
+chỉ ghi prompt vào board rồi báo thứ tự chạy.
 
-## Cùng phòng, KHÁC THỜI ĐIỂM — ánh sáng KHÔNG bám master
+**B — User bảo "tạo hết đi".** Chạy thẳng cả 5 bước ra `sf-board.json`, không dừng giữa chừng
+chờ duyệt. **Tự duyệt bằng checklist** cuối mỗi bước, và báo lại kết quả tự kiểm.
 
-Khối "KHÓA LOOK TỪ MASTER" mặc định ghi *giữ nguyên hướng và nhiệt độ ánh sáng*. Khi scene
-diễn ra vào **giờ khác với master**, câu đó thành **lệnh trái ngược** với phần mô tả bên
-dưới: model vừa nhìn ảnh master có cửa sổ sáng, vừa đọc chữ bảo phòng tối — nó xử lý ngẫu
-nhiên, nên cùng một căn phòng mà **khung này cửa sổ sáng, khung kia cửa sổ tối**.
+Ở cả hai chế độ: **VIẾT PROMPT có thể làm gộp, CHẠY ẢNH thì luôn tuần tự** master → neo → SF
+con, vì ảnh sau đính ảnh trước làm `refs.bg`.
 
-**Cách viết đúng — thay câu khoá ánh sáng bằng khối này:**
+## LUẬT CỨNG — vi phạm là hỏng, không phải khuyến nghị
 
-```
-KHÓA LOOK TỪ MASTER — GIỮ NGUYÊN: đồ đạc, bố cục phòng, màu tường, chất liệu sàn,
-mức sống. KHÔNG giữ ánh sáng của master.
-THỜI ĐIỂM CỦA CẢNH NÀY LÀ <BAN ĐÊM / RẠNG SÁNG / CHIỀU MUỘN> — khác master.
-- Nguồn sáng duy nhất: <đèn bàn vàng ấm ở góc trái>. Không có nguồn nào khác.
-- NGOÀI CỬA SỔ LÀ ĐÊM ĐEN: chỉ thấy phản chiếu mờ của đèn trong phòng trên mặt kính.
-  TUYỆT ĐỐI KHÔNG có ánh sáng ban ngày, KHÔNG rèm hắt sáng trắng, KHÔNG thấy cây cối
-  hay bầu trời qua cửa sổ.
-- Vẫn ĐỦ SÁNG để nhìn rõ gương mặt. KHÔNG mảng đen đặc.
-```
+Mọi con số và điều cấm gom ở đây. File bước chỉ hướng dẫn cách làm, không đặt thêm luật — nếu
+thấy file bước nói khác chỗ này, **chỗ này đúng**, và báo user để sửa file kia.
 
-**Cửa sổ là chỗ lộ nhất** — khán giả bắt lỗi ngay khi hai clip liền nhau cắt vào nhau. Mọi
-SF cùng scene phải copy y nguyên khối này, đừng viết lại mỗi cái một kiểu.
+**Khung hình**
+- **Tối đa 4 NHÂN VẬT được đính ref trong một SF** (8 ảnh người + 1 master). Cần hơn thì cắt bớt
+  người, tách hai khung, hoặc để người thứ 5 trở đi làm quần chúng nền không đính ref. Người có
+  thoại LUÔN nằm trong nhóm 4.
+- **Mọi shot phải có NGƯỜI trong khung** — cả shot thoại lẫn nhịp không thoại. Khung thuần đạo
+  cụ hay cận bàn tay là khung chết.
+- **Người NÓI phải có mặt trong khung** của SF đó, hoặc prompt ghi rõ họ là giọng off-screen.
+- **Mọi nhân vật xuất hiện trong khung đều phải có ref** — kể cả người quay lưng, out nét, chỉ
+  thấy vai/gáy.
+- **Tối đa HAI lớp chiều sâu** trong một khung.
+- **Master không làm shot** — master không có người nên không dùng làm start frame.
 
-**Cách rà:** liệt kê mọi SF của scene, đọc dòng thời điểm — phải giống nhau từng chữ. Quét
-theo từ khoá ("ban đêm") là KHÔNG đủ: một SF viết *"phần lớn phòng tối"* mà không nói "đêm"
-sẽ lọt lưới trong khi master vẫn đang nói *"ánh sáng qua cửa sổ"*.
+**Số lượng và thời lượng**
+- **Số SF của một scene ≈ số phút × 4**, đếm theo SF ĐƯỢC DÙNG chứ không phải SF tồn tại.
+- **Không SF nào gánh quá 3 shot.**
+- **Tối đa 4 ver cho một góc** (V2, V3, V4).
+- **Thời lượng: giây ≈ số từ ÷ 3.** Shot 10s cần 21-30 từ, shot 6s cần 12-18 từ. Thoại phải lấp
+  gần kín, chừa tối đa 3 giây.
+- **Nhịp không thoại ≈ 15% số shot có thoại**, tính trên cả phim.
 
-## SF là TRẠNG THÁI, không phải KHOẢNH KHẮC
+**Cấu trúc dữ liệu**
+- **Chuỗi tham chiếu đúng MỘT tầng**: master → ảnh neo → SF con. Sâu hơn thì ảnh gốc bị pha loãng.
+- **Mỗi nhân vật chỉ có MỘT portrait** cho cả phim; mỗi bộ trang phục thêm MỘT full-body.
+- **Xoá hay đổi tên SF xong phải quét shot mồ côi** — `shots[].sf` trỏ vào id đã chết sẽ hỏng khi
+  render video. Quét lần cuối ngay trước khi render hàng loạt. Kiểm luôn media mồ côi trong
+  `assets/` và `videos/`.
 
-SF là ảnh tĩnh **đứng yên** — video mới là chỗ diễn. Viết SF ở trạng thái trung tính:
-**ai ở đâu, đứng hay ngồi, gần hay xa, cầm gì, quay hướng nào.** TUYỆT ĐỐI không khoá
-vào đỉnh cảm xúc hay hành động: đang ho, che miệng, khóc, đưa tay ra, gập người.
+**Video**
+- **MỘT CLIP = MỘT SHOT LIỀN.** Grok dựng mỗi clip từ đúng một start frame, không cắt được giữa
+  chừng. Đổi góc máy, đổi cỡ cảnh hoặc đổi địa điểm là phải một SF riêng và một shot riêng. Kịch
+  bản viết sẵn hard-cut trong một clip thì **tách thành hai shot** và báo lại cho user. Mọi prompt
+  video giữ nguyên câu khóa "MỘT SHOT LIỀN DUY NHẤT suốt cả video" ở footer.
 
-Sai: *"Edmund gập người trong cơn ho, tay ôm ngực; Lily đưa tay ra"*
-→ dùng lại ở shot sau thì ông **ho mãi**, và video không còn gì để diễn vì hành động đã xong.
-Đúng: *"Edmund ngồi xe lăn, Lily đứng cạnh tay vịn"* — cơn ho và cái chạm tay để **prompt
-video** diễn ra từ trạng thái đó.
-
-**Phép thử:** một SF phải dùng được cho **ít nhất 2–3 câu thoại khác nhau** trong cùng trạng
-thái. Chỉ hợp đúng một câu = đang khoá vào hành động, viết lại.
-
-Hệ quả: mô tả biểu cảm trong SF chỉ được ở mức **nền** (mệt, điềm tĩnh, tò mò), không phải
-**đỉnh** (òa khóc, sững người, bụm miệng).
-
-## Ánh mắt và cảm xúc trên khuôn mặt SF
-
-**Hướng nhìn theo số người trong khung:**
-- **2 người → NHÌN THẲNG VÀO MẮT NHAU.** Viết rõ trong prompt: *"hai người NHÌN THẲNG VÀO MẮT
-  NHAU, đường nhìn nối liền giữa hai gương mặt"*. Đây là mặc định, không phải tuỳ chọn.
-- **1 người** → tuỳ cảnh: nhìn vào vật đang cầm, nhìn ra cửa sổ, nhìn về phía người ngoài khung.
-- **≥3 người** → tuỳ dàn cảnh: thường một cặp nhìn nhau, người còn lại nhìn về cặp đó hoặc nhìn
-  đi chỗ khác để tạo tầng.
-
-**Cảm xúc trên mặt = CẢM XÚC CHUNG CỦA CẢ SCENE, không phải của một câu thoại.**
-Trước khi viết bộ SF, chốt một câu: *scene này nhân vật X đang ở trạng thái tinh thần nào?*
-(nghi ngại · kiệt sức · phòng thủ · vừa nhận ra điều gì). Đưa đúng trạng thái đó lên mặt mọi
-SF của scene. Diễn xuất theo từng câu là việc của **prompt video** — SF chỉ dựng cái nền.
-
-**Miệng: TRẠNG THÁI TỰ NHIÊN, KHÔNG MỞ, KHÔNG đang nói.** SF là frame đứng yên trước khi
-thoại bắt đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng khẩu hình sai.
-Nhưng **đừng viết "khép"** — môi mím lại trông gồng và giả. Viết: *"môi ở trạng thái TỰ NHIÊN,
-thả lỏng — KHÔNG mở miệng, KHÔNG đang nói, KHÔNG mím chặt"*.
-
-## Thứ tự làm SF: PHỦ ĐỦ TRẠNG THÁI TRƯỚC, take sau cùng
-
-Scene dài (>3 phút) làm đúng bậc thang này, xong bậc trên mới xuống bậc dưới:
-
-1. **Đủ mọi TRẠNG THÁI** — mỗi lần nhân vật đổi tư thế/vị trí/khoảng cách là một trạng thái
-   riêng. Ví dụ cụm hội thoại hai người: *bé ngồi sàn vẽ · bé đứng cạnh xe lăn · bé nắm tay ông*.
-2. **OTS / reverse — theo ĐỘ DÀI của trạng thái, không phải mặc định cho mọi trạng thái.**
-   Đếm số shot mà một trạng thái phải gánh:
-   - **1–2 shot** (kiểu *"Ngồi xuống." — "Tôi đứng được."*): **không cần OTS**, thêm vào là thừa.
-   - **≥3 shot cùng một trạng thái**: **bắt buộc** có OTS/reverse, nếu không khán giả nhìn y
-     một khung suốt 30 giây. Đây là chỗ luôn bị bỏ quên.
-3. **Wide / góc rộng** để thở, phục vụ nhịp không thoại — vẫn phải có người trong khung.
-4. **Take V2/V3** — CHỈ khi một SF ở trên vẫn gánh **>3 shot**.
-
-Chưa xong bậc 1–2 mà đã làm V2 là sai thứ tự: thiếu trạng thái thì buộc phải đi **cắt frame
-từ video** ra chắp vá, còn V2 chỉ là cùng một khung render lại — không thêm góc nào.
-
-## Chia câu vào shot (mỗi shot = một clip video)
-
-**Thời lượng chuẩn: ~90% số shot dài 10s, chỉ thỉnh thoảng mới dùng 6s.** Đừng chia vụn 3-5s —
-vừa nhiều clip phải dựng, vừa cắt liên tục gây mệt mắt. 6s chỉ dành cho câu lẻ thật ngắn hoặc
-nhịp chuyển; mặc định luôn là 10s.
-
-**Mỗi shot chứa 2-4 LƯỢT THOẠI (tối đa 4), không phải một câu rồi để trống.** Một câu 5-7 từ chỉ
-lấp được 2 giây, còn 8 giây nhân vật đứng im — video đọc ra ngay là bị kéo dài. Cách làm đúng:
-gộp trọn một lượt qua lại tự nhiên (A nói → B đáp → A đáp lại → B đáp) vào cùng một shot.
-
-**TẬN DỤNG HẾT SỐ GIÂY: thoại phải lấp gần kín thời lượng, chỉ chừa 1-2 giây, tối đa 3 giây.**
-Đây là bước tính bắt buộc trước khi chốt cách chia, không phải kiểm tra cho có:
-
-- Công thức board đang dùng: **giây ≈ số từ ÷ 3**. Suy ra **shot 10s cần 21-30 từ**, **shot 6s
-  cần 12-18 từ**. Đếm từ của cụm thoại định gộp rồi mới quyết định gộp mấy câu và chọn 6s hay 10s.
-- Thừa quá 3 giây ⟹ gộp thêm câu kế vào, hoặc hạ 10s xuống 6s.
-- Vượt quá thời lượng ⟹ tách bớt câu sang shot sau. Chấp nhận tràn tối đa ~0,5s (model đọc nhanh
-  chậm chênh nhau chút), nhưng đừng cắt một câu làm đôi giữa chừng chỉ để cho vừa số giây.
-- Một câu quá dài (trên 30 từ) thì tách thành hai shot của cùng người nói, cắt ở ranh giới mệnh đề
-  tự nhiên, đổi góc giữa chừng — miễn ghép lại không mất chữ nào so với kịch bản.
-
-Ưu tiên khi hai chuẩn xung đột: **lấp kín thời lượng thắng tỷ lệ 10s/6s**. Nếu một cụm thoại chỉ
-đủ cho 6s thì dùng 6s, đừng ép lên 10s rồi để trống 4 giây.
-
-**Quy tắc cứng: người NÓI trong một shot phải CÓ MẶT trong khung của SF đó.** Mỗi shot thành một
-clip có lip-sync; nếu lời thoại thuộc về ai đó không có trong khung, model dựng video sẽ gán
-khẩu hình sai cho người đang thấy.
-- **SF hai người trở lên (master, two-shot, OTS qua vai)** → hai người đối đáp trong cùng clip là
-  HỢP LỆ, vì cả hai đều trong khung. Đây chính là cách gộp 2-3 lượt thoại cho đủ 10s.
-- **SF đơn nhân vật** → chỉ người đó được nói, nên chỉ chứa được một lượt thoại. Xem quy tắc dưới.
-- **SF insert không thấy mặt ai** → về mặt lip-sync thì thoại của ai cũng được, nhưng ĐỪNG DÙNG
-  loại SF này (xem mục "Bộ góc máy"): khung không người là khung chết khi thành video.
-
-**MẶC ĐỊNH: khung phải có TỪ 2 NGƯỜI TRỞ LÊN. SF chỉ có một nhân vật là ngoại lệ, không phải
-lựa chọn thường dùng.** Lý do gắn liền với hai chuẩn trên: shot 10s cần 2-3 lượt thoại, mà muốn
-hai người đối đáp trong một clip thì cả hai phải cùng trong khung. Khung một người vừa buộc phải
-cắt vụn thoại, vừa mất phản ứng của người nghe, vừa xem chán.
-- **Chú ý: góc 3/4 KHÔNG đồng nghĩa với khung một người.** Cái cần là *medium 3/4 hai người* —
-  camera lệch ~45° nhưng vẫn ôm trọn cả hai nhân vật. Đừng dựng "3/4 mà chỉ có một người".
-- **OTS (qua vai) tính là khung hai người** — một người rõ mặt, người kia làm foreground framing.
-  Đây là cách rẻ nhất để có khung hai người mà vẫn nhấn được vào một gương mặt.
-- SF thật sự đơn (không có ai khác trong khung) chỉ dùng cho: monologue dài một người nói liên
-  tục gần trọn 10s, hoặc beat nội tâm không có ai đối thoại (nhân vật một mình, quay lưng bước
-  ra). Ngoài hai trường hợp đó, luôn chọn khung hai người.
-
-Câu thoại quá dài có thể tách làm hai shot của cùng một người, đổi góc giữa chừng — miễn không
-mất chữ nào so với kịch bản gốc.
-
-**Sau MỖI vòng gộp/tách/viết lại shot, chạy diff bằng máy so text các shot với script gốc** —
-chuẩn hóa rồi kiểm từng dòng gốc còn xuất hiện không. Sửa vòng thứ hai, thứ ba là lúc câu gốc
-rơi mất không ai hay; trí nhớ không bắt được lỗi này, script 10 dòng thì bắt được. Câu gốc chỉ
-được phép mất khi user chủ động duyệt bỏ. Các câu GIEO-TRẢ (được scene khác trích nguyên văn)
-nằm trong danh sách bất khả xâm phạm, diff riêng (bài học 44).
-
-## Viết và tinh chỉnh thoại nhân vật chính — khiêm tốn là quy tắc cứng
-
-Khi tự viết thêm hoặc sửa thoại (user cho phép "sửa cho hay"), nhân vật chính lúc làm việc tốt
-phải KHIÊM TỐN: không nói lố, không nói thừa, không khoe mẽ — người tốt thật không thuyết minh
-việc tốt của mình.
-
-- **Cắt thẳng tay hai loại câu**: giải thích động cơ ("tôi giúp vì tôi từng thấy...") và tuyên
-  bố phẩm chất/lời hứa ("I'm not going anywhere", "Not while I'm here" lặp nhiều lần). Nội dung
-  câu nào là "tôi tốt / tôi sẽ tốt / lý do tôi tốt" → ứng viên cắt đầu tiên.
-- **Người thật lòng giúp thì HỎI và LÀM**: thay câu hay bằng câu ngắn + hành động kế tiếp.
-  "Why are you helping me?" → "You needed help." rồi lảng ngay sang việc thực tế.
-- **Trước lời cảm ơn nặng, phản ứng chân thành nhất là NÉ hoặc HẠ THẤP**: lúng túng, "It's just
-  juice, ma'am." — sự vụng về khi được cảm ơn thuyết phục hơn mọi câu đáp trôi chảy.
-- **Ngoại lệ hợp lệ — thoại TRẤN AN**: "I've got you. I'm right here" nói MỘT LẦN, đúng lúc
-  chạm vào người đang hoảng, là kỹ năng sơ cứu chứ không phải kể công. Thành lố khi lặp lại
-  hoặc tách rời khỏi hành động chạm/đỡ cụ thể.
-- **Đức tính thể hiện bằng hành động KHÔNG AI CHỨNG KIẾN**, không bằng lời — một nhịp không
-  thoại (lặng lẽ trả tiền, không ngẩng lên xem ai thấy) nói được điều mà thoại tự nói ra sẽ
-  làm hỏng. Xem bài học 42.
-
-## MỘT CLIP = MỘT SHOT LIỀN. KHÔNG BAO GIỜ có chuyển cảnh bên trong một clip.
-
-Đây là quy tắc CỨNG của cả pipeline, không phải khuyến nghị. Grok dựng mỗi clip từ ĐÚNG MỘT start
-frame; nó không cắt được giữa chừng. Ép nó cắt thì hoặc nó bỏ qua yêu cầu, hoặc nó biến dạng cả
-clip (nhân vật morph giữa hai không gian, bối cảnh trôi).
-
-**Hệ quả bắt buộc: mỗi lần đổi góc máy, đổi cỡ cảnh hoặc đổi địa điểm là PHẢI có một SF riêng và
-một shot riêng.** Không có cách nào khác. Muốn hai không gian thì phải hai clip.
-
-**Tình huống hay gặp nhất: kịch bản viết sẵn một hard-cut bên trong một clip** — dạng
-*"CLIP 8 — 10 GIÂY · 0–5s: hai người dưới sàn · 5–10s: hard cut sang tủ mát"*. Đừng cố dựng
-nguyên si. Cách xử lý duy nhất đúng:
-1. **Tách thành hai shot**, mỗi shot một SF riêng đúng với không gian của nó.
-2. Chia lại thời lượng theo lượng thoại của từng nửa (thường 6s + 6s, không phải cố giữ tổng 10s).
-3. Thoại nằm ở nửa nào thì ở nguyên shot đó; nửa không thoại viết theo form nhịp không thoại.
-4. **Báo lại cho user rằng đã tách và vì sao** — họ viết kịch bản theo lối dựng phim thật, nơi
-   hard-cut là chuyện bình thường; giới hạn nằm ở công cụ, nên đây là thông tin họ cần biết chứ
-   không phải chuyện tự ý sửa kịch bản.
-
-Kiểm tra trước khi render: quét prompt tìm "hard cut", "cắt sang", "0–5 giây / 5–10 giây" — còn
-sót chữ nào là còn một clip sẽ hỏng. Và mọi prompt video đều phải giữ nguyên câu khóa
-"MỘT SHOT LIỀN DUY NHẤT suốt cả video" ở footer.
+**Bản đã duyệt**
+- Ảnh SF `status: approved` và video `vstatus: approved` là bản user đã chốt. **Không xoá, không
+  ghi đè, không crop.** Nghi sai thì báo user. Ảnh user tự dán vào là **chuẩn tuyệt đối**, kể cả
+  khi độ phân giải thấp.
 
 ## Tích lũy bài học
 
-Khi user chỉnh sửa hoặc phát hiện lỗi trong cách viết prompt: sau khi sửa xong, chưng cất
-thành bài học **ở tầng nguyên lý** (áp dụng cho mọi nhân vật/scene, không nhắc chi tiết của
-dự án cụ thể) và ghi vào `references/bai-hoc.md`. Nếu bài học mâu thuẫn với một nguyên lý ở
-trên, báo user và đề xuất sửa nguyên lý thay vì chỉ ghi chồng lên.
+Khi user chỉnh sửa hoặc phát hiện lỗi: sau khi sửa xong, chưng cất thành bài học **ở tầng nguyên
+lý** (dùng được cho mọi phim, không nhắc chi tiết dự án cụ thể) và ghi vào
+[references/bai-hoc.md](references/bai-hoc.md). Nếu bài học mâu thuẫn với một luật ở trên, **báo
+user và đề xuất sửa luật** thay vì ghi chồng lên — hai chỗ đá nhau là nguồn lỗi tệ nhất.
 
-## Xoá hay đổi tên SF — phải quét shot mồ côi
+## Tài liệu nền — đọc khi cần
 
-Xoá/đổi id một SF xong **bắt buộc** quét lại toàn bộ `shots[].sf` đối chiếu danh sách SF
-còn sống. Shot trỏ vào id đã chết sẽ hỏng ngay khi render video. Shot mồ côi thì gán lại
-góc cùng pha không gian, hoặc dựng lại SF. Chạy lượt quét này **lần cuối ngay trước khi
-render video hàng loạt**.
-
-Cùng lúc đó, kiểm luôn media mồ côi: ảnh trong `assets/` và video trong `videos/` không
-thuộc SF/shot nào là tàn dư của kịch bản cũ.
-
-## Tài liệu chi tiết — đọc khi cần
-
-Đọc **trước khi** làm việc tương ứng, đừng đoán:
-
-- **Chọn góc máy cho scene, kiểm tra tụt pha không gian** → [references/goc-may.md](references/goc-may.md)
-- **Viết prompt video (có thoại / nhịp lặng) và prompt nhạc Suno** → [references/prompt-video.md](references/prompt-video.md)
-- **Nguyên lý nền: ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** → [references/nguyen-ly.md](references/nguyen-ly.md)
+- **Nguyên lý về ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** →
+  [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Bài học tích lũy (43 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
+- **Kho bài học 44 bài** (~15k token) → [references/bai-hoc.md](references/bai-hoc.md). Chỉ mở khi
+  gặp lỗi lạ muốn tra đã từng gặp chưa, hoặc cuối việc để ghi bài mới. **Đừng đọc trước mỗi lần
+  viết prompt** — luật đã chưng cất lên đây rồi.

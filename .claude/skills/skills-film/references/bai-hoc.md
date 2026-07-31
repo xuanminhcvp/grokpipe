@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-43 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+44 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -51,6 +51,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 41. Master không có người nên KHÔNG khoá được vị trí người — cần ảnh neo
 - 42. Ánh mắt nối nhau, cảm xúc ở tầng SCENE, miệng khép
 - 43. Trần cứng 4 nhân vật mỗi SF — cảnh đông thì cắt hoặc tách khung
+- 44. Tách skill theo BƯỚC, luật cứng gom một chỗ
 
 ## Vận hành & gỡ lỗi hạ tầng
 
@@ -763,3 +764,21 @@ người đã có trong khung*, không phải cho phép nhồi bao nhiêu ngư�
 thuộc beat này không) → tách thành hai khung mỗi khung ≤4 người → nếu buộc phải giữ đủ thì
 đính ref cho 4 người gần/rõ mặt nhất, số còn lại mô tả bằng chữ như quần chúng nền (mờ, không
 rõ mặt). **Người có thoại luôn nằm trong nhóm 4 được đính ref.**
+
+
+## 44. Tách skill theo BƯỚC, luật cứng gom một chỗ
+
+*Bối cảnh:* skill dồn hết vào một SKILL.md 415 dòng, chia theo chủ đề kỹ thuật chứ không theo
+bước công việc. Hệ quả: làm bước nào cũng nạp cả luật của bước khác, và ba lỗi nặng nhất đều là
+lỗi THỨ TỰ (làm take khi chưa phủ OTS · dựng SF khi chưa chọn địa điểm · viết SF khi chưa chốt
+cảm xúc scene) — không có tài liệu nào nói phải đi theo thứ tự nào.
+
+**Nguyên tắc:** với quy trình lặp lại nhiều lần, tách file theo **BƯỚC CÔNG VIỆC**, và SKILL.md
+trở thành **bản đồ quy trình + toàn bộ LUẬT CỨNG**. File bước chỉ hướng dẫn cách làm, KHÔNG đặt
+thêm luật — mọi con số và điều cấm nằm đúng một chỗ, nên muốn kiểm mâu thuẫn chỉ phải đọc một
+file. Ghi thẳng vào SKILL.md: "file bước nói khác chỗ này thì chỗ này đúng".
+
+**Cách tách an toàn:** giữ NGUYÊN VĂN mọi luật, chỉ đổi chỗ đặt; xong đối chiếu bằng máy từng
+câu luật in đậm giữa bản cũ và bản mới. Lần tách này máy bắt được 2 mất mát thật mà đọc tay đã
+bỏ qua: một nhóm gạch đầu dòng bị tách ra rồi quên ghi vào file nào, và một quy trình thi hành
+bị thay bằng bản tóm tắt.
