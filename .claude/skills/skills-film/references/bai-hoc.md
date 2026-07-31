@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-41 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+42 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -49,6 +49,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 39. Master khoá KHÔNG GIAN chứ không khoá góc máy — và địa điểm phải được CHỌN
 - 40. Khoá ánh sáng theo master khi scene khác giờ = ra lệnh trái ngược
 - 41. Master không có người nên KHÔNG khoá được vị trí người — cần ảnh neo
+- 42. Ánh mắt nối nhau, cảm xúc ở tầng SCENE, miệng khép
 
 ## Vận hành & gỡ lỗi hạ tầng
 
@@ -727,3 +728,20 @@ neo thay vì bám master. Ảnh neo mang ba thứ chữ không tả nổi: đi�
 **Bẫy đi kèm:** phải viết rõ "lấy vị trí, KHÔNG lấy góc máy" — nếu không model copy luôn góc
 của neo, ra cả cụm giống hệt nhau. Đây chính là bài 39 dịch từ tầng căn phòng xuống tầng con
 người.
+
+
+## 42. Ánh mắt nối nhau, cảm xúc ở tầng SCENE, miệng khép
+
+*Bối cảnh:* user chốt ba điều về gương mặt trong SF sau khi xem bộ khung hai người.
+
+**a. Hai người trong khung thì phải NHÌN THẲNG VÀO MẮT NHAU** — mặc định, không phải tuỳ chọn.
+Một người thì tuỳ cảnh; từ ba người trở lên thì tuỳ dàn cảnh. Thiếu dòng này model hay cho mỗi
+người nhìn một hướng, khung rời rạc như hai ảnh ghép lại.
+
+**b. Cảm xúc trên mặt là CẢM XÚC CHUNG CỦA CẢ SCENE, không phải của một câu thoại.** Chốt một
+câu trạng thái tinh thần cho nhân vật trước khi viết bộ SF, rồi đưa đúng nó lên mọi khung.
+Diễn xuất theo từng câu là việc của prompt video — SF chỉ dựng cái nền. Đây là hệ quả trực tiếp
+của luật "SF là trạng thái, không phải khoảnh khắc".
+
+**c. Miệng KHÉP TỰ NHIÊN, KHÔNG mở, KHÔNG đang nói.** SF là frame đứng yên trước khi thoại bắt
+đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng khẩu hình sai.

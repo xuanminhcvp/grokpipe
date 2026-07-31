@@ -10,7 +10,7 @@ tham chiếu (REF) và Start Frame (SF) cho từng scene, lưu trong `sf-board.j
 dự án `PIPELINE-*.project`.
 
 Mọi **luật đang có hiệu lực** nằm trong file này và 3 file `references/` bên dưới — làm theo
-đó là đủ. `references/bai-hoc.md` là **kho lịch sử 41 bài** (~15k token): chỉ mở khi (a) gặp
+đó là đủ. `references/bai-hoc.md` là **kho lịch sử 42 bài** (~15k token): chỉ mở khi (a) gặp
 lỗi lạ muốn tra đã từng gặp chưa, (b) cuối việc để ghi bài mới. **Đừng đọc nó trước mỗi lần
 viết prompt** — luật đã được chưng cất lên đây rồi.
 
@@ -93,7 +93,9 @@ hành động của beat này (giữ, tả rõ), hay nó chỉ được cài và
    này đã từng lên hình TỪ BÊN NGOÀI ở scene nào chưa?* Cách chắc chắn: lập sẵn bảng ảnh gốc
    theo **công trình + góc nhìn** (`nhà Maya → ngoại thất: SF-S5-MASTER · bếp: SF-S8-MASTER ·
    phòng khách: SF-S3-MASTER`) và tra bảng đó trước khi viết (bài học 33).
-1. **Nhân vật chính trong khung** — ai, ở đâu (mốc % hoặc landmark), tư thế, hướng nhìn, biểu cảm.
+1. **Nhân vật chính trong khung** — ai, ở đâu (mốc % hoặc landmark), tư thế, **hướng nhìn**
+   (2 người thì NHÌN THẲNG VÀO MẮT NHAU), biểu cảm ở mức **cảm xúc chung của scene**, và
+   **môi khép tự nhiên, không mở miệng**. Xem mục "Ánh mắt và cảm xúc".
 2. **Nhân vật phụ có thoại** — có thực sự thuộc beat này không (nguyên lý 11)? Nếu có: vị trí,
    tách bạch rõ với nhóm khác.
 3. **Quần chúng nền** — bối cảnh này ngoài đời có người qua lại không? Bao nhiêu người? Họ đang
@@ -247,6 +249,24 @@ thái. Chỉ hợp đúng một câu = đang khoá vào hành động, viết l�
 Hệ quả: mô tả biểu cảm trong SF chỉ được ở mức **nền** (mệt, điềm tĩnh, tò mò), không phải
 **đỉnh** (òa khóc, sững người, bụm miệng).
 
+## Ánh mắt và cảm xúc trên khuôn mặt SF
+
+**Hướng nhìn theo số người trong khung:**
+- **2 người → NHÌN THẲNG VÀO MẮT NHAU.** Viết rõ trong prompt: *"hai người NHÌN THẲNG VÀO MẮT
+  NHAU, đường nhìn nối liền giữa hai gương mặt"*. Đây là mặc định, không phải tuỳ chọn.
+- **1 người** → tuỳ cảnh: nhìn vào vật đang cầm, nhìn ra cửa sổ, nhìn về phía người ngoài khung.
+- **≥3 người** → tuỳ dàn cảnh: thường một cặp nhìn nhau, người còn lại nhìn về cặp đó hoặc nhìn
+  đi chỗ khác để tạo tầng.
+
+**Cảm xúc trên mặt = CẢM XÚC CHUNG CỦA CẢ SCENE, không phải của một câu thoại.**
+Trước khi viết bộ SF, chốt một câu: *scene này nhân vật X đang ở trạng thái tinh thần nào?*
+(nghi ngại · kiệt sức · phòng thủ · vừa nhận ra điều gì). Đưa đúng trạng thái đó lên mặt mọi
+SF của scene. Diễn xuất theo từng câu là việc của **prompt video** — SF chỉ dựng cái nền.
+
+**Miệng: KHÉP TỰ NHIÊN, KHÔNG MỞ, KHÔNG đang nói.** SF là frame đứng yên trước khi thoại bắt
+đầu; miệng đang mở làm khung khó tái dùng và làm video mở đầu bằng một khẩu hình sai. Viết
+thẳng: *"môi khép tự nhiên, KHÔNG mở miệng, KHÔNG đang nói"*.
+
 ## Thứ tự làm SF: PHỦ ĐỦ TRẠNG THÁI TRƯỚC, take sau cùng
 
 Scene dài (>3 phút) làm đúng bậc thang này, xong bậc trên mới xuống bậc dưới:
@@ -386,4 +406,4 @@ thuộc SF/shot nào là tàn dư của kịch bản cũ.
 - **Viết prompt video (có thoại / nhịp lặng) và prompt nhạc Suno** → [references/prompt-video.md](references/prompt-video.md)
 - **Nguyên lý nền: ref, tham chiếu chéo, ngoại hình phục vụ kể chuyện** → [references/nguyen-ly.md](references/nguyen-ly.md)
 - **Mẫu prompt Suno đã được user duyệt** → [references/mau-suno.md](references/mau-suno.md)
-- **Bài học tích lũy (41 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
+- **Bài học tích lũy (42 bài + mục vận hành)** → [references/bai-hoc.md](references/bai-hoc.md)
