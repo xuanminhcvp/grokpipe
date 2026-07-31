@@ -1,6 +1,6 @@
 {
   "film": "Not One Would Care for a Dying Billionaire — Until the Maid's Baby Brought the Cold Old Man to Tears",
-  "updated_at": "2026-07-31 09:12:37",
+  "updated_at": "2026-07-31 11:10:43",
   "scenes": [
     {
       "id": "REF",
@@ -1668,6 +1668,32 @@
             "bg": "SF-M-FOYER"
           },
           "prompt": "KHÓA LOOK TỪ MASTER — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ CHUẨN TUYỆT ĐỐI: giữ nguyên không gian, đồ đạc, chất liệu, bảng màu, hướng và nhiệt độ ánh sáng, cùng trục 180 độ với master. Chữ nào xung đột với ảnh thì THEO ẢNH.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA. Bộ quần áo trong ảnh chân dung KHÔNG PHẢI trang phục của cảnh này — TUYỆT ĐỐI KHÔNG copy nó.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, DÂY CHUYỀN VÀNG MẢNH mặt tròn nhỏ, và nếu thấy tay thì VÒNG TAY VÀNG MẢNH ở tay phải.\n- LILY: VÁY LIỀN THÂN NỀN KEM IN HOA NHỎ, cổ viền đăng-ten trắng, tay phồng, tất trắng cổ cao, giày búp bê trắng ngà.\nMọi nhân vật phải mặc ĐÚNG bộ nêu trên, đồng bộ tuyệt đối với các khung khác trong cùng cảnh.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic medium shot, camera ngang tầm ngực người lớn, ống kính 40mm.\n\nKHÔNG GIAN: CÙNG HÀNH LANG TẦNG HAI — sàn gỗ trải thảm, tường ốp gỗ nửa dưới. Phía sau Maya là CÁNH CỬA GỖ SẪM VỪA KHÉP LẠI, tay cô còn buông khỏi quả đấm cửa.\n\nBỐ CỤC: MAYA ở 48-76% khung, người vừa quay ra khỏi cửa, vai còn căng, thở ra một hơi — gương mặt của người vừa bị mắng nhưng không cho phép mình sụp xuống trước mặt con. LILY ở 18-46% khung, đã chạy tới trước mẹ, HAI TAY GIƠ LÊN MỘT TỜ GIẤY VẼ SÁP MÀU — trên tờ giấy thấy được hình một ÔNG GIÀ NGỒI XE LĂN quay mặt về phía một ô cửa sổ, nét vẽ trẻ con ngây ngô. Bé ngửa mặt lên nhìn mẹ, háo hức.\n\nÁnh sáng: đèn tường vàng ấm cộng ánh ngày từ cuối hành lang, cả hai gương mặt và tờ giấy vẽ đều NHÌN RÕ.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung:\n- MAYA: nữ Mỹ gốc Phi 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN TỰ NHIÊN vấn búi thấp sau gáy, đường nét mặt mềm hài hòa — bám CHÍNH XÁC ảnh chân dung, KHÔNG làm sáng da, KHÔNG tóc thẳng, KHÔNG mặt thon kiểu người mẫu.\n- LILY: bé gái Mỹ gốc Phi 6 tuổi, cao khoảng 1m10, DA NÂU SÁNG hơn mẹ một chút, mặt TRÒN dễ thương, TÓC XOĂN CHIA HAI BÚI TRÒN hai bên đầu — TUYỆT ĐỐI KHÔNG tết bím, KHÔNG hạt cườm.\n\nCinematic depth of field vừa phải, các gương mặt trong khung phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón, KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG nhân vật trùng lặp, KHÔNG thêm người ngoài số đã nêu."
+        },
+        {
+          "id": "SF-S3-A",
+          "label": "(cắt từ V-S3-7 @ 2.4s)",
+          "desc": "Frame lấy lại từ video đã tạo — dùng làm start frame cho shot khác.",
+          "prompt": "[Ảnh này được CẮT TỪ VIDEO V-S3-7 tại giây 2.4, không sinh từ prompt.]\nNếu cần tạo lại bằng AI, hãy viết prompt mô tả khung hình này.",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
+        },
+        {
+          "id": "SF-S3-B",
+          "label": "(cắt từ V-S3-7 @ 3.8s)",
+          "desc": "Frame lấy lại từ video đã tạo — dùng làm start frame cho shot khác.",
+          "prompt": "[Ảnh này được CẮT TỪ VIDEO V-S3-7 tại giây 3.8, không sinh từ prompt.]\nNếu cần tạo lại bằng AI, hãy viết prompt mô tả khung hình này.",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
         }
       ],
       "shots": [
@@ -1791,14 +1817,14 @@
         },
         {
           "id": "V-S3-B3",
-          "sf": "SF-S3-LILY-STAIRS",
+          "sf": "SF-S3-B",
           "dur": 6,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "[KHÔNG THOẠI] Lily ngoái nhìn những mảng tường trống",
           "prompt_text": "",
-          "prompt": "REFS · Start frame: SF-S3-LILY-STAIRS\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Không ai mở miệng nói.\n\nCẢM XÚC & HOÀN CẢNH: bé vừa được dẫn lên cầu thang trong một ngôi nhà khổng lồ mà lạnh. Bé dừng lại, ngoái xuống nhìn mảng tường trống trơn phía dưới — chỗ đáng ra phải có ảnh gia đình. Đứa trẻ chưa gọi tên được cảm giác đó, nhưng nó nhận ra thiếu một thứ gì.\n\nGợi ý diễn biến (điều chỉnh cho tự nhiên): bàn tay bé siết nhẹ tay nắm gỗ; mắt đi từ vệt chữ nhật này sang vệt khác; bé hơi nghiêng đầu; rồi quay lên đi tiếp. KHÔNG sợ hãi, KHÔNG khóc.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường: bậc gỗ kêu rất nhẹ, đồng hồ quả lắc đâu đó xa, tiếng bước chân người lớn đi lên phía trước. Giữ NHẸ và TỰ NHIÊN, chừa chỗ ghép nhạc.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S3-B\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Không ai mở miệng nói.\n\nCẢM XÚC & HOÀN CẢNH: bé vừa được dẫn lên cầu thang trong một ngôi nhà khổng lồ mà lạnh. Bé dừng lại, ngoái xuống nhìn mảng tường trống trơn phía dưới — chỗ đáng ra phải có ảnh gia đình. Đứa trẻ chưa gọi tên được cảm giác đó, nhưng nó nhận ra thiếu một thứ gì.\n\nGợi ý diễn biến (điều chỉnh cho tự nhiên): bàn tay bé siết nhẹ tay nắm gỗ; mắt đi từ vệt chữ nhật này sang vệt khác; bé hơi nghiêng đầu; rồi quay lên đi tiếp. KHÔNG sợ hãi, KHÔNG khóc.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường: bậc gỗ kêu rất nhẹ, đồng hồ quả lắc đâu đó xa, tiếng bước chân người lớn đi lên phía trước. Giữ NHẸ và TỰ NHIÊN, chừa chỗ ghép nhạc.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {
             "emo": "KÌM — Lily ngoái nhìn những mảng tường trống; đứa trẻ nhận ra thứ người lớn giấu",
             "a_kind": "có lời",
@@ -2954,6 +2980,97 @@
             ],
             "bg": "SF-M-FOYER"
           }
+        },
+        {
+          "id": "SF-S5-A",
+          "label": "(cắt từ V-S5-6 @ 8.1s)",
+          "desc": "Frame lấy lại từ video đã tạo — dùng làm start frame cho shot khác.",
+          "prompt": "[Ảnh này được CẮT TỪ VIDEO V-S5-6 tại giây 8.1, không sinh từ prompt.]\nNếu cần tạo lại bằng AI, hãy viết prompt mô tả khung hình này.",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
+        },
+        {
+          "id": "SF-S5-B",
+          "label": "(cắt từ V-S5-6 @ 8.1s)",
+          "desc": "Frame lấy lại từ video đã tạo — dùng làm start frame cho shot khác.",
+          "prompt": "[Ảnh này được CẮT TỪ VIDEO V-S5-6 tại giây 8.1, không sinh từ prompt.]\nNếu cần tạo lại bằng AI, hãy viết prompt mô tả khung hình này.",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
+        },
+        {
+          "id": "SF-S5-C",
+          "label": "(cắt từ V-S5-10 @ 6.6s)",
+          "desc": "Frame lấy lại từ video đã tạo — dùng làm start frame cho shot khác.",
+          "prompt": "[Ảnh này được CẮT TỪ VIDEO V-S5-10 tại giây 6.6, không sinh từ prompt.]\nNếu cần tạo lại bằng AI, hãy viết prompt mô tả khung hình này.",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
+        },
+        {
+          "id": "SF-S5-D",
+          "label": "(cắt từ VID_021 @ 9.7s)",
+          "desc": "Frame lấy lại từ video đã tạo — dùng làm start frame cho shot khác.",
+          "prompt": "[Ảnh này được CẮT TỪ VIDEO VID_021 tại giây 9.7, không sinh từ prompt.]\nNếu cần tạo lại bằng AI, hãy viết prompt mô tả khung hình này.",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
+        },
+        {
+          "id": "SF-S5-E",
+          "label": "(ảnh kéo vào)",
+          "desc": "Ảnh kéo thẳng vào dòng V-S5-14 ở tab Kịch bản.",
+          "prompt": "",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
+        },
+        {
+          "id": "SF-S5-F",
+          "label": "(cắt từ V-S5-10 @ 5.8s)",
+          "desc": "Frame lấy lại từ video đã tạo — dùng làm start frame cho shot khác.",
+          "prompt": "[Ảnh này được CẮT TỪ VIDEO V-S5-10 tại giây 5.8, không sinh từ prompt.]\nNếu cần tạo lại bằng AI, hãy viết prompt mô tả khung hình này.",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
+        },
+        {
+          "id": "SF-S5-G",
+          "label": "(ảnh kéo vào)",
+          "desc": "Ảnh kéo thẳng vào dòng V-S5-B2 ở tab Kịch bản.",
+          "prompt": "",
+          "status": "proposed",
+          "notes": "",
+          "usedBy": [],
+          "refs": {
+            "chars": [],
+            "bg": null
+          }
         }
       ],
       "shots": [
@@ -3037,21 +3154,22 @@
         },
         {
           "id": "V-S5-7",
-          "sf": "SF-S5-LILY-OTS",
+          "sf": "SF-S5-A",
           "dur": 10,
-          "vstatus": "",
+          "vstatus": "approved",
           "ai_request": true,
           "notes": "SF đã sửa, viết lại prompt video này",
           "text": "LILY: \"My mom puts my drawings on the fridge. She says that's how you know a house has love in it. Your house doesn't have any. That's why it feels so empty.\"",
           "prompt_text": "LILY: \"My mom puts my drawings on the fridge. She says that's how you know a house has love in it. Your house doesn't have any. That's why it feels so empty.\"",
-          "prompt": "REFS · Start frame: SF-S5-LILY-OTS\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"My mom puts my drawings on the fridge. She says that's how you know a house has love in it. Your house doesn't have any. That's why it feels so empty.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "prompt": "REFS · Start frame: SF-S5-A\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"My mom puts my drawings on the fridge. She says that's how you know a house has love in it. Your house doesn't have any. That's why it feels so empty.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "music": {},
+          "vpicked": "V-S5-7_v2.mp4"
         },
         {
           "id": "V-S5-8",
           "sf": "SF-S5-LILY-STAND",
           "dur": 10,
-          "vstatus": "",
+          "vstatus": "approved",
           "ai_request": "",
           "notes": "",
           "text": "EDMUND: \"... You ask too many questions.\"\nLILY: \"That's the first thing you've said to me all week. I was starting to think you forgot how.\"",
@@ -3060,87 +3178,100 @@
           "music": {}
         },
         {
-          "id": "V-S5-9",
-          "sf": "SF-S5-LILY-STAND-V2",
-          "dur": 10,
-          "vstatus": "",
-          "ai_request": "",
+          "id": "VID_020",
+          "sf": "SF-S5-B",
+          "dur": 6,
+          "text": "EDMUND: \"I didn't forget. I just don't see the point.\"\nLILY: \"The point of what?\"",
+          "prompt": "REFS · Start frame: SF-S5-B\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — weary, guarded:\n\"I didn't forget. I just don't see the point.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nLILY — bright, genuinely curious, unafraid:\n\"The point of what?\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"Of talking. Of any of this.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nLILY — bright, genuinely curious, unafraid:\n\"Mr. Edmund — are you okay? You're coughing really bad.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "status": "todo",
           "notes": "",
-          "text": "EDMUND: \"I didn't forget. I just don't see the point.\"\nLILY: \"The point of what?\"\nEDMUND: \"Of talking. Of any of this.\"\nLILY: \"Mr. Edmund — are you okay? You're coughing really bad.\"",
-          "prompt_text": "EDMUND: \"I didn't forget. I just don't see the point.\"\nLILY: \"The point of what?\"\nEDMUND: \"Of talking. Of any of this.\"\nLILY: \"Mr. Edmund — are you okay? You're coughing really bad.\"",
-          "prompt": "REFS · Start frame: SF-S5-LILY-STAND-V2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — weary, guarded:\n\"I didn't forget. I just don't see the point.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nLILY — bright, genuinely curious, unafraid:\n\"The point of what?\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"Of talking. Of any of this.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nLILY — bright, genuinely curious, unafraid:\n\"Mr. Edmund — are you okay? You're coughing really bad.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "vpicked": "VID_020_v1.mp4",
+          "vstatus": "approved"
+        },
+        {
+          "id": "VID_019",
+          "sf": "SF-S5-B",
+          "dur": 10,
+          "text": "EDMUND: \"Of talking. Of any of this.\"\nLILY: \"Mr. Edmund — are you okay? You're coughing really bad.\"",
+          "prompt": "REFS · Start frame: SF-S5-B SF đính kèm.\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên tuyệt đối khuôn mặt, nhân dạng, trang phục, xe lăn, cuốn sổ vẽ, phòng ngủ, ánh sáng và bố cục. EDMUND là ông già da trắng 81 tuổi ngồi xe lăn bên trái; LILY là bé gái da đen 6 tuổi mặc váy hoa, ngồi trên thảm bên phải. Không thêm hoặc làm biến mất nhân vật hay đạo cụ.\n\nMỘT SHOT LIỀN 10 GIÂY, camera tĩnh, không cắt, không đổi góc.\n\nEDMUND cúi người trong xe lăn, nhìn Lily với vẻ kiệt sức và trống rỗng. Ông nói chậm, giọng khàn yếu:\n\nEDMUND: “Of talking. Of any of this.”\n\nNgay sau câu nói, Edmund bất ngờ ho thành một tràng ngắn nhưng nặng. Vai và lồng ngực ông co lại tự nhiên; một tay siết tay vịn xe lăn, tay còn lại đặt gần ngực. Ông cố nén cơn ho nhưng hơi thở vẫn gấp và bàn tay hơi run. Không diễn quá dữ dội, không ngã khỏi xe.\n\nLily lập tức ngừng vẽ. Nụ cười biến mất; bé ngẩng lên nhìn thẳng Edmund, ôm cuốn sổ trên đùi và hơi nghiêng người về phía ông, giọng trẻ con lo lắng chân thành:\n\nLILY: “Mr. Edmund — are you okay? You’re coughing really bad.”\n\nSau câu hỏi, Lily tiếp tục nhìn ông đầy lo âu. Edmund tránh ánh mắt bé, cố lấy lại hơi thở.\n\nÂm thanh: chỉ thoại tiếng Anh giọng Mỹ, tiếng ho thật của Edmund, hơi thở khó nhọc nhẹ, tiếng vải và xe lăn rất nhỏ khi ông cử động. Không nhạc, không narrator, không phụ đề, không âm thanh kịch tính. Không chuyển cảnh, không zoom, không camera shake, không lip-sync sai, không hoán đổi giọng nói.",
+          "status": "todo",
+          "notes": "",
+          "vpicked": "VID_019_v2.mp4",
+          "vstatus": "approved"
         },
         {
           "id": "V-S5-10",
-          "sf": "SF-S5-LILY-CHAT",
+          "sf": "SF-S5-COUGH",
           "dur": 10,
-          "vstatus": "",
+          "vstatus": "approved",
           "ai_request": "",
           "notes": "",
           "text": "EDMUND: \"I'm fine. Go away.\"\nLILY: \"No you're not. You're shaking. Here — give me your hand.\"\nEDMUND: \"I don't need your —\"",
           "prompt_text": "EDMUND: \"I'm fine. Go away.\"\nLILY: \"No you're not. You're shaking. Here — give me your hand.\"\nEDMUND: \"I don't need your —\"",
-          "prompt": "REFS · Start frame: SF-S5-LILY-CHAT\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — weary, guarded:\n\"I'm fine. Go away.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"No you're not. You're shaking. Here — give me your hand.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"I don't need your —\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "prompt": "REFS · Start frame: SF-S5-COUGH\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái; LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nEDMUND — weary, guarded:\n\"I'm fine. Go away.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"No you're not. You're shaking. Here — give me your hand.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"I don't need your —\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "music": {},
+          "vpicked": "V-S5-10_v2.mp4"
         },
         {
           "id": "V-S5-11",
-          "sf": "SF-S5-TWO-34",
+          "sf": "SF-S5-COUGH",
           "dur": 10,
-          "vstatus": "",
+          "vstatus": "approved",
           "ai_request": "",
           "notes": "",
           "text": "LILY: \"Don't be scared. My mom gets scared sometimes too. But I hold her hand and she feels better. See? Just hold on.\"\nEDMUND: \"... Your hands are so small.\"",
           "prompt_text": "LILY: \"Don't be scared. My mom gets scared sometimes too. But I hold her hand and she feels better. See? Just hold on.\"\nEDMUND: \"... Your hands are so small.\"",
-          "prompt": "REFS · Start frame: SF-S5-TWO-34\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa; EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — bright, genuinely curious, unafraid:\n\"Don't be scared. My mom gets scared sometimes too. But I hold her hand and she feels better. See? Just hold on.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"... Your hands are so small.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "prompt": "REFS · Start frame: SF-S5-COUGH\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa; EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — bright, genuinely curious, unafraid:\n\"Don't be scared. My mom gets scared sometimes too. But I hold her hand and she feels better. See? Just hold on.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"... Your hands are so small.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "music": {},
+          "vpicked": "V-S5-11_v2.mp4"
         },
         {
-          "id": "V-S5-12",
-          "sf": "SF-S5-WIDE",
+          "id": "VID_021",
+          "sf": "SF-S5-C",
           "dur": 10,
-          "vstatus": "",
-          "ai_request": "",
-          "notes": "",
           "text": "LILY: \"But they work. My mom says the size doesn't matter. It's who's holding on.\"\nLILY: \"Mr. Edmund? Can I tell you something?\"\nEDMUND: \"You're going to whether I say yes or not.\"",
-          "prompt_text": "LILY: \"But they work. My mom says the size doesn't matter. It's who's holding on.\"\nLILY: \"Mr. Edmund? Can I tell you something?\"\nEDMUND: \"You're going to whether I say yes or not.\"",
-          "prompt": "REFS · Start frame: SF-S5-WIDE\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa; EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"But they work. My mom says the size doesn't matter. It's who's holding on.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nLILY — bright, genuinely curious, unafraid:\n\"Mr. Edmund? Can I tell you something?\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"You're going to whether I say yes or not.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "prompt": "REFS · Start frame: SF-S5-C\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa; EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"But they work. My mom says the size doesn't matter. It's who's holding on.\"\n\nLILY — bright, genuinely curious, unafraid:\n\"Mr. Edmund? Can I tell you something?\"\n\nEDMUND — weary, guarded:\n\"You're going to whether I say yes or not.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "status": "todo",
+          "notes": "",
+          "vpicked": "VID_021_v2.mp4",
+          "vstatus": "approved"
         },
         {
           "id": "V-S5-13",
-          "sf": "SF-S5-COUGH",
+          "sf": "SF-S5-D",
           "dur": 10,
-          "vstatus": "",
+          "vstatus": "approved",
           "ai_request": "",
           "notes": "",
           "text": "LILY: \"You're not mean. You're just sad. My mom is sad too sometimes.\"\nEDMUND: \"... How — how can you possibly know that?\"",
           "prompt_text": "LILY: \"You're not mean. You're just sad. My mom is sad too sometimes.\"\nEDMUND: \"... How — how can you possibly know that?\"",
-          "prompt": "REFS · Start frame: SF-S5-COUGH\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa; EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"You're not mean. You're just sad. My mom is sad too sometimes.\"\n\nGiữa hai lượt có một khoảng lặng — bé vẫn tô màu, ông vẫn nhìn.\n\nEDMUND — weary, guarded:\n\"... How — how can you possibly know that?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "prompt": "REFS · Start frame: SF-S5-D\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa; EDMUND = ông già da trắng 81 tuổi NGỒI XE LĂN, tóc bạc mỏng, nhẫn vàng trơn ở ngón áp út tay trái. Cả hai rõ mặt, cả hai đều nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"You're not mean. You're just sad. My mom is sad too sometimes.\"\n\nEDMUND — weary, guarded:\n\"... How — how can you possibly know that?\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "music": {},
+          "vpicked": "V-S5-13_v2.mp4"
         },
         {
           "id": "V-S5-14",
-          "sf": "SF-S5-LILY-CU2",
+          "sf": "SF-S5-E",
           "dur": 10,
-          "vstatus": "",
+          "vstatus": "approved",
           "ai_request": "",
           "notes": "",
           "text": "LILY: \"Because mean people don't keep drawings on their laps. You still have the one I made. I saw you looking at it yesterday when you thought no one was watching.\"",
           "prompt_text": "LILY: \"Because mean people don't keep drawings on their laps. You still have the one I made. I saw you looking at it yesterday when you thought no one was watching.\"",
-          "prompt": "REFS · Start frame: SF-S5-LILY-CU2\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa. Chỉ một người trong khung nói.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY — sunny, matter-of-fact, unselfconscious:\n\"Because mean people don't keep drawings on their laps. You still have the one I made. I saw you looking at it yesterday when you thought no one was watching.\"\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Nhân vật phụ bị mờ/quay lưng ở rìa khung (nếu có) chỉ được nghe giọng, KHÔNG được lấy nét hay lộ mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
-          "music": {}
+          "prompt": "REFS · Start frame: SF-S5-E SF đính kèm\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\nNhận diện: EDMUND = ông già da trắng 81 tuổi, tóc bạc mỏng, mặc pyjama sọc xanh xám và áo choàng len nâu sẫm, ở tiền cảnh quay lưng/out nét; LILY = bé gái da đen 6 tuổi, tóc tết nhiều bím nhỏ có hạt cườm màu, váy hoa nền kem, NÉT RÕ. Không thay đổi vị trí hai người.\n\nMột shot liền 10 giây, không chuyển cảnh. Camera TĨNH.\n\nLILY vẫn nhẹ nhàng đặt hai tay lên bàn tay Edmund. Bé nhìn thẳng vào ông, nói bằng giọng trẻ con chân thành, bình tĩnh và chắc chắn — không buồn quá, không diễn kịch:\n\nLILY:\n“Because mean people don't keep drawings on their laps. You still have the one I made. I saw you looking at it yesterday when you thought no one was watching.”\n\nTrong lúc nói, Lily chỉ cử động tự nhiên rất nhẹ: mắt giữ trên Edmund, đầu hơi nghiêng, ngón tay khẽ siết tay ông ở câu “You still have the one I made.” Đến câu cuối, bé nở một nụ cười nhỏ như đã bắt gặp được phần mềm yếu mà ông đang giấu.\n\nEDMUND không nói. Ông vẫn ở tiền cảnh out nét, gần như bất động, chỉ hơi cúi đầu và bàn tay khẽ co lại dưới tay Lily khi nghe câu cuối. Không quay hẳn mặt về camera, không che khuất gương mặt Lily.\n\nÂm thanh: CHỈ thoại nhân vật, tiếng Anh giọng Mỹ, rõ lời. Có tiếng vải và chuyển động bàn tay rất nhẹ, tự nhiên. Không âm nền.\n\nKhông nhạc. Không narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT suốt cả video — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. EDMUND ở tiền cảnh phải tiếp tục out nét, KHÔNG được chuyển nét sang ông hoặc lộ rõ toàn mặt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "music": {},
+          "vpicked": "V-S5-14_v2.mp4"
         },
         {
           "id": "V-S5-B2",
-          "sf": "SF-S5-EDMUND-CRY",
+          "sf": "SF-S5-G",
           "dur": 10,
           "vstatus": "",
           "ai_request": "",
           "notes": "",
           "text": "[KHÔNG THOẠI] ★ Ông khóc một mình dưới bức vẽ dán trên tường",
           "prompt_text": "",
-          "prompt": "REFS · Start frame: SF-S5-EDMUND-CRY\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nCon bé đã dán bức vẽ lên tường, ngay chỗ ông nhìn thấy từ giường, rồi chúc ông ngủ ngon và đi. Trong bức vẽ, ông đang cười — con bé nói nó vẽ ông như lúc không có ai nhìn.\nSáu mươi ba năm ông không cho ai nhìn thấy mình. Chín năm không rơi một giọt nước mắt. Thứ vỡ ra ở đây không phải nỗi buồn mà là việc bị nhìn thấy đúng — bởi một đứa trẻ sáu tuổi, trong khi ba đứa con ruột không gọi lấy một cuộc điện thoại.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó — không có một cách diễn nào đúng cho mọi cảm xúc.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): mắt ông ở trên bức vẽ; ngón cái xoay chiếc nhẫn trên ngón áp út mỗi lúc một chậm rồi dừng hẳn; một giọt nước mắt lăn xuống nếp nhăn; ông KHÔNG lau nó, KHÔNG che mặt, KHÔNG phát ra tiếng — chỉ ngồi im. Giữ nhịp lặng đó tới hết clip.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: đồng hồ đứng tích tắc chậm ở hành lang, một hơi thở gấp và ngắn bị nén lại, tiếng mưa rất nhẹ ngoài cửa sổ đóng rèm. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
+          "prompt": "REFS · Start frame: SF-S5-G\n\nBắt đầu trực tiếp từ frame tham chiếu. Giữ nguyên nhân vật, khuôn mặt, trang phục, bối cảnh, đạo cụ, ánh sáng và bố cục.\n\nKHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.\n\nCẢM XÚC & HOÀN CẢNH — ĐÂY LÀ THỨ QUAN TRỌNG NHẤT CỦA CLIP NÀY:\nCon bé đã dán bức vẽ lên tường, ngay chỗ ông nhìn thấy từ giường, rồi chúc ông ngủ ngon và đi. Trong bức vẽ, ông đang cười — con bé nói nó vẽ ông như lúc không có ai nhìn.\nSáu mươi ba năm ông không cho ai nhìn thấy mình. Chín năm không rơi một giọt nước mắt. Thứ vỡ ra ở đây không phải nỗi buồn mà là việc bị nhìn thấy đúng — bởi một đứa trẻ sáu tuổi, trong khi ba đứa con ruột không gọi lấy một cuộc điện thoại.\n\nHãy để cơ thể nhân vật biểu đạt đúng trạng thái trên, theo cách tự nhiên nhất trong chính không gian và tư thế của frame tham chiếu. TỰ CHỌN cử chỉ, ánh mắt, nhịp nhanh chậm và điểm dừng sao cho khớp với cảm xúc đó — không có một cách diễn nào đúng cho mọi cảm xúc.\n\nGợi ý diễn biến (điều chỉnh được cho tự nhiên): mắt ông ở trên bức vẽ; ngón cái xoay chiếc nhẫn trên ngón áp út mỗi lúc một chậm rồi dừng hẳn; một giọt nước mắt lăn xuống nếp nhăn; ông KHÔNG lau nó, KHÔNG che mặt, KHÔNG phát ra tiếng — chỉ ngồi im. Giữ nhịp lặng đó tới hết clip.\n\nÂm thanh: KHÔNG thoại, KHÔNG nhạc. Chỉ tiếng môi trường có thật trong khung: đồng hồ đứng tích tắc chậm ở hành lang, một hơi thở gấp và ngắn bị nén lại, tiếng mưa rất nhẹ ngoài cửa sổ đóng rèm. Giữ ở mức NHẸ và TỰ NHIÊN, làm nền cho hình chứ không hút sự chú ý, chừa chỗ để người dựng ghép nhạc lên trên.\n\nKhông narrator. Không phụ đề. MỘT SHOT LIỀN DUY NHẤT — tuyệt đối KHÔNG chuyển cảnh, KHÔNG cắt. Không thêm, xóa, thay thế hoặc nhân bản nhân vật.",
           "music": {
             "emo": "KÌM tuyệt đối, KHÔNG LỜI — ông khóc một mình; lời hát sẽ gãy hộ nhân vật, cấm",
             "a_kind": "không lời",

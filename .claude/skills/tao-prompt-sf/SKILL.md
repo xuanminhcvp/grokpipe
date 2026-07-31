@@ -124,6 +124,42 @@ hành động của beat này (giữ, tả rõ), hay nó chỉ được cài và
    yêu cầu in RÕ RÀNG DỄ ĐỌC, không nhòe thành ký tự vô nghĩa.
 12. **Câu chặn lỗi cuối** — không watermark, không nhân vật trùng lặp, không logo méo.
 
+- [ ] **SF là TRẠNG THÁI, không phải khoảnh khắc** — không ho, không che miệng, không khóc,
+      không đưa tay ra. Phép thử: khung này dùng được cho ≥2–3 câu thoại khác nhau không?
+- [ ] **Đã phủ đủ trạng thái + OTS của từng trạng thái CHƯA, rồi mới làm take V2** — nếu còn
+      phải cắt frame từ video ra vá thì bậc 1–2 chưa xong.
+
+## SF là TRẠNG THÁI, không phải KHOẢNH KHẮC
+
+SF là ảnh tĩnh **đứng yên** — video mới là chỗ diễn. Viết SF ở trạng thái trung tính:
+**ai ở đâu, đứng hay ngồi, gần hay xa, cầm gì, quay hướng nào.** TUYỆT ĐỐI không khoá
+vào đỉnh cảm xúc hay hành động: đang ho, che miệng, khóc, đưa tay ra, gập người.
+
+Sai: *"Edmund gập người trong cơn ho, tay ôm ngực; Lily đưa tay ra"*
+→ dùng lại ở shot sau thì ông **ho mãi**, và video không còn gì để diễn vì hành động đã xong.
+Đúng: *"Edmund ngồi xe lăn, Lily đứng cạnh tay vịn"* — cơn ho và cái chạm tay để **prompt
+video** diễn ra từ trạng thái đó.
+
+**Phép thử:** một SF phải dùng được cho **ít nhất 2–3 câu thoại khác nhau** trong cùng trạng
+thái. Chỉ hợp đúng một câu = đang khoá vào hành động, viết lại.
+
+Hệ quả: mô tả biểu cảm trong SF chỉ được ở mức **nền** (mệt, điềm tĩnh, tò mò), không phải
+**đỉnh** (òa khóc, sững người, bụm miệng).
+
+## Thứ tự làm SF: PHỦ ĐỦ TRẠNG THÁI TRƯỚC, take sau cùng
+
+Scene dài (>3 phút) làm đúng bậc thang này, xong bậc trên mới xuống bậc dưới:
+
+1. **Đủ mọi TRẠNG THÁI** — mỗi lần nhân vật đổi tư thế/vị trí/khoảng cách là một trạng thái
+   riêng. Ví dụ cụm hội thoại hai người: *bé ngồi sàn vẽ · bé đứng cạnh xe lăn · bé nắm tay ông*.
+2. **OTS / reverse cho từng trạng thái ở bậc 1** — giữ nguyên trạng thái, chỉ đổi góc. Đây là
+   thứ làm cụm thoại dài đỡ lặp, và luôn bị bỏ quên.
+3. **Wide + cận vật** để thở, phục vụ nhịp không thoại.
+4. **Take V2/V3** — CHỈ khi một SF ở trên vẫn gánh **>3 shot**.
+
+Chưa xong bậc 1–2 mà đã làm V2 là sai thứ tự: thiếu trạng thái thì buộc phải đi **cắt frame
+từ video** ra chắp vá, còn V2 chỉ là cùng một khung render lại — không thêm góc nào.
+
 ## Chia câu vào shot (mỗi shot = một clip video)
 
 **Thời lượng chuẩn: ~90% số shot dài 10s, chỉ thỉnh thoảng mới dùng 6s.** Đừng chia vụn 3-5s —

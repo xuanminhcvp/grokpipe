@@ -1,6 +1,6 @@
 # Bài học tích lũy
 
-51 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
+52 bài rút từ phản hồi của user khi làm phim. Mỗi bài: **bối cảnh một dòng** + **quy tắc
 giữ nguyên văn**. Phần thuật lại diễn biến đã cắt — giá trị nằm ở quy tắc.
 
 Ghi bài mới: viết ở tầng nguyên lý (dùng được cho mọi phim), không nhắc tên nhân vật cụ
@@ -59,6 +59,7 @@ thể trừ khi cần minh họa. Bài mâu thuẫn bài cũ thì **sửa bài c
 - 49. Xoá hay đổi tên SF xong PHẢI quét shot mồ côi
 - 50. Cổng chặn bị NỔ trông y hệt cổng chặn ĐANG LÀM VIỆC
 - 51. Cơ chế tự chữa im lặng không chạy vì thiếu MỘT từ khoá nhận diện
+- 52. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
 
 ## 1. Mô tả bằng chữ không đủ để đồng bộ trang phục giữa các nhân vật
 
@@ -981,3 +982,22 @@ thêm code mới** — thường là cơ chế đã có, chỉ không nhận ra 
 **Áp dụng:** danh sách từ khoá lỗi phải phủ cả lỗi *bị hệ thống giết* (`target crashed`,
 `page crashed`) chứ không chỉ lỗi *đóng chủ động* (`target closed`). Và với mỗi lần phục hồi,
 ghi log rõ ràng để lần sau biết nó có chạy hay không.
+
+
+## 52. SF khoá vào khoảnh khắc thì chỉ dùng được đúng một lần
+
+Scene 5 dài 5:18 với 29 SF (thừa so với công thức 22), nhưng user vẫn phải **tự cắt 5 frame
+từ video và kéo thêm 2 ảnh ngoài vào** để có khung mà dùng. Nghịch lý đó lộ ra hai lỗi cùng gốc:
+
+**a. SF bị viết ở đỉnh hành động.** `SF-S5-COUGH` vẽ sẵn ông gập người ôm ngực ho và bé đã đưa
+tay ra; `SF-S5-MAYA-CU` vẽ sẵn Maya che miệng. Dùng lại ở shot sau thì nhân vật ho mãi / che
+miệng mãi, và video không còn gì để diễn vì hành động đã hoàn tất ngay trong ảnh tĩnh.
+
+**b. Làm take V2 khi chưa phủ đủ trạng thái.** Có V2 cho 3 góc, trong khi cụm hội thoại
+Edmund–Lily thiếu hẳn các trạng thái cơ bản (bé ngồi sàn vẽ / đứng cạnh xe lăn / nắm tay ông)
+và thiếu OTS tương ứng cho từng trạng thái.
+
+**Nguyên tắc:** SF mô tả **trạng thái** (ai ở đâu, đứng/ngồi, gần/xa, cầm gì, hướng nào), diễn
+xuất để prompt video lo. Phép thử: một SF phải phục vụ được ≥2–3 câu thoại khác nhau. Thứ tự
+làm: đủ trạng thái → OTS của từng trạng thái → wide/cận vật → take V2 chỉ khi một SF còn gánh
+>3 shot. Dấu hiệu làm sai thứ tự: phải đi cắt frame từ video ra vá.

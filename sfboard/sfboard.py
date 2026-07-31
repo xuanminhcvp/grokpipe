@@ -1702,6 +1702,29 @@ body.hasnav main{padding-left:146px}
 section.scene{scroll-margin-top:calc(var(--hdrh,52px) + 12px)}
 @media (max-width:1100px){#snav{display:none}body.hasnav main{padding-left:18px}}
 
+/* ---- chọn Start frame có xem trước ---- */
+button.sfpick{display:inline-flex;align-items:center;gap:6px;max-width:260px;padding:3px 8px 3px 3px}
+button.sfpick img{width:44px;height:25px;object-fit:cover;border-radius:4px;display:block}
+button.sfpick .nosf{width:44px;text-align:center;color:var(--bad)}
+button.sfpick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+font-family:ui-monospace,monospace;font-size:11.5px}
+#sfpick{width:min(1100px,94vw);max-height:88vh}
+#sp-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px;
+padding:10px;overflow-y:auto;max-height:calc(88vh - 56px)}
+#sp-g .it{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;
+background:var(--panel)}
+#sp-g .it:hover{border-color:var(--acc)}
+#sp-g .it.cur{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+#sp-g .it img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:var(--deep)}
+#sp-g .it .no{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;
+color:var(--tx2);font-size:11px;background:var(--deep)}
+#sp-g .it b{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--acc);
+padding:5px 7px 0}
+#sp-g .it i{display:block;font-style:normal;font-size:11px;color:var(--tx2);padding:1px 7px 6px;
+overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sp-g .hd{grid-column:1/-1;font-size:11.5px;font-weight:700;color:var(--tx2);
+padding:6px 2px 0;text-transform:uppercase;letter-spacing:.4px}
+
 /* ---- lớp video ---- */
 .shot.vok{border-color:var(--okline)}
 .v-side{flex:none;width:460px;display:flex;flex-direction:column;gap:6px}
@@ -1711,6 +1734,7 @@ section.scene{scroll-margin-top:calc(var(--hdrh,52px) + 12px)}
 .vbox{position:relative;aspect-ratio:16/9;background:var(--deep);border:1px solid var(--line);
 border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .vbox.drop{outline:2px dashed var(--acc);outline-offset:-6px}
+.sf-side .fr.drop{outline:2px dashed var(--acc);outline-offset:-6px}
 .vbox video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
 .vempty{color:var(--tx2);font-size:11.5px;text-align:center;line-height:1.6;padding:10px}
 .vempty span{font-size:10.5px;opacity:.75}
@@ -1816,6 +1840,11 @@ border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;color:var(--tx2)
   </div>
   <div id="root"></div>
 </main>
+
+<dialog id="sfpick"><div class="dlg-h"><b id="sp-t"></b><span style="flex:1"></span>
+<input id="sp-q" placeholder="lọc theo mã hoặc tên góc…" style="width:230px">
+<button onclick="sfpick.close()">Đóng</button></div>
+<div id="sp-g"></div></dialog>
 
 <dialog id="lightbox"><div class="dlg-h"><b id="lb-t"></b><span style="flex:1"></span>
 <span id="lb-n" style="opacity:.6;margin-right:10px"></span>
@@ -2110,6 +2139,46 @@ if(window.ResizeObserver){
   const h=document.querySelector('header');
   if(h)new ResizeObserver(syncHdr).observe(h);
 }
+
+// ══ CHỌN START FRAME CÓ XEM TRƯỚC ══ dropdown chữ không cho biết ảnh nào,
+// nên thay bằng lưới thumbnail: SF của scene này trước, rồi master, rồi phần còn lại.
+let SP = null;
+function openSFPick(sc, sh){
+  SP = {sc, sh};
+  document.getElementById('sp-t').textContent =
+    'Chọn Start frame cho ' + sh.id + ' — chỉ trong scene ' + sc.id;
+  document.getElementById('sp-q').value = '';
+  drawSFPick();
+  sfpick.showModal();
+  setTimeout(()=>document.getElementById('sp-q').focus(), 30);
+}
+function drawSFPick(){
+  if(!SP) return;
+  const q = (document.getElementById('sp-q').value || '').trim().toLowerCase();
+  // CHỈ SF CỦA CHÍNH SCENE NÀY. Một SF thuộc về scene nào thì chỉ dòng video của
+  // scene đó được dùng — dùng chéo scene là nguồn gốc lỗi tụt pha không gian.
+  const hit = f => !q || f.id.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q);
+  const own = SP.sc.sfs.filter(f=>!f.id.startsWith('REF_')).filter(hit);
+  const card = f => `<div class="it${f.id===SP.sh.sf?' cur':''}" data-pick="${esc(f.id)}">
+    ${f.image?`<img src="${thumb(f.image,300)}" loading="lazy" decoding="async">`
+             :'<div class="no">chưa có ảnh</div>'}
+    <b>${esc(f.id)}</b><i>${esc(f.label||'')}</i></div>`;
+  const g = document.getElementById('sp-g');
+  g.innerHTML = own.length
+    ? `<div class="hd">Scene ${esc(SP.sc.id)} — ${own.length} start frame</div>` + own.map(card).join('')
+    : `<div class="hd">Scene ${esc(SP.sc.id)} chưa có start frame nào${q?' khớp "'+esc(q)+'"':''}
+       — tạo mới ở tab Start frames, hoặc kéo–thả ảnh vào ô SF của dòng này.</div>`;
+  g.querySelectorAll('[data-pick]').forEach(el=>el.onclick=()=>pickSF(el.dataset.pick));
+}
+function pickSF(id){
+  const sh = SP.sh;
+  sh.sf = id;
+  // dòng Start frame trong prompt phải đi theo, nếu không ảnh một đằng prompt một nẻo
+  if(sh.prompt) sh.prompt = sh.prompt.replace(/Start frame:\s*\S+/, 'Start frame: ' + id);
+  save(); sfpick.close(); render();
+}
+document.addEventListener('input', e=>{ if(e.target.id==='sp-q') drawSFPick(); });
+
 function jumpScene(id){
   const el=document.getElementById('sc-'+id);
   if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
@@ -2406,7 +2475,9 @@ function shotRow(sc,sh,idx){
           <span class="sf-badge ${st[0]}">${st[1]}</span>`
         :`<div class="no">${f?'SF chưa có ảnh':'chưa gán SF'}</div>`}</div>
       <div class="pick">
-        <select data-sf>${opts.map(o=>`<option value="${o.id}" ${o.id===sh.sf?'selected':''}>${o.id}</option>`).join('')}</select>
+        <button class="sm sfpick" data-sfpick title="Bấm để chọn Start frame — có xem trước ảnh">
+          ${f&&f.image?`<img src="${thumb(f.image,80)}" loading="lazy">`:'<span class="nosf">⚠</span>'}
+          <span>${esc(sh.sf||'chưa chọn SF')}</span> ▾</button>
       </div>
       ${f?`<div class="hint" style="font-size:11px">${esc(f.label||'')}</div>`:''}
     </div>
@@ -2461,7 +2532,15 @@ function shotRow(sc,sh,idx){
       ${sh.ai_done?`<div class="aidone"><span>🤖 ${esc(sh.ai_done)}</span>
         <span class="x" data-va="donex" title="Xong việc này rồi — xoá dòng báo để ghi yêu cầu mới">✕ dọn</span></div>`:''}
     </div>`;
-  d.querySelector('.fr').onclick=()=>{if(f&&f.image)lbOpenAt(f)};
+  const fr=d.querySelector('.fr');
+  fr.onclick=()=>{if(f&&f.image)lbOpenAt(f)};
+  fr.title='Bấm để phóng to · kéo–thả ảnh vào đây để tạo SF MỚI và gán cho dòng này';
+  fr.ondragover=e=>{e.preventDefault();fr.classList.add('drop')};
+  fr.ondragleave=()=>fr.classList.remove('drop');
+  fr.ondrop=async e=>{e.preventDefault();fr.classList.remove('drop');
+    const file=e.dataTransfer.files[0];
+    if(!file||!file.type.startsWith('image/')){alert('Chỉ nhận file ảnh.');return}
+    await dropSFtoShot(sc,sh,file,file.name);};
 
   d.querySelectorAll('[data-mcopy]').forEach(b=>b.onclick=async()=>{
     const t=d.querySelector(`[data-mk="${b.dataset.mcopy}"]`);
@@ -2503,7 +2582,7 @@ function shotRow(sc,sh,idx){
     // bấm lại đúng trạng thái đang có = bỏ đánh dấu → đó là cách mở khoá bản chốt
     sh.vstatus = (sh.vstatus===a) ? null : a;
     save();render();});
-  d.querySelector('[data-sf]').onchange=e=>{sh.sf=e.target.value;save();render()};
+  d.querySelector('[data-sfpick]').onclick=()=>openSFPick(sc,sh);
   d.querySelector('[data-dur]').onchange=e=>{sh.dur=+e.target.value;save();render()};
   if((sh.notes||'').trim())d.classList.add('hasnote');
   d.querySelectorAll('[data-k]').forEach(el=>el.oninput=e=>{
@@ -2612,6 +2691,29 @@ function nextSFId(sc){
 async function uploadTo(sfId,blob,name){
   await fetch(`/api/upload?sf=${encodeURIComponent(sfId)}&name=${encodeURIComponent(name||'paste.png')}`,
     {method:'POST',body:blob});
+}
+
+
+// Kéo–thả ảnh vào ô SF bên tab Kịch bản: tạo SF MỚI (vào danh sách SF của scene,
+// hiện trong dropdown mọi dòng video) rồi GÁN luôn cho chính dòng vừa thả.
+// Không ghi đè ảnh của SF đang dùng — SF cũ có thể đang được dòng khác dùng chung.
+async function dropSFtoShot(sc, sh, blob, name){
+  const id = prompt(
+    'Tạo SF MỚI từ ảnh này và gán cho ' + sh.id + '.\n\n' +
+    'SF hiện tại (' + (sh.sf || 'chưa có') + ') KHÔNG bị thay — nó có thể đang dùng ở dòng khác.\n\n' +
+    'Nhập mã SF mới:', nextSFId(sc));
+  if(!id) return;
+  const key = id.trim();
+  if(find(key)){ alert('Mã ' + key + ' đã tồn tại. Chọn mã khác.'); return }
+  sc.sfs.push({id:key, label:'(ảnh kéo vào)',
+    desc:'Ảnh kéo thẳng vào dòng ' + sh.id + ' ở tab Kịch bản.',
+    prompt:'', status:'proposed', notes:'', usedBy:[], refs:{chars:[], bg:null}});
+  sh.sf = key;                                  // gán ngay cho dòng vừa thả
+  if(sh.prompt) sh.prompt = sh.prompt.replace(/Start frame:\s*\S+/, 'Start frame: ' + key);
+  await fetch('/api/board',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(DATA)});
+  await uploadTo(key, blob, name);
+  await load();
 }
 
 async function createSFfromBlob(sc,blob,name){
