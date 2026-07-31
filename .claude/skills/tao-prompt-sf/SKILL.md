@@ -154,7 +154,7 @@ Scene dài (>3 phút) làm đúng bậc thang này, xong bậc trên mới xuố
    riêng. Ví dụ cụm hội thoại hai người: *bé ngồi sàn vẽ · bé đứng cạnh xe lăn · bé nắm tay ông*.
 2. **OTS / reverse cho từng trạng thái ở bậc 1** — giữ nguyên trạng thái, chỉ đổi góc. Đây là
    thứ làm cụm thoại dài đỡ lặp, và luôn bị bỏ quên.
-3. **Wide + cận vật** để thở, phục vụ nhịp không thoại.
+3. **Wide / góc rộng** để thở, phục vụ nhịp không thoại — vẫn phải có người trong khung.
 4. **Take V2/V3** — CHỈ khi một SF ở trên vẫn gánh **>3 shot**.
 
 Chưa xong bậc 1–2 mà đã làm V2 là sai thứ tự: thiếu trạng thái thì buộc phải đi **cắt frame

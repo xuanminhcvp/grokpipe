@@ -12,18 +12,18 @@ bao nhiêu góc và những loại góc nào trước khi viết từng cái.
 **Bộ khung chuẩn** (hầu hết scene hội thoại đều cần): 1 master + cặp shot/reverse-shot cho hai
 phía đối thoại + góc riêng cho beat chuyển trạng thái (ngồi sụp, đứng dậy, bước ra cửa...).
 
-**KHÔNG dùng SF insert thuần đạo cụ CHO SHOT CÓ THOẠI — khung không có người là khung chết.**
+**KHÔNG dùng SF insert thuần đạo cụ — khung không có người là khung chết.**
 Cận cảnh một tờ giấy, một màn hình, một nồi thức ăn thì trông rất "có nghề" khi đứng yên, nhưng
-khi thành clip 10s có thoại thì nó không có gương mặt, không có lip-sync, không có cảm xúc — chỉ
+khi thành clip 10s thì nó không có gương mặt, không có lip-sync, không có cảm xúc — chỉ
 là một vật thể nằm im trong khi giọng nói vọng đâu đó ngoài khung. Người xem rơi ra khỏi câu
 chuyện ngay lập tức.
 
-**Ngoại lệ: NHỊP KHÔNG THOẠI thì ngược lại — khung cận đạo cụ hoặc đôi bàn tay lại là khung
-mạnh nhất.** Khi clip không có lời nào, nó không cần lip-sync để sống; nó sống bằng chuyển động
-và ý nghĩa. Bàn tay bà cụ siết cổ tay người trẻ, chiếc bảng tên được đặt xuống bàn, chai nước
-xoay trong lòng bàn tay — những khung này nói được điều mà cả đoạn thoại không nói nổi. Ranh
-giới rất gọn: **có thoại → phải có mặt người; không thoại → đạo cụ và bàn tay là hợp lệ, thậm
-chí nên dùng.** Xem bài học 32 về cách dựng nhịp không thoại.
+**NHỊP KHÔNG THOẠI CŨNG VẬY — không có ngoại lệ.** Clip im lặng vẫn phải có **người trong
+khung**: cảm xúc nằm trên gương mặt và dáng người, không nằm ở đồ vật. Một khung cận bàn tay
+hay cận đạo cụ dù đẹp vẫn là khung chết — khán giả muốn thấy mặt người, kể cả khi không ai nói.
+
+Muốn nhấn một đạo cụ trong nhịp lặng thì **để nó trong khung có người**: người cầm nó, nhìn nó,
+đặt nó xuống — thấy cả vật lẫn phản ứng. Đừng tách thành khung riêng chỉ có bàn tay và vật.
 
 **Đạo cụ quan trọng thì đưa VÀO khung có người, đừng tách ra khung riêng.** Muốn nhấn tờ giấy
 được đẩy qua bàn thì để hành động đó diễn ra trong một khung đã có sẵn cả hai người — vừa giữ
@@ -51,9 +51,9 @@ hoặc beat một mình.
 > - **Không SF nào gánh quá 3 shot** (SF xuất hiện quá ~30s màn hình là khán giả thấy lặp)
 > - Cảnh trên 3 phút: trong số SF phải có **ít nhất 2 góc rộng/3-4** để làm góc thở, không chỉ
 >   toàn cận
-> - Shot **có thoại** chỉ dùng khung có người; **cận tay/cận vật chỉ dành cho nhịp không thoại
->   và dùng tiết chế** — user đánh giá các góc cận tay, cận vật thể là "không hay lắm" ngay cả
->   khi hình đẹp
+> - **Mọi shot đều phải có người trong khung** — cả shot thoại lẫn nhịp không thoại. Khung
+>   cận tay / cận vật thể là "không hay lắm" ngay cả khi hình đẹp; đạo cụ muốn nhấn thì đặt
+>   vào khung đã có người
 
 Cách thi hành khi chia shot: gán SF theo GIAI ĐOẠN KHÔNG GIAN tuần tự (shot không lùi về SF của
 giai đoạn trước), trong mỗi giai đoạn luân phiên và ưu tiên SF ít dùng, người nói phải có mặt

@@ -388,7 +388,8 @@ Một scene hội thoại dựng xong **chưa phải** một cảnh phim hoàn c
 - **Beat cảm xúc** (6s) — sau câu thoại nặng nhất, giữ mặt nhân vật im lặng cho câu đó ngấm.
 - **Cầu nối** (6–10s) — nhân vật rời khung, đi qua không gian, nối cảnh này sang cảnh kia.
 - **Dựng cảnh** (6s) — ngoại cảnh địa điểm mới trước khi vào thoại.
-- **Đối tượng/chi tiết** (6s) — cận vật mang nghĩa, chỉ dùng khi vật đó đã có vai trò trong kịch bản.
+- **Đối tượng/chi tiết** (6s) — đạo cụ mang nghĩa, nhưng **phải đặt trong khung có người**
+  (người cầm/nhìn/đặt nó xuống), không tách thành khung chỉ có bàn tay và vật.
 
 Trong prompt nhịp không thoại, hai khối bắt buộc viết nguyên văn:
 `KHÔNG CÓ LỜI THOẠI TRONG CLIP NÀY. Tuyệt đối không ai mở miệng nói, không ai cử động môi như đang nói.` và `Âm thanh: KHÔNG thoại, KHÔNG nhạc, KHÔNG hiệu ứng. Giữ clip IM LẶNG HOÀN TOÀN.` — khác hẳn khối âm thanh của clip có thoại.
@@ -622,8 +623,8 @@ Hai bài kèm theo, cùng phát hiện trong đợt này:
 thoại **chỉ dùng khung có người**.
 
 **Đánh giá thẩm mỹ kèm theo:** góc cận bàn tay / cận vật thể *"không hay lắm"* ngay cả khi
-hình đẹp — người xem muốn thấy mặt người. Hệ quả: khung cận-vật bị RÚT khỏi mọi shot thoại,
-chỉ giữ cho vài nhịp không thoại đắt nhất mang tính gieo-trả, và cũng phải tiết chế.
+hình đẹp — người xem muốn thấy mặt người. Hệ quả: **khung cận-vật bị RÚT khỏi MỌI shot, kể
+cả nhịp không thoại.** Đạo cụ muốn nhấn thì đặt vào khung đã có người.
 
 **Lưu ý thi hành:** tỉ lệ đo bằng SỐ SF ĐƯỢC DÙNG trong shot list, không phải số SF tồn tại
 trong board.
@@ -661,7 +662,7 @@ và thiếu OTS tương ứng cho từng trạng thái.
 
 **Nguyên tắc:** SF mô tả **trạng thái** (ai ở đâu, đứng/ngồi, gần/xa, cầm gì, hướng nào), diễn
 xuất để prompt video lo. Phép thử: một SF phải phục vụ được ≥2–3 câu thoại khác nhau. Thứ tự
-làm: đủ trạng thái → OTS của từng trạng thái → wide/cận vật → take V2 chỉ khi một SF còn gánh
+làm: đủ trạng thái → OTS của từng trạng thái → góc rộng → take V2 chỉ khi một SF còn gánh
 >3 shot. Dấu hiệu làm sai thứ tự: phải đi cắt frame từ video ra vá.
 
 ---
