@@ -1333,6 +1333,54 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
             else:
                 self._json({"ok": False, "err": "không thấy bản này"}, 404)
+        elif u.path == "/api/del-version":
+            # Xoá MỘT bản trong versions/. Không cho xoá bản đang được dùng làm
+            # ảnh chính — muốn bỏ thì chọn bản khác trước, hoặc dùng "xoá tất cả".
+            f = os.path.basename(q.get("file", [""])[0])
+            src = os.path.join(BOARD.versions, f)
+            if not os.path.isfile(src):
+                self._json({"ok": False, "err": "không thấy bản này"}, 404); return
+            cur = BOARD.find_file(sf_id)
+            if cur and os.path.getsize(cur) == os.path.getsize(src):
+                try:
+                    same = open(cur, "rb").read() == open(src, "rb").read()
+                except Exception:
+                    same = False
+                if same:
+                    self._json({"ok": False, "err": "Đây là bản ĐANG DÙNG làm ảnh "
+                                "chính. Chọn bản khác trước rồi hãy xoá."}, 409); return
+            os.remove(src)
+            with BOARD_LOCK:                 # cờ picked trỏ vào bản vừa xoá thì gỡ
+                data = BOARD.read(); ch = False
+                for sc in data.get("scenes", []):
+                    for sfd in sc.get("sfs", []):
+                        if sfd.get("id") == sf_id and sfd.get("picked") == f:
+                            del sfd["picked"]; ch = True
+                if ch:
+                    BOARD.write(data)
+            _LOG.info("xoá bản %s của %s", f, sf_id)
+            self._json({"ok": True})
+        elif u.path == "/api/del-vversion":
+            # Tương tự cho video.
+            f = os.path.basename(q.get("file", [""])[0])
+            src = os.path.join(BOARD.vversions, f)
+            if not os.path.isfile(src):
+                self._json({"ok": False, "err": "không thấy bản này"}, 404); return
+            cur = BOARD.video_file(sf_id)
+            if cur and os.path.getsize(cur) == os.path.getsize(src):
+                self._json({"ok": False, "err": "Đây là bản ĐANG DÙNG. Chọn bản "
+                            "khác trước rồi hãy xoá."}, 409); return
+            os.remove(src)
+            with BOARD_LOCK:
+                data = BOARD.read(); ch = False
+                for sc in data.get("scenes", []):
+                    for shd in sc.get("shots", []):
+                        if shd.get("id") == sf_id and shd.get("vpicked") == f:
+                            del shd["vpicked"]; ch = True
+                if ch:
+                    BOARD.write(data)
+            _LOG.info("xoá bản video %s của %s", f, sf_id)
+            self._json({"ok": True})
         elif u.path == "/api/delete-files":
             BOARD.delete_sf_files(sf_id)
             with BOARD_LOCK:
@@ -1603,6 +1651,14 @@ input.ed:focus,textarea.ed:focus{outline:none;border-color:var(--acc);background
 .vers{display:flex;gap:5px;overflow-x:auto;padding:2px 0}
 .vers img{width:52px;height:30px;object-fit:cover;border-radius:5px;border:2px solid transparent;cursor:pointer;flex:none}
 .vers img:hover{border-color:var(--acc)}
+/* mỗi bản là một ô có nút × để xoá riêng */
+.vwrap{position:relative;flex:none;line-height:0}
+.vwrap .vx{position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;
+background:var(--bad);color:#fff;font-size:11px;line-height:16px;text-align:center;
+cursor:pointer;opacity:0;transition:opacity .12s;font-weight:700}
+.vwrap:hover .vx{opacity:1}
+.vwrap .vx:hover{transform:scale(1.15)}
+.vers .cur{border-color:var(--ok,#1a7f37)}
 .vlab{font-size:10.5px;color:var(--tx2);align-self:center;flex:none;padding-right:3px}
 .refrow{display:flex;gap:6px;align-items:flex-start;font-size:12px}
 .refrow b{color:var(--tx2);font-weight:600;min-width:52px;padding-top:5px}
@@ -2676,9 +2732,10 @@ function shotRow(sc,sh,idx){
         ${sh.vstatus==='approved'?'<span class="badge ok">DUYỆT</span>':sh.vstatus==='rejected'?'<span class="badge bad">LOẠI</span>':''}
       </div>
       ${(sh.vversions&&sh.vversions.length>1)?`<div class="vers">${sh.vversions.map((v,i)=>
-        `<button class="sm${v.file===sh.vpicked?' vpick':''}" data-vv="${v.file}"
+        `<span class="vwrap"><button class="sm${v.file===sh.vpicked?' vpick':''}" data-vv="${v.file}"
           title="${v.at}${v.file===sh.vpicked?' — ĐANG DÙNG':''}">v${i+1}${
-          v.file===sh.vpicked?(sh.vstatus==='approved'?' ✓':' •'):''}</button>`).join('')}</div>`:''}
+          v.file===sh.vpicked?(sh.vstatus==='approved'?' ✓':' •'):''}</button>
+          <span class="vx" data-vvdel="${v.file}" title="Xoá bản v${i+1} này">×</span></span>`).join('')}</div>`:''}
       <div class="vacts">
         <button class="sm pri" data-va="gen" ${vrun?'disabled':''}>${sh.video?'Tạo lại':'Tạo video'}</button>
         <button class="sm ok-b" data-va="approved">✓</button>
@@ -2720,6 +2777,13 @@ function shotRow(sc,sh,idx){
     await load();};
   d.querySelectorAll('[data-vv]').forEach(el=>el.onclick=async()=>{
     await fetch(`/api/pick-vversion?sf=${encodeURIComponent(sh.id)}&file=${encodeURIComponent(el.dataset.vv)}`,{method:'POST'});
+    await load();});
+  d.querySelectorAll('[data-vvdel]').forEach(el=>el.onclick=async e=>{
+    e.stopPropagation();
+    if(!confirm('Xoá hẳn bản video này khỏi ổ đĩa?\n\n'+el.dataset.vvdel+'\n\nKhông khôi phục được.'))return;
+    const r=await (await fetch(`/api/del-vversion?sf=${encodeURIComponent(sh.id)}&file=${encodeURIComponent(el.dataset.vvdel)}`,
+      {method:'POST'})).json();
+    if(!r.ok){alert(r.err||'Không xoá được');return}
     await load();});
   d.querySelectorAll('[data-va]').forEach(b=>b.onclick=async()=>{
     const a=b.dataset.va;
@@ -2950,7 +3014,10 @@ function card(sc,f){
          :`<span class="pill add" data-add="bg">+ chọn</span>`}
        </div></div>
      ${(f.versions&&f.versions.length>1)?`<div class="vers"><span class="vlab">bản:</span>
-       ${f.versions.map((v,i)=>`<img src="${thumb(v.url,240)}" loading="lazy" decoding="async" title="v${i+1} · ${v.at}" data-v="${v.file}">`).join('')}</div>`:''}
+       ${f.versions.map((v,i)=>`<span class="vwrap"><img src="${thumb(v.url,240)}" loading="lazy"
+         decoding="async" title="v${i+1} · ${v.at} — bấm để chọn làm ảnh chính"
+         class="${v.file===f.picked?'cur':''}" data-v="${v.file}">
+         <span class="vx" data-vdel="${v.file}" title="Xoá bản v${i+1} này">×</span></span>`).join('')}</div>`:''}
      <details><summary>Prompt (sửa được)</summary>
        <textarea data-k="prompt" spellcheck="false">${esc(f.prompt||'')}</textarea></details>
      <textarea class="notes" data-k="notes" placeholder="Ghi chú / yêu cầu chỉnh sửa…">${esc(f.notes||'')}</textarea>
@@ -2996,6 +3063,13 @@ function card(sc,f){
   d.querySelectorAll('[data-v]').forEach(el=>el.onclick=async e=>{
     e.stopPropagation();
     await fetch(`/api/pick-version?sf=${encodeURIComponent(f.id)}&file=${encodeURIComponent(el.dataset.v)}`,{method:'POST'});
+    await load();});
+  d.querySelectorAll('[data-vdel]').forEach(el=>el.onclick=async e=>{
+    e.stopPropagation();
+    if(!confirm('Xoá hẳn bản này khỏi ổ đĩa?\n\n'+el.dataset.vdel+'\n\nKhông khôi phục được.'))return;
+    const r=await (await fetch(`/api/del-version?sf=${encodeURIComponent(f.id)}&file=${encodeURIComponent(el.dataset.vdel)}`,
+      {method:'POST'})).json();
+    if(!r.ok){alert(r.err||'Không xoá được');return}
     await load();});
   d.querySelectorAll('[data-see]').forEach(el=>el.onclick=e=>{
     if(e.target.classList.contains('x'))return;      // bấm ✕ thì để handler xoá lo

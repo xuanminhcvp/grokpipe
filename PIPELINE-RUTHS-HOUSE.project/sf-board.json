@@ -1,6 +1,6 @@
 {
   "film": "Not One Would Care for a Dying Billionaire — Until the Maid's Baby Brought the Cold Old Man to Tears",
-  "updated_at": "2026-07-31 16:58:50",
+  "updated_at": "2026-07-31 17:19:53",
   "scenes": [
     {
       "id": "REF",
@@ -5346,7 +5346,7 @@
             "bg": "SF-S10-CALL-ANCHOR"
           },
           "prompt": "KHÓA MỨC SỐNG VÀ CHẤT LIỆU CỦA BIỆT THỰ WHITMORE — ẢNH BỐI CẢNH ĐÍNH KÈM là chuẩn cho MỨC SỐNG và THỜI KỲ: dinh thự Mỹ xây khoảng thập niên 1930, GIÀU NHƯNG CŨ VÀ ĐÃ BỎ BÊ. Phòng này là PHÒNG KHÁC trong CÙNG ngôi nhà đó — bố cục khác, nhưng cùng chiều cao trần lớn, cùng khung cửa gỗ sẫm nặng, cùng cảm giác đồ đạc đắt tiền đã xuống màu. TUYỆT ĐỐI KHÔNG nâng cấp thành nội thất hiện đại bóng loáng, KHÔNG khách sạn, KHÔNG chung cư.\n\nTHỜI ĐIỂM CỦA CẢNH NÀY LÀ BAN ĐÊM, SAU MƯỜI GIỜ — đây là thời điểm của SCENE, không lấy theo ánh sáng của ảnh bối cảnh (ảnh đó là BAN NGÀY, phải bỏ hẳn).\n- Nguồn sáng duy nhất: MỘT đèn tường vàng ấm ở CUỐI hành lang, ngay trên chỗ Maya đứng. Không có nguồn nào khác.\n- Ô CỬA SỔ CAO cuối hành lang: NGOÀI LÀ ĐÊM ĐEN HOÀN TOÀN, mặt kính chỉ hắt lại phản chiếu mờ của đèn tường. TUYỆT ĐỐI KHÔNG ánh sáng ban ngày, KHÔNG rèm hắt sáng trắng, KHÔNG thấy cây cối hay bầu trời.\n- Vẫn ĐỦ SÁNG để nhìn rõ gương mặt. KHÔNG mảng đen đặc.\n\nKHÓA TỪ ẢNH NEO — ẢNH BỐI CẢNH ĐÍNH KÈM LÀ ẢNH NEO CỦA CẢ CỤM GỌI ĐIỆN. GIỮ NGUYÊN: vị trí Maya đứng trong hành lang (CUỐI hành lang, sát bên trái Ô CỬA SỔ CAO, cách khung cửa sổ khoảng nửa mét), tư thế đứng thẳng hơi nghiêng vai, ĐIỆN THOẠI ÁP TAI PHẢI, tay trái ôm khuỷu tay phải, và cách ánh đèn tường phía trên đổ xuống người cô. CHÂN CÔ KHÔNG DI CHUYỂN so với ảnh neo — cả cụm này cô đứng nguyên một chỗ.\nKHÔNG LẤY GÓC MÁY của ảnh neo — camera khung này đứng ở chỗ KHÁC, xem phần dưới.\n\nTRANG PHỤC — BẮT BUỘC LẤY TỪ ẢNH TOÀN THÂN, KHÔNG LẤY TỪ ẢNH CHÂN DUNG:\nẢnh chân dung đính kèm CHỈ dùng để lấy KHUÔN MẶT, KIỂU TÓC và TÔNG DA.\n- MAYA: ĐỒNG PHỤC CHĂM SÓC TẠI GIA: áo tunic cổ chữ V tay ngắn màu XÁM XANH NHẠT có hai túi dưới, quần dài cùng tông, giày da thấp màu ĐEN, dây chuyền vàng mảnh mặt tròn nhỏ.\n\nTạo MỘT ẢNH TĨNH photorealistic 16:9, cinematic wide shot, ống kính 28mm, camera đặt Ở ĐẦU HÀNH LANG (phía chiếu nghỉ cầu thang) nhìn DỌC XUỐNG cuối hành lang, ngang tầm ngực — xa nhất trong cụm.\n\nHƯỚNG NHÌN: toàn bộ chiều dài hành lang chạy hút vào trong, hai bên là các cánh cửa gỗ sẫm đóng kín, dải thảm đỏ rượu dẫn mắt về phía cuối. Ô CỬA SỔ CAO ở cuối, ngoài kính đêm đen.\n\nBỐ CỤC: MAYA ở 46-58% khung — NHỎ, ở CUỐI hành lang đúng chỗ ảnh neo, dưới quầng đèn tường, sát bên trái ô cửa sổ. Thấy toàn thân. Hai bên và tiền cảnh là bóng tối của hành lang.\n\nKhung này để thấy sự VẮNG và cô độc — người nhỏ trong không gian dài.\n\nNHÂN DẠNG — BẮT BUỘC bám ảnh chân dung: MAYA = phụ nữ MỸ GỐC PHI 30 tuổi, DA NÂU SẪM, TÓC ĐEN XOĂN vấn búi thấp, đường nét mặt mềm hài hoà. TUYỆT ĐỐI KHÔNG làm sáng da, KHÔNG tóc thẳng, KHÔNG đổi chủng tộc.\n\nCinematic depth of field vừa phải. Gương mặt phải NHÌN RÕ. CHỐNG LỖI: mỗi bàn tay đúng NĂM ngón. KHÔNG chữ đọc được, KHÔNG watermark, KHÔNG logo, KHÔNG nhân vật trùng lặp, KHÔNG thêm người, KHÔNG trẻ em.",
-          "picked": "SF-S10-CALL-WIDE_v1.png"
+          "picked": "SF-S10-CALL-WIDE_v2.png"
         },
         {
           "id": "SF-S10-CALL-CU",
@@ -5648,7 +5648,8 @@
               "REF_MAYA_UNIFORM_FULL"
             ],
             "bg": "SF-M-VANITY"
-          }
+          },
+          "picked": "SF-S11-VIV-CU_v3.png"
         },
         {
           "id": "SF-S11-LILY-DOOR",
