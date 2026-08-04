@@ -233,7 +233,8 @@ GROK_ENDPOINTS: list[str] = []           # cờ --cdp-grok (như trên)
 # Quản lý tài khoản tập trung: mỗi tài khoản = 1 profile Chrome + 1 port debug.
 # Lưu ở ~/.grokpipe-accounts.json — bật/tắt/mở Chrome ngay từ giao diện board,
 # không phải sửa lệnh khởi động hay tự tay mở Chrome với đúng cờ nữa.
-ACCOUNTS: list[dict] = []      # {id, kind: img|vid, port, profile, enabled}
+ACCOUNTS: list[dict] = []      # {id, kind: img|vid, port, profile, enabled, tabs}
+MAX_TABS = 6                   # trần tab đồng thời trên MỘT tài khoản
 ACC_PATH = os.path.expanduser("~/.grokpipe-accounts.json")
 PROJECTS_ROOT = ""       # thư mục chứa các *.project (bộ chọn dự án)
 SERVE_PORT = 0           # cổng board này đang phục vụ
@@ -277,6 +278,8 @@ def _init_accounts():
         port = int(ep.rstrip("/").rsplit(":", 1)[1])
         accs.append({"id": f"grok-{i}", "kind": "vid", "port": port,
                      "profile": legacy.get(port, f"~/.grokpipe-grok-p{port}"), "enabled": True})
+    for _a in accs:
+        _a["tabs"] = max(1, min(MAX_TABS, int(_a.get("tabs") or 1)))
     ACCOUNTS = accs
     _save_accounts()
 
@@ -495,7 +498,7 @@ def _acct_label() -> str:
     return f" [tk {pool.index(ep) + 1}/{len(pool)}]"
 
 
-def _worker(endpoint: str, kind: str):
+def _worker(endpoint: str, kind: str, slot: int = 0):
     """Một luồng thợ gắn cứng với MỘT tài khoản.
 
     kind='img' → lấy việc từ IMG_QUEUE, chạy trên tài khoản ChatGPT.
@@ -504,6 +507,7 @@ def _worker(endpoint: str, kind: str):
     supervisor sẽ mở thợ mới khi tài khoản được bật/hồi sinh."""
     _TL.endpoint = endpoint
     _TL.kind = kind
+    _TL.slot = slot          # chỗ ngồi: quyết định thợ này lái TAB NÀO
     QUEUE = IMG_QUEUE if kind == "img" else VID_QUEUE
     while True:
         if endpoint not in _pool(kind) or DEAD.get(endpoint):
@@ -678,13 +682,22 @@ def _supervisor():
                 kinds = [a["kind"]]
                 if a["kind"] == "img" and not has_vid:
                     kinds.append("vid")     # chưa có tài khoản Grok → thợ ảnh kiêm video
+                # Một tài khoản có thể chạy NHIỀU TAB song song: mỗi tab một luồng
+                # thợ riêng, cùng trỏ vào một cửa sổ Chrome. Số tab do user đặt ở
+                # mục Tài khoản trên board (mặc định 1 = như cũ).
+                so_tab = max(1, min(MAX_TABS, int(a.get("tabs") or 1)))
                 for k in kinds:
-                    key = (a["port"], k)
-                    th = WORKERS.get(key)
-                    if th is None or not th.is_alive():
-                        t = threading.Thread(target=_worker, args=(ep, k), daemon=True)
-                        WORKERS[key] = t
-                        t.start()
+                    for slot in range(so_tab):
+                        key = (a["port"], k, slot)
+                        th = WORKERS.get(key)
+                        if th is None or not th.is_alive():
+                            t = threading.Thread(target=_worker, args=(ep, k, slot), daemon=True)
+                            WORKERS[key] = t
+                            t.start()
+                    # hạ số tab thì cho các luồng thừa tự nghỉ ở vòng lặp kế tiếp
+                    for key in [x for x in list(WORKERS)
+                                if x[0] == a["port"] and x[1] == k and len(x) > 2 and x[2] >= so_tab]:
+                        WORKERS.pop(key, None)
         except Exception:
             pass
         time.sleep(4)
@@ -858,9 +871,10 @@ def _accounts_status() -> list[dict]:
     for a in accs:
         ep = _ep(a)
         chrome = _endpoint_alive(ep)
-        worker = any(k[0] == a["port"] and t.is_alive() for k, t in WORKERS.items())
+        songs = sum(1 for k, t in WORKERS.items() if k[0] == a["port"] and t.is_alive())
         out.append({**a, "endpoint": ep, "chrome": chrome, "sleeping": SLEEPING["on"],
-                    "dead": DEAD.get(ep, ""), "worker": worker})
+                    "dead": DEAD.get(ep, ""), "worker": songs > 0,
+                    "tabs": max(1, int(a.get("tabs") or 1)), "tho_song": songs})
     return out
 
 
@@ -879,6 +893,25 @@ def _alive(sess) -> bool:
 # nhờ vậy N tài khoản chạy song song mà không giẫm chân nhau.
 
 
+def _bo_hub():
+    """Vứt Playwright của luồng này cho SẠCH, kể cả khi stop() ném lỗi.
+
+    Mỗi sync_playwright().start() dựng một asyncio loop ĐANG CHẠY trong luồng.
+    Còn sót một cái là lần start() sau ném "Playwright Sync API inside the
+    asyncio loop" — thông báo đó che mất lỗi thật, thường là Chrome debug chết.
+    """
+    pw = getattr(_TL, "pw", None)
+    if pw is not None:
+        try:
+            pw.stop()
+        except Exception as e:
+            _LOG.warning("không dừng gọn được Playwright cũ: %s", e)
+    _TL.pw = None
+    _TL.ctx = None
+    _TL.sess = None
+    _TL.gsess = None
+
+
 def _hub():
     ctx = getattr(_TL, "ctx", None)
     if ctx is not None:
@@ -889,20 +922,26 @@ def _hub():
             # Context chết → PHẢI dừng hẳn Playwright cũ trước khi start cái mới.
             # Bỏ qua bước này là hai sync_playwright() cùng sống trong một luồng,
             # đúng cái xung đột ngầm mà ghi chú phía trên đã cảnh báo.
-            try:
-                pw = getattr(_TL, "pw", None)
-                if pw is not None:
-                    pw.stop()
-            except Exception:
-                pass
-            _TL.pw = None
-            _TL.ctx = None
-            _TL.sess = None
-            _TL.gsess = None
+            _bo_hub()
+    elif getattr(_TL, "pw", None) is not None:
+        # ctx rỗng mà pw còn sống = lần trước start() xong rồi mới ngã ở
+        # connect_over_cdp, để lại một Playwright mồ côi. Không dọn ở đây thì
+        # mọi lần bấm sau đều báo lỗi asyncio loop thay vì lỗi Chrome thật.
+        _bo_hub()
+
     from playwright.sync_api import sync_playwright
     _TL.pw = sync_playwright().start()
-    browser = _TL.pw.chromium.connect_over_cdp(_TL.endpoint)
-    _TL.ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+    try:
+        browser = _TL.pw.chromium.connect_over_cdp(_TL.endpoint)
+        _TL.ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+    except Exception as e:
+        # Trả luồng về trạng thái sạch rồi mới ném, để lần bấm sau còn báo đúng
+        # bệnh chứ không đổ sang lỗi asyncio loop khó hiểu.
+        _bo_hub()
+        raise RuntimeError(
+            f"Không nối được Chrome debug ở {_TL.endpoint} ({e}). "
+            "Mở lại cửa sổ Chrome debug của tài khoản này rồi thử lại."
+        ) from e
     return _TL.ctx
 
 
@@ -929,7 +968,8 @@ def _grok():
         return s
     _TL.gsess = None
     from grokpipe.executors.video_grok import GrokSession
-    s = GrokSession(cdp_endpoint=None, logger=_LOG, resolution="720p", shared_ctx=_hub())
+    s = GrokSession(cdp_endpoint=None, logger=_LOG, resolution="720p",
+                    shared_ctx=_hub(), slot=getattr(_TL, "slot", 0))
     if not s.start():
         raise RuntimeError(f"Không nối được Grok ở {_TL.endpoint}. "
                            "Mở Chrome debug và đăng nhập grok.com rồi thử lại.")
@@ -1429,6 +1469,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, "acct": acc}); return
             if not acc:
                 self._json({"ok": False, "err": "không thấy tài khoản"}, 404); return
+            if op == "tabs":
+                n = max(1, min(MAX_TABS, int(q.get("n", ["1"])[0] or 1)))
+                with ACC_LOCK:
+                    acc["tabs"] = n
+                _save_accounts()
+                _LOG.info("Tài khoản %s: đặt %d tab chạy đồng thời.", acc["id"], n)
+                self._json({"ok": True, "tabs": n}); return
             if op == "toggle":
                 with ACC_LOCK:
                     acc["enabled"] = not acc["enabled"]
@@ -2036,6 +2083,12 @@ async function pollAccts(){
         <span style="width:96px">${kind}</span>
         <span style="width:76px">:${a.port}</span>
         <span style="flex:1">${st}</span>
+        <label title="Số tab chạy ĐỒNG THỜI trên cùng cửa sổ Chrome này.&#10;1 = chạy tuần tự từng việc (mặc định).&#10;Tăng lên để tạo nhiều video/ảnh song song trên CÙNG một tài khoản.&#10;Càng nhiều tab càng tốn RAM — tăng dần và xem máy có chịu nổi không."
+               style="display:flex;align-items:center;gap:4px;color:#666">tab
+          <input type="number" min="1" max="6" value="${a.tabs||1}" style="width:44px"
+                 onchange="acctTabs(${a.port},this.value)">
+          ${a.tho_song>1?`<span style="color:var(--acc)">×${a.tho_song}</span>`:''}
+        </label>
         ${a.chrome?'':`<button onclick="acctOp('launch',${a.port})">Mở Chrome</button>`}
         ${a.dead?`<button onclick="acctOp('revive',${a.port})">Thử lại</button>`:''}
         <button onclick="acctOp('toggle',${a.port})">${a.enabled?'Tắt':'Bật'}</button>
@@ -2043,6 +2096,10 @@ async function pollAccts(){
       </div>`});
     $('#acctrows').innerHTML=rows.join('')||'<span class="hint">chưa có tài khoản nào</span>';
   }catch(e){}
+}
+async function acctTabs(port,n){
+  await fetch(`/api/acct?op=tabs&port=${port}&n=${n}`,{method:'POST'});
+  setTimeout(pollAccts,400);
 }
 async function acctOp(op,port){
   await fetch(`/api/acct?op=${op}&port=${port}`,{method:'POST'});
