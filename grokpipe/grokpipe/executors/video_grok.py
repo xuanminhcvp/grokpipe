@@ -187,6 +187,51 @@ class GrokSession:
             }""", name)
         return bool(r)
 
+    def _cho_radio(self, name: str, giay: float = 20) -> bool:
+        """Chờ nút xuất hiện rồi mới bấm. Grok là SPA: sau goto, hàng nút mất vài
+        giây mới dựng — chạy nhiều tab song song thì càng lâu. sleep cứng là sai."""
+        het = time.time() + giay
+        while time.time() < het:
+            if self._click_radio(name):
+                return True
+            time.sleep(0.5)
+        return False
+
+    def _nut_dang_co(self) -> str:
+        """Liệt kê nút đang hiện — để thông báo lỗi nói được MÀN HÌNH ĐANG Ở ĐÂU."""
+        try:
+            r = self.page.evaluate(
+                """() => [...document.querySelectorAll('[role=radio],button')]
+                     .filter(e => e.getBoundingClientRect().width > 0)
+                     .map(e => (e.getAttribute('aria-label')||'').trim()
+                               || (e.textContent||'').trim())
+                     .filter(t => t && t.length < 24).slice(0, 18)""")
+            return ", ".join(r)
+        except Exception:
+            return "(không đọc được)"
+
+    def _ve_trang_imagine(self) -> bool:
+        """Đưa tab về ĐÚNG trang /imagine. Trang post KHÔNG có nút mode 'Video'
+        (nó chỉ có 'Make video'), nên đứng nhầm trang là hỏng cả job."""
+        for lan in range(3):
+            try:
+                self.page.goto(self.URL, wait_until="domcontentloaded")
+            except Exception as e:
+                self.logger.warning("Grok: goto lần %d hỏng (%s)", lan + 1, str(e)[:70])
+            for _ in range(24):                      # chờ tối đa ~12s cho SPA dựng
+                time.sleep(0.5)
+                try:
+                    if "/imagine/post/" in (self.page.url or ""):
+                        break                        # SPA nhảy lại post → goto lại
+                    if self.page.evaluate(
+                        """() => [...document.querySelectorAll('[role=radio]')]
+                             .some(e => (e.getAttribute('aria-label')||'') === 'Video'
+                                        && e.getBoundingClientRect().width > 0)"""):
+                        return True
+                except Exception:
+                    pass
+        return False
+
     def _out_of_credits(self) -> bool:
         try:
             return self.page.evaluate(
@@ -206,31 +251,48 @@ class GrokSession:
                  duration_s: float = 10.0) -> bool:
         """Tạo 1 video image-to-video, lưu mp4 ra out_path."""
         page = self.page
-        # về trang imagine sạch
-        page.goto(self.URL, wait_until="domcontentloaded")
-        time.sleep(4)
-        self._dismiss_popups()
+        dur_label = "10s" if duration_s >= 8 else "6s"
 
-        # upload ảnh
-        page.locator("input[type=file]").first.set_input_files(image_path)
-        time.sleep(4)
+        # CHỌN MODE TRƯỚC, UPLOAD SAU — thứ tự này quan trọng.
+        # Mọi nút (Image/Video · 480p/720p/1080p · 6s/10s/15s) đều có sẵn trên trang
+        # /imagine TRỐNG. Bấm chúng trước rồi mới upload thì khe hở để tab trôi sang
+        # trang post gần như bằng không. Làm ngược lại (upload trước) là bug đã gặp:
+        # chạy nhiều tab song song, tab nào chậm chân là bị đẩy sang /imagine/post/…
+        # và ở đó KHÔNG có nút mode 'Video', chỉ có 'Make video'.
+        xong = False
+        for lan in range(3):
+            if not self._ve_trang_imagine():
+                raise C.ExecutorError(
+                    "Không về được trang grok.com/imagine (tab đang ở: "
+                    f"{(page.url or '')[:70]}). Nút đang thấy: {self._nut_dang_co()}")
+            self._dismiss_popups()
 
-        # cảnh báo hết credit -> fail nhanh, không chờ 10 phút vô ích
+            if not self._cho_radio("Video", 15):
+                self.logger.warning("Grok: chưa thấy nút mode 'Video' (lượt %d/3)", lan + 1)
+                continue
+            self._cho_radio(self.resolution, 8)
+            self._cho_radio(dur_label, 8)
+
+            page.locator("input[type=file]").first.set_input_files(image_path)
+            time.sleep(4)
+
+            if "/imagine/post/" in (page.url or ""):
+                # Tab bị đẩy sang trang post giữa chừng — làm lại từ đầu, đừng cố chữa
+                self.logger.warning("Grok: tab trôi sang trang post sau khi upload "
+                                    "(lượt %d/3), làm lại", lan + 1)
+                continue
+            # upload có thể dựng lại hàng nút → bấm lại cho chắc, bấm trùng vô hại
+            self._cho_radio(dur_label, 6)
+            xong = True
+            break
+        if not xong:
+            raise C.ExecutorError(
+                "Không đặt được mode Video sau 3 lượt. "
+                f"Nút đang thấy: {self._nut_dang_co()} | URL: {(page.url or '')[:60]}")
+
+        # hết credit -> fail nhanh, không chờ 10 phút vô ích
         if self._out_of_credits():
             raise C.ExecutorError("Grok đã dùng 100% credit — không tạo được video.")
-
-        # mode Video: là icon role=radio aria-label='Video' (KHÔNG có text)
-        if not self._click_radio("Video"):
-            raise C.ExecutorError("Không thấy nút mode 'Video' trên Grok Imagine.")
-        time.sleep(1)
-        # xác nhận đã sang mode video: phải thấy chip thời lượng '10s'/'6s'
-        dur_label = "10s" if duration_s >= 8 else "6s"
-        self._click_radio(self.resolution)     # 720p (role=radio, có text)
-        time.sleep(0.4)
-        if not self._click_radio(dur_label):
-            raise C.ExecutorError(f"Không thấy chip thời lượng '{dur_label}' "
-                                  f"(mode Video chưa bật đúng?).")
-        time.sleep(0.4)
 
         # chụp src video CŨ trước khi submit — chỉ nhận src MỚI
         before = set(self._video_srcs())
