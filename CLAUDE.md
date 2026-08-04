@@ -139,7 +139,7 @@ gh api repos/xuanminhcvp/grokpipe/contents/.claude/skills/skills-film/SKILL.md >
 
 **Ba điều đã biết, đừng báo lại như phát hiện mới:**
 - **Lịch sử vẫn công khai.** Skill và `sf-board.json` nằm trong 19 commit cũ đã push (từ `61fd739`). User đã quyết **không viết lại lịch sử** (2026-08-04). Muốn xoá hẳn thì phải rewrite + force-push, hoặc chuyển repo sang private.
-- **Dữ liệu phim KHÔNG còn backup trên git.** `sf-board.json` chỉ nằm trên máy — hỏng ổ là mất sạch. Backup là việc của user, nhắc một lần rồi thôi.
+- **Dữ liệu phim ĐÃ có backup ở repo PRIVATE** (`grokpipe-private`, xem mục dưới) — `sf-board.json` và `*.md` được đẩy lên đó. Nhưng **media (`assets/` `videos/` 21 GB) thì KHÔNG** — hỏng ổ là mất ảnh và video. Backup media là việc của user, nhắc một lần rồi thôi.
 - `CLAUDE.md` vẫn nhắc tới `.claude/skills/` dù thư mục đó không lên git. Cố ý, không phải lỗi.
 
 ### Hai repo — public và private
