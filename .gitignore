@@ -44,3 +44,16 @@ Nhân vật/
 
 # chat log + snapshot nặng (không bao giờ đẩy lên git)
 *.project/videos/versions/
+
+# ⛔ SKILL LÀM PHIM — BÍ QUYẾT RIÊNG, CHỈ NẰM TRÊN MÁY, KHÔNG BAO GIỜ ĐẨY LÊN GIT
+.claude/skills/
+
+# bản sao lưu sf-board.json (chỉ có ý nghĩa trên máy đang làm)
+*.json.bak-*
+
+# ⛔ DỮ LIỆU PHIM — prompt SF/video/nhạc là bí quyết riêng, chỉ nằm trên máy
+*.project/
+
+# ⛔ Công cụ kiểm — mã hoá sẵn ngưỡng của skill, giữ trên máy
+sfboard/kiem-luat.py
+sfboard/kiem-noi-shot.py

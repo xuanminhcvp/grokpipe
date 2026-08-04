@@ -17,6 +17,7 @@ Ghi chú kỹ thuật (dò từ UI thật 2026-07):
 from __future__ import annotations
 
 import os
+import threading
 import time
 
 from ..models import Task
@@ -30,18 +31,27 @@ except Exception:  # pragma: no cover
     _HAS_PW = False
 
 
+# ĐÁNH DẤU TAB BẰNG window.name, KHÔNG dùng id() của đối tượng page.
+# Mỗi luồng thợ mở một kết nối CDP RIÊNG, nên cùng một tab thật là hai đối tượng
+# Python khác nhau ở hai luồng — id() không bao giờ khớp, mọi cách giữ chỗ dựa
+# trên id() đều vô dụng. window.name nằm trong chính trang web nên đọc được từ
+# mọi kết nối, và sống qua các lần điều hướng cùng origin.
+_TAG = "gpslot"
+
+
 class GrokSession:
     """Phiên grok.com/imagine qua CDP, giữ xuyên suốt pipeline."""
 
     URL = "https://grok.com/imagine"
 
     def __init__(self, cdp_endpoint: str | None, logger, gen_timeout: float = 600.0,
-                 resolution: str = "720p", shared_ctx=None):
+                 resolution: str = "720p", shared_ctx=None, slot: int = 0):
         self.cdp_endpoint = cdp_endpoint
         self.logger = logger
         self.gen_timeout = gen_timeout
         self.resolution = resolution
         self.shared_ctx = shared_ctx        # context CDP dùng chung (do runner tạo)
+        self.slot = int(slot)               # chỗ ngồi: mỗi thợ một tab riêng
         self._pw = None
         self._browser = None
         self._ctx = None
@@ -62,10 +72,11 @@ class GrokSession:
                 self._browser = self._pw.chromium.connect_over_cdp(self.cdp_endpoint)
                 self._ctx = self._browser.contexts[0] if self._browser.contexts \
                     else self._browser.new_context()
-            self.page = next((p for p in self._ctx.pages
-                              if "grok.com" in (p.url or "")), None)
-            if self.page is None:
-                self.page = self._ctx.new_page()
+            # MỖI PHIÊN GIỮ RIÊNG MỘT TAB. Nhiều thợ có thể chạy song song trên
+            # CÙNG một cửa sổ Chrome (xem "số tab" trong mục Tài khoản của board),
+            # nên tuyệt đối không được vớ lấy tab mà luồng khác đang dùng — hai
+            # luồng chung một tab thì cái này submit đè lên cái kia và cả hai hỏng.
+            self.page = self._tim_tab()
             self.page.goto(self.URL, wait_until="domcontentloaded")
             time.sleep(4)
             if not self._ensure_ready():
@@ -78,6 +89,34 @@ class GrokSession:
             self.logger.warning(f"Không nối được Grok qua CDP ({e}) — chạy thủ công.")
             self.close()
             return False
+
+    def _tim_tab(self):
+        """Tab riêng của luồng này, nhận ra qua window.name = 'gpslot<N>'."""
+        tag = f"{_TAG}{self.slot}"
+
+        def ten(pg):
+            try:
+                return pg.evaluate("window.name") or ""
+            except Exception:
+                return ""
+
+        if self.page is not None and not self.page.is_closed() and ten(self.page) == tag:
+            return self.page
+        mo = [pg for pg in self._ctx.pages if not pg.is_closed()]
+        for pg in mo:
+            if "grok.com" in (pg.url or "") and ten(pg) == tag:
+                return pg
+        # Slot 0 nhận nuôi một tab grok CHƯA ai đánh dấu — để dùng lại tab user đang
+        # mở sẵn, khỏi đẻ tab thừa. Slot khác LUÔN mở tab mới của riêng nó.
+        if self.slot == 0:
+            for pg in mo:
+                if "grok.com" in (pg.url or "") and not ten(pg).startswith(_TAG):
+                    pg.evaluate("n => { window.name = n }", tag)
+                    return pg
+        pg = self._ctx.new_page()
+        pg.goto(self.URL, wait_until="domcontentloaded")
+        pg.evaluate("n => { window.name = n }", tag)
+        return pg
 
     def _ensure_ready(self) -> bool:
         """Trang imagine có ô nhập ('Ask Grok anything'). Cloudflare/chưa login → nhờ người."""
@@ -256,6 +295,8 @@ class GrokSession:
         return True
 
     def close(self) -> None:
+        with _CLAIM_LOCK:
+            pass
         if self.shared_ctx is not None:   # context dùng chung do runner quản lý
             self.ready = False
             return

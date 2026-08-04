@@ -56,6 +56,22 @@ Chạy nền trên macOS phải bọc subshell + `disown` (`setsid` KHÔNG có t
 **Kiểm `/api/jobs` trước khi khởi động lại board** — restart giữa chừng làm mất
 hàng đợi và job video đang chạy dở sẽ không kịp lưu thành bản chính.
 
+**Đếm thừa cửa sổ Chrome thì HỎI, đừng tự đóng.** Board rotate nhiều tài khoản, và cửa sổ
+đang có job chạy dở trông y hệt cửa sổ bỏ không — đóng nhầm cửa sổ Grok là giết cả hàng đợi video
+đang chạy. Trước khi đóng bất kỳ cửa sổ nào: **đọc `/api/jobs` xem có job nào `running` không** và
+xem `/api/accounts` cửa sổ đó thuộc `kind` gì. Vượt trần thì báo user chọn port, đừng tự quyết.
+
+**Tắt tài khoản phải qua `/api/acct?op=toggle&port=<port>`, không phải `kill` tiến trình Chrome.**
+Kill tay thì board vẫn giữ tài khoản trong pool và tiếp tục định tuyến việc sang đó — job video rơi
+sang tài khoản ChatGPT rồi báo "Không nối được Grok". Toggle mới vừa đóng cửa sổ vừa gỡ khỏi pool.
+
+**Chrome debug "sống nửa vời" — HTTP trả lời nhưng WebSocket treo.** Chạy vài chục ảnh liên tục
+thì `connect_over_cdp` bắt đầu timeout 180s ở bước `<ws connecting>`, trong khi
+`curl http://127.0.0.1:92xx/json/version` vẫn trả lời bình thường. Đừng tin phép thử HTTP: nó
+KHÔNG chứng minh CDP còn dùng được. Cách chữa là làm sạch cả hai đầu — **dừng board, đóng hết
+Chrome debug, mở lại board rồi mở lại Chrome**; khởi động lại riêng Chrome hay riêng board đều
+không đủ, vì đầu còn lại vẫn giữ kết nối cũ.
+
 ## Quy tắc dựng phim
 
 Chi tiết nằm trong skill `skills-film` (tự kích hoạt khi làm SF/prompt). Bốn điều
@@ -65,6 +81,68 @@ hay sai nhất, nhắc ở đây:
 - **Không tụt pha không gian.** Đã vào trong nhà thì shot sau không được dùng SF ngoài sân.
 - **Thời lượng ≈ số từ ÷ 3.** Quá dài thì tách clip, đừng nhồi.
 - **Người ở tiền cảnh, kể cả quay lưng hay mờ, vẫn phải đính ảnh ref.**
+
+## Dữ liệu `sf-board.json` — luật kỹ thuật
+
+Skill `skills-film` chỉ chứa nghề làm phim. Mọi thứ về **dữ liệu và công cụ** ghi ở đây.
+
+- **`shots[].dur` là SỐ NGUYÊN giây** (`10`, `6`) — KHÔNG phải chuỗi `"10s"`. Board đọc bằng
+  `float(dur)` nên hậu tố chữ làm hỏng việc tạo video.
+- **Trước khi ghi bất kỳ trường nào, đọc xem trường đó đang lưu ở KIỂU gì và ghi đúng kiểu đó.**
+  Dữ liệu cũ và dữ liệu mới không cùng kiểu là bug đang chờ, không phải chuyện thẩm mỹ.
+- **Kiểm bằng đúng biểu thức mà bên tiêu thụ dùng.** Phép kiểm tự viết dễ dùng luôn định dạng
+  sai của chính mình nên PASS hết — muốn chắc thì gọi `float(...)` y như board gọi.
+- **`shots[].sf` trỏ vào SF id đã chết sẽ hỏng khi render.** Xoá hay đổi tên SF xong phải quét
+  shot mồ côi; quét lần cuối ngay trước khi render hàng loạt. Kiểm luôn media mồ côi trong
+  `assets/` và `videos/`.
+- **Trường phụ cho continuity:** mỗi SF có `pose` (`zone · who · dist · hands`); shot mang chuyển
+  động khai `chuyen: true`, shot hồi tưởng hoặc cắt sang dòng thời gian khác khai `hoituong: true`.
+  Board bỏ qua các trường lạ, không ảnh hưởng gì.
+
+**Công cụ kiểm:**
+
+```bash
+python3 sfboard/chay-anh.py <PROJECT> --port <PORT>      # render hàng loạt ảnh SF (master trước, SF con sau)
+python3 sfboard/liet-ke-dao-cu.py <PROJECT>              # liệt kê đạo cụ chủ chốt (bước 2)
+python3 sfboard/kiem-noi-shot.py <PROJECT> [S1 S2 ...]   # bắt nhân vật "nhảy" giữa hai shot
+```
+
+## ⛔ LUẬT CỨNG — GIT: REPO NÀY CÔNG KHAI
+
+`github.com/xuanminhcvp/grokpipe` là repo **PUBLIC**. Ai cũng đọc được. Vì vậy:
+
+**KHÔNG BAO GIỜ đẩy lên git** (đã chặn sẵn trong `.gitignore`, đừng gỡ ra):
+
+| Không đẩy | Vì sao |
+|---|---|
+| `.claude/skills/` | bí quyết làm phim — chỉ nằm trên máy user |
+| `*.project/` | `sf-board.json` là **296 prompt mẫu đã làm xong**; công khai nó thì giấu skill cũng vô nghĩa |
+| `sfboard/kiem-luat.py`, `kiem-noi-shot.py` | mã hoá sẵn ngưỡng của skill (3 shot/SF · mật độ ×4 · cận+trung 75-80% · giây ≈ từ ÷ 3) |
+
+**Được đẩy:** `sfboard/sfboard.py` · `sfboard/chay-anh.py` · `liet-ke-dao-cu.py` · `grokpipe/` · `CLAUDE.md` · `.gitignore` — tức **code công cụ, không phải nội dung phim**.
+
+**Quy trình mỗi lần commit + push:**
+
+```bash
+git add -A
+git diff --cached --name-only | grep -E "^\.claude/skills/|\.project/|kiem-luat|kiem-noi-shot"
+# ↑ PHẢI KHÔNG RA GÌ (trừ dòng có tiền tố D = đang gỡ khỏi git). Ra thứ khác là DỪNG.
+git diff --cached -- . ':!CLAUDE.md' | grep "^+" | grep -v "^+++" | grep -ci "KHÓA TỪ ẢNH NEO\|TRẠNG THÁI KHÔNG GIAN\|cận+trung"
+# ↑ PHẢI = 0. Phải loại CLAUDE.md ra vì chính dòng lệnh này nằm trong đó nên nó tự bắt chính mình.
+```
+
+Push xong **kiểm lại trên GitHub, đừng tin diff**:
+
+```bash
+gh api repos/xuanminhcvp/grokpipe/contents/.claude/skills/skills-film/SKILL.md >/dev/null 2>&1 && echo "✗ LỘ" || echo "✓ sạch"
+```
+
+**Ba điều đã biết, đừng báo lại như phát hiện mới:**
+- **Lịch sử vẫn công khai.** Skill và `sf-board.json` nằm trong 19 commit cũ đã push (từ `61fd739`). User đã quyết **không viết lại lịch sử** (2026-08-04). Muốn xoá hẳn thì phải rewrite + force-push, hoặc chuyển repo sang private.
+- **Dữ liệu phim KHÔNG còn backup trên git.** `sf-board.json` chỉ nằm trên máy — hỏng ổ là mất sạch. Backup là việc của user, nhắc một lần rồi thôi.
+- `CLAUDE.md` vẫn nhắc tới `.claude/skills/` dù thư mục đó không lên git. Cố ý, không phải lỗi.
+
+**Commit message: chỉ ghi `update`.** User không muốn mô tả chi tiết trên repo công khai — nội dung thay đổi đọc từ diff là đủ. Đừng tự ý viết dài.
 
 ## Skill
 
