@@ -57,3 +57,7 @@ Nhân vật/
 # ⛔ Công cụ kiểm — mã hoá sẵn ngưỡng của skill, giữ trên máy
 sfboard/kiem-luat.py
 sfboard/kiem-noi-shot.py
+
+# kho git của repo PRIVATE — không bao giờ đẩy lên repo public
+.git-rieng/
+day-rieng.sh
