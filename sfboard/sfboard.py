@@ -253,7 +253,8 @@ def _ep(a: dict) -> str:
 def _save_accounts():
     with ACC_LOCK:
         with open(ACC_PATH, "w", encoding="utf-8") as f:
-            json.dump({"accounts": ACCOUNTS}, f, ensure_ascii=False, indent=2)
+            json.dump({"accounts": ACCOUNTS, "idle_sleep": IDLE_SLEEP["on"]},
+                      f, ensure_ascii=False, indent=2)
 
 
 def _init_accounts():
@@ -261,7 +262,9 @@ def _init_accounts():
     global ACCOUNTS
     if os.path.exists(ACC_PATH):
         try:
-            ACCOUNTS = json.load(open(ACC_PATH, encoding="utf-8"))["accounts"]
+            _d = json.load(open(ACC_PATH, encoding="utf-8"))
+            ACCOUNTS = _d["accounts"]
+            IDLE_SLEEP["on"] = bool(_d.get("idle_sleep", True))
             return
         except Exception:
             pass
@@ -615,6 +618,9 @@ def _batch_tick(ident: str, ok: bool) -> bool:
 # profile trên đĩa nên đóng/mở không mất phiên.
 IDLE_SLEEP_SEC = 600            # 10 phút
 SLEEPING = {"on": False}
+# User tắt được chế độ này trên board (nút "Tự tắt Chrome"). Nhiều lúc đang
+# dùng dở mà Chrome tự đóng thì rất phiền, nên phải cho tắt và NHỚ lựa chọn.
+IDLE_SLEEP = {"on": True}
 _LAST_BUSY = {"at": time.time()}
 
 
@@ -640,6 +646,9 @@ def _idle_sleeper():
                     or any(j.get("state") == "running" for j in JOBS.values()))
             if busy:
                 _LAST_BUSY["at"] = time.time()
+                continue
+            if not IDLE_SLEEP["on"]:
+                _LAST_BUSY["at"] = time.time()   # tắt tính năng → coi như luôn bận
                 continue
             if SLEEPING["on"] or time.time() - _LAST_BUSY["at"] < IDLE_SLEEP_SEC:
                 continue
@@ -1311,7 +1320,10 @@ class Handler(BaseHTTPRequestHandler):
                 "items": _scan_projects(),
             })
         elif u.path == "/api/accounts":
-            self._json({"accounts": _accounts_status()})
+            self._json({"accounts": _accounts_status(),
+                        "idle_sleep": IDLE_SLEEP["on"],
+                        "idle_phut": IDLE_SLEEP_SEC // 60,
+                        "sleeping": SLEEPING["on"]})
         elif u.path.startswith("/assets/"):
             self._serve_img(BOARD.assets, u.path)
         elif u.path.startswith("/versions/"):
@@ -1448,6 +1460,16 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     AUTO[sid] = {"try": {}, "last": {}, "stat": {}}
             self._json({"ok": True, "on": sid in AUTO, "auto": _auto_status()})
+
+        elif u.path == "/api/idle":
+            # Bật/tắt "tự tắt Chrome khi rảnh". Tắt xong mà đang ngủ thì đánh thức luôn.
+            IDLE_SLEEP["on"] = not IDLE_SLEEP["on"]
+            _save_accounts()
+            if not IDLE_SLEEP["on"]:
+                _LAST_BUSY["at"] = time.time()
+                _wake_all()
+            _LOG.info("Tự tắt Chrome khi rảnh: %s", "BẬT" if IDLE_SLEEP["on"] else "TẮT")
+            self._json({"ok": True, "idle_sleep": IDLE_SLEEP["on"]}); return
 
         elif u.path == "/api/acct":
             op = q.get("op", [""])[0]
@@ -1997,6 +2019,8 @@ border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;color:var(--tx2)
       <b>Tài khoản Chrome</b>
       <button onclick="acctAdd('img')">+ ChatGPT</button>
       <button onclick="acctAdd('vid')">+ Grok</button>
+      <button id="idlebtn" onclick="toggleIdle()"
+              title="BẬT: rảnh 10 phút thì tự đóng hết cửa sổ Chrome cho nhẹ RAM, có việc mới tự mở lại.&#10;TẮT: Chrome không bao giờ tự đóng — chọn cái này nếu bạn đang tự dùng cửa sổ đó.&#10;Lựa chọn được nhớ, khởi động lại board vẫn giữ.">⏻ Tự tắt Chrome</button>
       <span class="hint">Bật = mở Chrome + đưa vào vòng chạy · Tắt = đóng Chrome + ngừng dùng · login thì bạn tự làm trong cửa sổ</span>
     </div>
     <div id="acctrows" style="display:flex;flex-direction:column;gap:4px"></div>
@@ -2095,7 +2119,19 @@ async function pollAccts(){
         <button class="bad-b" title="Xóa hẳn tài khoản này khỏi danh sách (dữ liệu đăng nhập trong profile Chrome vẫn giữ)" onclick="acctDel('${esc(a.id)}',${a.port},${a.enabled})">🗑</button>
       </div>`});
     $('#acctrows').innerHTML=rows.join('')||'<span class="hint">chưa có tài khoản nào</span>';
+    const ib=$('#idlebtn');
+    if(ib){
+      const on=r.idle_sleep!==false;
+      ib.textContent = on ? `⏻ Tự tắt Chrome: BẬT (${r.idle_phut||10}p)` : '⏻ Tự tắt Chrome: TẮT';
+      ib.classList.toggle('on',on);
+      ib.style.color = on ? '' : '#c00';
+      if(r.sleeping) ib.textContent += ' · đang ngủ';
+    }
   }catch(e){}
+}
+async function toggleIdle(){
+  await fetch('/api/idle',{method:'POST'});
+  setTimeout(pollAccts,300);
 }
 async function acctTabs(port,n){
   await fetch(`/api/acct?op=tabs&port=${port}&n=${n}`,{method:'POST'});
