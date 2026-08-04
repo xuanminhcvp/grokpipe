@@ -142,6 +142,31 @@ gh api repos/xuanminhcvp/grokpipe/contents/.claude/skills/skills-film/SKILL.md >
 - **Dữ liệu phim KHÔNG còn backup trên git.** `sf-board.json` chỉ nằm trên máy — hỏng ổ là mất sạch. Backup là việc của user, nhắc một lần rồi thôi.
 - `CLAUDE.md` vẫn nhắc tới `.claude/skills/` dù thư mục đó không lên git. Cố ý, không phải lỗi.
 
+### Hai repo — public và private
+
+Cùng MỘT thư mục làm việc, HAI kho `.git` độc lập. File trên đĩa là **một bản duy nhất**,
+không copy, không lo lệch phiên bản.
+
+| kho | repo | chứa |
+|---|---|---|
+| `.git` | `xuanminhcvp/grokpipe` — **PUBLIC** | chỉ code công cụ |
+| `.git-rieng` | `xuanminhcvp/grokpipe-private` — **PRIVATE** | thêm skill + 2 công cụ kiểm + `sf-board.json`/`*.md` của các phim (~6 MB) |
+
+Đẩy lên private bằng script bọc sẵn (đã `.gitignore` khỏi repo public):
+
+```bash
+./day-rieng.sh trangthai    # xem sắp đưa gì lên
+./day-rieng.sh day          # add + commit "update" + push
+```
+
+**Vì sao script phải `add -f` từng nhóm:** `git add -A` vẫn tuân theo `.gitignore` ở gốc — thứ
+đang chặn skill và `*.project` — nên kho riêng không thấy chúng. Phải chỉ định tường minh. Cái hay
+là nhờ vậy **media không có đường lọt vào**: script chỉ add đúng `json`/`md` ở GỐC mỗi project,
+không bao giờ chạm `assets/` `videos/` `versions/` (21 GB, GitHub không nhận).
+
+**Sửa gì trong code hay skill thì đẩy CẢ HAI**: `git push` cho public, `./day-rieng.sh day` cho
+private. Private là nơi duy nhất có backup của skill và dữ liệu prompt.
+
 **Commit message: chỉ ghi `update`.** User không muốn mô tả chi tiết trên repo công khai — nội dung thay đổi đọc từ diff là đủ. Đừng tự ý viết dài.
 
 ## Skill
