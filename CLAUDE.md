@@ -72,6 +72,40 @@ KHÔNG chứng minh CDP còn dùng được. Cách chữa là làm sạch cả h
 Chrome debug, mở lại board rồi mở lại Chrome**; khởi động lại riêng Chrome hay riêng board đều
 không đủ, vì đầu còn lại vẫn giữ kết nối cũ.
 
+## Grok/ChatGPT đổi giao diện — cách chẩn đoán khi selector hỏng
+
+Triệu chứng: `Không thấy nút mode 'Video'` · `Không tìm thấy Submit` · `Không thấy chip thời lượng`.
+**Đừng đoán, đừng vá mò.** Nối thẳng vào Chrome đang chạy rồi ĐỌC DOM thật:
+
+```python
+from playwright.sync_api import sync_playwright
+with sync_playwright() as pw:
+    ctx = pw.chromium.connect_over_cdp("http://localhost:9228").contexts[0]
+    p = [x for x in ctx.pages if 'grok.com' in (x.url or '')][0]
+    p.goto("https://grok.com/imagine", wait_until="domcontentloaded")
+    print(p.evaluate("""() => [...document.querySelectorAll('button,[role=radio]')]
+        .filter(e => e.getBoundingClientRect().width > 0)
+        .map(e => ({aria: e.getAttribute('aria-label'), type: e.getAttribute('type'),
+                    text: (e.textContent||'').trim().slice(0,20)}))"""))
+```
+
+**Bốn điều đã học, đừng mắc lại:**
+
+1. **Bám THUỘC TÍNH, đừng bám CHỮ.** Nút gửi từng tìm bằng `name="Submit"` — chạy được máy này,
+   máy khác báo không thấy vì giao diện hiện tiếng Việt (*"Gửi"*). Dấu hiệu ổn định là
+   `button[type=submit]` trong form chứa ô nhập. Chữ chỉ để dự phòng, và phím Enter là chốt cuối.
+2. **DOM Grok KHÔNG nhất quán.** Cùng nút "Video" lúc là `role=radio`, lúc là `button`. Luôn quét
+   cả hai và khớp `aria-label` HOẶC `textContent`.
+3. **Nút bị `disabled` khi ô nhập trống** — kiểm `disabled` và `aria-disabled` trước khi bấm, và
+   PHẢI chờ chứ đừng bấm ngay: SPA dựng lại hàng nút mất vài giây, chạy nhiều tab thì càng lâu.
+4. **Thông báo lỗi phải kèm HIỆN TRẠNG.** Mọi lỗi selector đều gắn `_nut_dang_co()` + URL. Lỗi chỉ
+   nói "không thấy nút X" là bắt người sau phải mở Chrome soi tay; lỗi kèm danh sách nút đang hiện
+   thì đọc log là biết ngay màn hình đang ở đâu.
+
+**"Máy tôi chạy được, máy kia không" — kiểm theo thứ tự này:**
+`git status` và `git rev-parse HEAD origin/main` (có gì chưa đẩy không) → ngôn ngữ giao diện Grok ở
+máy kia → `document.documentElement.lang` → rồi mới nghi Grok đổi UI.
+
 ## Quy tắc dựng phim
 
 Chi tiết nằm trong skill `skills-film` (tự kích hoạt khi làm SF/prompt). Bốn điều
@@ -174,11 +208,29 @@ private. Private là nơi duy nhất có backup của skill và dữ liệu prom
 | Skill | Dùng khi |
 |---|---|
 | `skills-film` | viết/sửa prompt ảnh nhân vật, SF, prompt video, prompt nhạc |
-| `viet-kich-ban` | viết kịch bản drama từ title hoặc ý tưởng |
+| `viet-kich-ban` | kịch bản drama **nhân quả — ân tình** một tuyến: người tốt bị chà đạp rồi được đền đáp |
+| `viet-kich-ban-tinh-cam` | kịch bản tình cảm **"giấu giàu — hai số phận"**: người giàu giả nghèo, hai bạn thân chọn ngược nhau và nhận hai kết cục ngược nhau |
 
-Mỗi lần user sửa một lỗi, chưng cất thành **nguyên lý** rồi ghi vào
-`.claude/skills/<skill>/references/bai-hoc.md` — viết ở tầng dùng lại được cho mọi
-phim, không nhắc tên nhân vật cụ thể.
+Hai skill kịch bản chạy bằng hai cỗ máy cảm xúc khác nhau — `viet-kich-ban` là "nợ và trả"
+một tuyến, `viet-kich-ban-tinh-cam` là hai đường song song. Chọn nhầm skill thì phim mất
+phân nửa lực kéo. Không chắc thuộc loại nào thì hỏi user trước khi viết.
+
+Mỗi lần user sửa một lỗi, chưng cất thành **nguyên lý** rồi ghi **thẳng vào file của đúng bước
+đó** trong `references/` (mỗi bước MỘT file, chứa cả cách làm lẫn luật cứng), viết ở tầng dùng
+lại được cho mọi phim, không nhắc tên nhân vật cụ thể. **Không lập kho bài học trung gian, không
+tách file luật riêng** — luật không nằm trong file được nạp thì không đổi được hành vi nào, và
+luật nằm tách khỏi cách làm thì hai chỗ trôi khỏi nhau. Ghi luật phải nói rõ nó áp cho **loại
+việc nào**.
+
+### ⛔ LUẬT CỨNG — SỬA SKILL
+
+Trước khi thêm/sửa/xoá bất cứ thứ gì trong `.claude/skills/` — kể cả file trong
+`references/` — **nạp skill `chuan-skill` và làm theo**. Không đọc thì không sửa.
+
+Riêng grokpipe, thêm một điều ngoài chuẩn chung:
+
+- Sửa xong đẩy **cả hai** repo: `git push` cho public, `./day-rieng.sh day` cho private.
+  `.gitignore` loại `.claude/skills/` khỏi repo công khai → **private là bản backup duy nhất.**
 
 ## Ngôn ngữ
 
