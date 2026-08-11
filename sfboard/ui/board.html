@@ -3370,6 +3370,10 @@
 
     // ~3.0 từ/giây — đo theo tốc độ đọc thực tế của giọng AI (điều chỉnh sau thực nghiệm)
     function estimate(text) {
+      // Nhịp không thoại: `text` là MÔ TẢ cảnh, không phải lời thoại — đếm nó rồi
+      // so với `dur` thì mọi nhịp lặng đều hiện badge đỏ "THỪA LỜI" (52 cái trên
+      // một phim), và cảnh báo thật bị chìm trong nhiễu.
+      if (/\[NHỊP/.test(text || '')) return { n: 0, sec: 0, nhip: true };
       const clean = (text || '').replace(/^[A-ZĐÂÊÔƠƯ][A-ZĐÂÊÔƠƯ\s.]*:/gm, ' ')  // bỏ nhãn tên
         .replace(/\([^)]*\)/g, ' ')                       // bỏ chú thích trong ngoặc
         .replace(/[—–-]{1,2}\s*[a-z, ]+:/g, ' ');          // bỏ chỉ dẫn giọng
@@ -3411,8 +3415,9 @@
       return (sh.prompt_text || '').trim() !== (sh.text || '').trim();
     }
     function estBadge(sh) {
-      const { n, sec } = estimate(sh.text);
+      const { n, sec, nhip } = estimate(sh.text);
       const dur = sh.dur || 10;
+      if (nhip) return `<span class="est empty" title="Nhịp không thoại — không tính lời">nhịp / ${dur}s</span>`;
       if (!n) return `<span class="est empty" title="Chưa có lời thoại">— / ${dur}s</span>`;
       let cls = 'ok', tip = `${n} từ · vừa khít ${dur}s`;
       if (sec > dur) { cls = 'over'; tip = `${n} từ ≈ ${sec.toFixed(1)}s — THỪA LỜI so với ${dur}s. Hãy tách bớt sang video khác hoặc đổi lên 10s.` }
