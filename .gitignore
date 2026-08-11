@@ -48,6 +48,24 @@ Nhân vật/
 # ⛔ SKILL LÀM PHIM — BÍ QUYẾT RIÊNG, CHỈ NẰM TRÊN MÁY, KHÔNG BAO GIỜ ĐẨY LÊN GIT
 .claude/skills/
 
+# ⛔ BẢN SAO AUTO MEMORY — sở thích riêng của user, chỉ đi lên repo PRIVATE
+# (day-rieng.sh đồng bộ vào đây rồi add -f; không có dòng này là lọt thẳng lên public)
+.claude/memory-backup/
+
+# ⛔ LEARNING INBOX — note thật của user về phim đang làm, chỉ đi lên repo PRIVATE
+.claude/learnings.md
+.claude/learnings-archive/
+.claude/git-release.md
+
+# ⛔ FILE NÉN — bí quyết lọt lên public NẰM TRONG file nén thì mọi phép kiểm theo TÊN
+# ĐƯỜNG DẪN đều mù: `.claude.zip` không khớp mẫu `^\.claude/skills/`. Đã có thật trên máy
+# này (2026-08-08): .claude.zip chứa 21 mục của .claude/skills/ và không bị chặn.
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
 # bản sao lưu sf-board.json (chỉ có ý nghĩa trên máy đang làm)
 *.json.bak-*
 
@@ -57,6 +75,7 @@ Nhân vật/
 # ⛔ Công cụ kiểm — mã hoá sẵn ngưỡng của skill, giữ trên máy
 sfboard/kiem-luat.py
 sfboard/kiem-noi-shot.py
+sfboard/sua-board.py
 
 # kho git của repo PRIVATE — không bao giờ đẩy lên repo public
 .git-rieng/

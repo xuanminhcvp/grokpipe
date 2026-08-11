@@ -3,7 +3,11 @@
 Repo này sản xuất phim drama ngắn bằng pipeline hai chặng:
 **ChatGPT vẽ ảnh Start Frame → Grok biến ảnh thành video**, duyệt qua SF Board.
 
+Đừng ask question, suy nghĩ hướng nào tốt nhất rồi làm theo thôi, user bận không có thời gian trả lời question đâu
 
+## ⛔ LUẬT CỨNG
+
+Không tự ý sửa skill, chỉ sửa khi user bảo sửa. 
 ## ⛔ LUẬT CỨNG — KHÔNG ĐỘNG VÀO BẢN ĐÃ DUYỆT
 
 Ảnh SF `status: approved` và video `vstatus: approved` là **bản user đã chốt**.
@@ -29,11 +33,7 @@ PIPELINE-<TÊN>.project/     # mỗi phim một thư mục
 .claude/skills/             # quy trình chi tiết — xem bên dưới
 ```
 
-**KHÔNG tạo `CLAUDE.md` riêng cho từng phim.** User đã bỏ cách đó (2026-08-06): nó chép lại
-bảng nhân vật · trang phục · đạo cụ vốn đã nằm trong `sf-board.json`, và bản chép trôi lệch
-khỏi board mà không ai biết. Thứ riêng của một phim thì viết vào **`KICH-BAN.md`** của phim
-đó, thứ chung thì viết vào file này. *(`PIPELINE-RUTHS-HOUSE.project/CLAUDE.md` còn sót lại
-là do user giữ, không phải mẫu để làm theo.)*
+**KHÔNG tạo `CLAUDE.md` riêng cho từng phim.**
 
 ## Chạy board
 
@@ -41,7 +41,7 @@ là do user giữ, không phải mẫu để làm theo.)*
 python3 sfboard/sfboard.py PIPELINE-RUTHS-HOUSE.project --port 8779
 ```
 
-Cổng cố định theo phim: RUTHS-HOUSE **8779**, 8DOLLARS **8778**, PORCH-LIGHT **8780**.
+Cổng cố định theo phim: RUTHS-HOUSE **8779**, 8DOLLARS **8778**, PORCH-LIGHT **8780**, THE-APRON **8781**.
 Chạy nền trên macOS phải bọc subshell + `disown` (`setsid` KHÔNG có trên macOS):
 
 ```bash
@@ -63,35 +63,13 @@ KHÔNG chứng minh CDP còn dùng được. Cách chữa là làm sạch cả h
 Chrome debug, mở lại board rồi mở lại Chrome**; khởi động lại riêng Chrome hay riêng board đều
 không đủ, vì đầu còn lại vẫn giữ kết nối cũ.
 
-## Grok/ChatGPT đổi giao diện — cách chẩn đoán khi selector hỏng
+## Khi khâu render hỏng
 
-Triệu chứng: `Không thấy nút mode 'Video'` · `Không tìm thấy Submit` · `Không thấy chip thời lượng`.
-**Đừng đoán, đừng vá mò.** Nối thẳng vào Chrome đang chạy rồi ĐỌC DOM thật:
+Selector chết · không thấy nút Submit / mode Video / chip thời lượng · CDP không nối · tab crash ·
+cả lô SF chết mà log vẫn sạch → **nạp skill `grokpipe-ops` và làm theo. Đừng đoán, đừng vá mò.**
 
-```python
-from playwright.sync_api import sync_playwright
-with sync_playwright() as pw:
-    ctx = pw.chromium.connect_over_cdp("http://localhost:9228").contexts[0]
-    p = [x for x in ctx.pages if 'grok.com' in (x.url or '')][0]
-    p.goto("https://grok.com/imagine", wait_until="domcontentloaded")
-    print(p.evaluate("""() => [...document.querySelectorAll('button,[role=radio]')]
-        .filter(e => e.getBoundingClientRect().width > 0)
-        .map(e => ({aria: e.getAttribute('aria-label'), type: e.getAttribute('type'),
-                    text: (e.textContent||'').trim().slice(0,20)}))"""))
-```
-
-**Bốn điều đã học, đừng mắc lại:**
-
-1. **Bám THUỘC TÍNH, đừng bám CHỮ.** Nút gửi từng tìm bằng `name="Submit"` — chạy được máy này,
-   máy khác báo không thấy vì giao diện hiện tiếng Việt (*"Gửi"*). Dấu hiệu ổn định là
-   `button[type=submit]` trong form chứa ô nhập. Chữ chỉ để dự phòng, và phím Enter là chốt cuối.
-2. **DOM Grok KHÔNG nhất quán.** Cùng nút "Video" lúc là `role=radio`, lúc là `button`. Luôn quét
-   cả hai và khớp `aria-label` HOẶC `textContent`.
-3. **Nút bị `disabled` khi ô nhập trống** — kiểm `disabled` và `aria-disabled` trước khi bấm, và
-   PHẢI chờ chứ đừng bấm ngay: SPA dựng lại hàng nút mất vài giây, chạy nhiều tab thì càng lâu.
-4. **Thông báo lỗi phải kèm HIỆN TRẠNG.** Mọi lỗi selector đều gắn `_nut_dang_co()` + URL. Lỗi chỉ
-   nói "không thấy nút X" là bắt người sau phải mở Chrome soi tay; lỗi kèm danh sách nút đang hiện
-   thì đọc log là biết ngay màn hình đang ở đâu.
+Nhiều job lỗi cùng lúc thì **nghi hạ tầng trước** (RAM, Chrome crash, tab treo), đừng sửa prompt —
+sửa prompt khi gốc là hạ tầng thì vừa mất công vừa làm hỏng prompt đang đúng.
 
 ## Quy tắc dựng phim
 
@@ -110,6 +88,27 @@ Skill `skills-film` chỉ chứa nghề làm phim. Mọi thứ về **dữ liệ
 - **`shots[].sf` trỏ vào SF id đã chết sẽ hỏng khi render.** Xoá hay đổi tên SF xong phải quét
   shot mồ côi; quét lần cuối ngay trước khi render hàng loạt. Kiểm luôn media mồ côi trong
   `assets/` và `videos/`.
+- **CẤM sửa/đọc trực tiếp file 917KB `sf-board.json` bằng text-editor hoặc lệnh bash thay thế.**
+  - **Để ĐỌC một scene:** Bắt buộc dùng `python3 sfboard/sua-board.py xem <PROJECT> <SCENE_ID>`.
+  - **Để GHI/THÊM/SỬA:** Tạo một file JSON trung gian cực nhỏ (ví dụ `patch.json` chứa riêng các thẻ cần sửa) rồi dùng lệnh `python3 sfboard/sua-board.py patch <PROJECT> <SCENE_ID> <patch.json>`. Công cụ này sẽ tự lọc rác (như `note`, `usedBy`), ép kiểu (`dur`), và giữ nguyên cấu trúc file gốc.
+
+- **`luatchung` — khối LUẬT CHUNG của địa điểm. THẺ NÀO MANG NÓ LÀ THẺ ĐỊA ĐIỂM.** Đó cũng là
+  dấu hiệu `sfboard.py` và `kiem-luat.py` dùng để nhận ra chỗ dừng khi leo `refs.bg` — một địa
+  điểm = một đoạn chat. Board truyền nó vào `image_chatgpt.generate_lo(luat_chung=…)`, gửi **một
+  lần lúc mở chat mới**; các lô sau quay lại đúng `chat_url` nên không gửi lại. Vì vậy phần lặp
+  (nội thất · bảng màu · ánh sáng · trang phục · trục · luật chữ) viết vào đây, KHÔNG viết vào
+  `prompt`. Trường này **tên cũ là `hienphap`, đã đổi 2026-08-06**; gặp dữ liệu cũ thì đổi key.
+- **Tên SF đặt theo SỐ SHOT nó phục vụ, KHÔNG có ngoại lệ** (luật 1:1 từ 2026-08-06): shot
+  `V-S1-07` dùng SF `SF-S1-07`. **Thẻ địa điểm cũng theo luật này** — nó là SF của shot mở cảnh,
+  thường là `SF-S<n>-01`, và mang thêm `luatchung` + `chat`. Địa điểm dùng cho nhiều scene thì các
+  scene sau trỏ `refs.bg` về thẻ của scene đầu tiên.
+  **Tiền tố cũ `SF-M-<ĐỊA ĐIỂM>` đã bỏ 2026-08-07** — code vẫn nhận để dự án cũ chạy được, nhưng
+  đừng tạo mới. Dự án cũ có master trỏ master (`BATH → FOYER → MANSION-EXT`) nên **đừng đổi phép
+  nhận diện thành "leo tới gốc"**: làm thế cả toà nhà gộp thành một chat, và `luatchung` của phòng
+  đầu tiên khoá look cho mọi phòng còn lại — bếp thừa hưởng bảng màu của phòng ngủ, im lặng.
+- **`goc` — mô tả góc máy MỘT DÒNG trên mỗi SF** (`cỡ cảnh · ai NÉT · ai vai-gáy/mờ · ai quay
+  lưng`). Bước 5 viết khối "Trong khung" của prompt video bằng đúng dòng này, không phải mở cả
+  prompt SF ra đọc — và viết sai ai-nét/ai-vai-gáy là model bịa mặt mới.
 - **Trường phụ cho continuity:** mỗi SF có `pose` (`zone · who · dist · hands`); shot mang chuyển
   động khai `chuyen: true`, shot hồi tưởng hoặc cắt sang dòng thời gian khác khai `hoituong: true`.
   Board bỏ qua các trường lạ, không ảnh hưởng gì.
@@ -124,7 +123,8 @@ python3 sfboard/kiem-noi-shot.py <PROJECT> [S1 S2 ...]   # bắt nhân vật "nh
 
 ## ⛔ LUẬT CỨNG — GIT: REPO NÀY CÔNG KHAI
 
-Chỉ đẩy lên khi user bảo đẩy lên Github
+Chỉ đẩy lên khi user bảo đẩy lên Github.
+Không commit các dự án phim lên. Project là private nhé.
 
 `github.com/xuanminhcvp/grokpipe` là repo **PUBLIC**. Ai cũng đọc được. Vì vậy:
 
@@ -138,48 +138,9 @@ Chỉ đẩy lên khi user bảo đẩy lên Github
 
 **Được đẩy:** `sfboard/sfboard.py` · `sfboard/chay-anh.py` · `liet-ke-dao-cu.py` · `grokpipe/` · `CLAUDE.md` · `.gitignore` — tức **code công cụ, không phải nội dung phim**.
 
-**Quy trình mỗi lần commit + push:**
-
-```bash
-git add -A
-git diff --cached --name-only | grep -E "^\.claude/skills/|\.project/|kiem-luat|kiem-noi-shot"
-# ↑ PHẢI KHÔNG RA GÌ (trừ dòng có tiền tố D = đang gỡ khỏi git). Ra thứ khác là DỪNG.
-git diff --cached -- . ':!CLAUDE.md' | grep "^+" | grep -v "^+++" | grep -ci "KHÓA TỪ ẢNH NEO\|TRẠNG THÁI KHÔNG GIAN\|cận+trung"
-# ↑ PHẢI = 0. Phải loại CLAUDE.md ra vì chính dòng lệnh này nằm trong đó nên nó tự bắt chính mình.
-```
-
-Push xong **kiểm lại trên GitHub, đừng tin diff**:
-
-```bash
-gh api repos/xuanminhcvp/grokpipe/contents/.claude/skills/skills-film/SKILL.md >/dev/null 2>&1 && echo "✗ LỘ" || echo "✓ sạch"
-```
-
-**Ba điều đã biết, đừng báo lại như phát hiện mới:**
-- **Lịch sử vẫn công khai.** Skill và `sf-board.json` nằm trong 19 commit cũ đã push (từ `61fd739`). User đã quyết **không viết lại lịch sử** (2026-08-04). Muốn xoá hẳn thì phải rewrite + force-push, hoặc chuyển repo sang private.
-- **Dữ liệu phim ĐÃ có backup ở repo PRIVATE** (`grokpipe-private`, xem mục dưới) — `sf-board.json` và `*.md` được đẩy lên đó. Nhưng **media (`assets/` `videos/` 21 GB) thì KHÔNG** — hỏng ổ là mất ảnh và video. Backup media là việc của user, nhắc một lần rồi thôi.
-- `CLAUDE.md` vẫn nhắc tới `.claude/skills/` dù thư mục đó không lên git. Cố ý, không phải lỗi.
-
-### Hai repo — public và private
-
-Cùng MỘT thư mục làm việc, HAI kho `.git` độc lập. File trên đĩa là **một bản duy nhất**,
-không copy, không lo lệch phiên bản.
-
-| kho | repo | chứa |
-|---|---|---|
-| `.git` | `xuanminhcvp/grokpipe` — **PUBLIC** | chỉ code công cụ |
-| `.git-rieng` | `xuanminhcvp/grokpipe-private` — **PRIVATE** | thêm skill + 2 công cụ kiểm + `sf-board.json`/`*.md` của các phim (~6 MB) |
-
-Đẩy lên private bằng script bọc sẵn (đã `.gitignore` khỏi repo public):
-
-```bash
-./day-rieng.sh trangthai    # xem sắp đưa gì lên
-./day-rieng.sh day          # add + commit "update" + push
-```
-
-**Vì sao script phải `add -f` từng nhóm:** `git add -A` vẫn tuân theo `.gitignore` ở gốc — thứ
-đang chặn skill và `*.project` — nên kho riêng không thấy chúng. Phải chỉ định tường minh. Cái hay
-là nhờ vậy **media không có đường lọt vào**: script chỉ add đúng `json`/`md` ở GỐC mỗi project,
-không bao giờ chạm `assets/` `videos/` `versions/` (21 GB, GitHub không nhận).
+⛔ **TRƯỚC MỖI LẦN PUSH: mở [`.claude/git-release.md`](.claude/git-release.md) và làm đúng theo.**
+Ở đó có phép kiểm trước push, cách kiểm lại trên GitHub sau push, cơ chế hai kho, và ba điều đã
+biết rồi (lịch sử cũ đã lộ · media không có backup) — **đừng báo lại như phát hiện mới**.
 
 **Sửa gì trong code hay skill thì đẩy CẢ HAI**: `git push` cho public, `./day-rieng.sh day` cho
 private. Private là nơi duy nhất có backup của skill và dữ liệu prompt.
@@ -191,12 +152,6 @@ private. Private là nơi duy nhất có backup của skill và dữ liệu prom
 | Skill | Dùng khi |
 |---|---|
 | `skills-film` | viết/sửa prompt ảnh nhân vật, SF, prompt video, prompt nhạc |
-
-Mỗi lần user sửa một lỗi, chưng cất thành **nguyên lý** rồi ghi **thẳng vào file của đúng bước
-đó** trong `references/` (mỗi bước MỘT file, chứa cả cách làm lẫn luật cứng), viết ở tầng dùng
-lại được cho mọi phim, không nhắc tên nhân vật cụ thể. **Không lập kho bài học trung gian, không
-tách file luật riêng** — luật không nằm trong file được nạp thì không đổi được hành vi nào, và
-luật nằm tách khỏi cách làm thì hai chỗ trôi khỏi nhau. 
 
 ### ⛔ LUẬT CỨNG — SỬA SKILL
 

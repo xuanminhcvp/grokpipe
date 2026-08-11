@@ -21,10 +21,15 @@ NOUN = r"""photograph|photo|picture|portrait|painting|frame|drawing|sketchbook|s
 |ring|necklace|chain|locket|watch|bracelet|apron|dress|uniform|cardigan|coat|crown
 |letter|envelope|document|will|contract|checkbook|check|card|paper|note|file|report
 |case|bag|suitcase|box|drawer|key|lock|pill|bottle|medication|prescription|syringe
-|phone|camera|book|album|toy|doll|blanket|flower|rose|garden|piano|violin|glass|cup"""
+|phone|camera|book|album|toy|doll|blanket|flower|rose|garden|piano|violin|glass|cup
+|car|cab|taxi|truck|bus|motorcycle|bicycle|train|boat|ship"""
 NOUN = NOUN.replace("\n", "")
-# bỏ các từ chỉ là địa điểm/bộ phận nhà, không phải đạo cụ cầm được
-BO = {"garden", "drawer", "lock", "glass"}
+# bỏ các từ chỉ là địa điểm/bộ phận nhà, trang phục, hoặc đồ lặt vặt không phải đạo cụ cốt truyện
+BO = {
+    "garden", "drawer", "lock", "glass", "cup", "blanket", 
+    "apron", "dress", "uniform", "cardigan", "coat", 
+    "paper", "flower", "rose", "piano", "violin"
+}
 
 # ba dấu hiệu của vật chốt
 DAU = [
@@ -61,7 +66,7 @@ def main():
     print(f"\n{len(xep)} danh từ vật thể xuất hiện trong thoại — xếp theo số scene\n")
     for tu, h in xep:
         n = len(h["scenes"])
-        sao = "★" if (n >= 2 or h["dau"]) else " "
+        sao = "★" if (n >= 3 or h["dau"]) else " "
         dau = f"  [{' · '.join(sorted(h['dau']))}]" if h["dau"] else ""
         sc = ", ".join(sorted(h["scenes"], key=lambda s: (len(s), s)))
         print(f"{sao} {tu:14} {n} scene  ({sc}){dau}")
@@ -71,7 +76,7 @@ def main():
             print()
 
     print("─" * 70)
-    print("★ = ứng viên REF_PROP_ : ở ≥2 scene, hoặc gắn lệnh cấm/bí mật/thói quen.")
+    print("★ = ứng viên REF_PROP_ : ở ≥3 scene, hoặc gắn lệnh cấm/bí mật/thói quen.")
     print("Vẫn phải đọc tay: một danh từ có thể là NHIỀU vật khác nhau (ba bức tranh")
     print("khác nhau của cùng một đứa trẻ) — mỗi vật một ảnh riêng.")
 

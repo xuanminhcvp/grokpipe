@@ -24,6 +24,7 @@ from __future__ import annotations
 import atexit
 import datetime
 import subprocess
+import itertools
 import json
 import logging
 import os
@@ -39,6 +40,9 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 PORT = 8777
 CDP = "http://localhost:9222"
+# Thư mục trung chuyển: MỌI ảnh ChatGPT sinh ra đều rơi xuống đây trước khi được
+# ghép vào SF. Xem khối "CHỜ PHÂN LOẠI" ở dưới để biết vì sao.
+PL_TEN = "cho-phan-loai"
 IMAGE_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
              ".webp": "image/webp", ".gif": "image/gif"}
 
@@ -59,22 +63,70 @@ class Board:
         self.videos = os.path.join(self.dir, "videos")
         self.vversions = os.path.join(self.dir, "videos", "versions")
         self.path = os.path.join(self.dir, "sf-board.json")
+        self.pl = os.path.join(self.dir, PL_TEN)          # ảnh chờ phân loại
+        self.nk_path = os.path.join(self.pl, "nhat-ky.json")
+        self._nk = {"mtime": -1.0, "data": {}}
         os.makedirs(self.assets, exist_ok=True)
         os.makedirs(self.versions, exist_ok=True)
         os.makedirs(self.videos, exist_ok=True)
         os.makedirs(self.vversions, exist_ok=True)
+        os.makedirs(self.pl, exist_ok=True)
         if not os.path.exists(self.path):
             self._write({"film": os.path.basename(self.dir), "updated_at": "", "scenes": []})
+
+    # ---- SỔ LƯỢT: bản nào trong versions/ ra từ LƯỢT ChatGPT nào -----------
+    # Ghi ra file riêng, KHÔNG nhét vào sf-board.json: sf-board.json là kịch bản
+    # phim (được backup sang repo riêng), còn đây là nhật ký kỹ thuật của máy —
+    # trộn vào nhau thì mỗi lần render lại là một dòng diff rác trong kịch bản.
+    def turn_log(self) -> dict:
+        try:
+            m = os.path.getmtime(self.nk_path)
+        except OSError:
+            return {}
+        if m != self._nk["mtime"]:
+            try:
+                with open(self.nk_path, "r", encoding="utf-8") as f:
+                    self._nk = {"mtime": m, "data": json.load(f)}
+            except Exception:
+                self._nk = {"mtime": m, "data": {}}
+        return self._nk["data"]
+
+    def turn_log_ghi(self, ten_file: str, info: dict) -> None:
+        d = dict(self.turn_log())
+        d[ten_file] = info
+        # Cắt bớt dòng của file đã biến mất, để sổ không phình mãi.
+        if len(d) > 4000:
+            con = set(os.listdir(self.versions))
+            d = {k: v for k, v in d.items() if k in con}
+        tmp = self.nk_path + ".tmp"
+        try:
+            os.makedirs(self.pl, exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(d, f, ensure_ascii=False, indent=1, sort_keys=True)
+            os.replace(tmp, self.nk_path)
+            self._nk = {"mtime": os.path.getmtime(self.nk_path), "data": d}
+        except OSError as e:
+            _LOG.warning("không ghi được sổ lượt: %s", e)
 
     def read(self) -> dict:
         with open(self.path, "r", encoding="utf-8") as f:
             data = json.load(f)
         data["mtime"] = int(os.path.getmtime(self.path))
+        nk = self.turn_log()
         for sc in data.get("scenes", []):
             sc.setdefault("shots", [])
             for sf in sc.get("sfs", []):
                 sf["image"] = self._img_url(self.assets, sf["id"])
-                sf["versions"] = self._versions(sf["id"])
+                sf["versions"] = self._versions(sf["id"], nk)
+                # LƯỢT nào đẻ ra ảnh ĐANG DÙNG — để lúc tải lỗi còn lần ngược
+                # được về đúng lượt trong log và trong thư mục Chờ phân loại.
+                _cur = sf.get("picked") or (sf["versions"][-1]["file"]
+                                            if sf["versions"] else "")
+                _t = nk.get(_cur) or {}
+                if _t.get("turn"):
+                    sf["turn"] = _t["turn"]
+                    sf["turn_o"] = _t.get("o") or 0
+                    sf["turn_port"] = _t.get("port") or 0
             for sh in sc["shots"]:
                 sh["video"] = self._vid_url(sh["id"])
                 sh["vversions"] = self._vversions(sh["id"])
@@ -111,7 +163,9 @@ class Board:
         return os.path.join(self.vversions, f"{sid}_v{n}.mp4")
 
     def set_video(self, sid: str, src: str) -> None:
-        shutil.copy2(src, os.path.join(self.videos, sid + ".mp4"))
+        dst = os.path.join(self.videos, sid + ".mp4")
+        shutil.copy2(src, dst)
+        os.utime(dst, None)      # xem lý do ở set_current — video cũng dính y hệt
 
     def delete_video(self, sid: str) -> None:
         for folder in (self.videos, self.vversions):
@@ -141,6 +195,11 @@ class Board:
             for sf in sc.get("sfs", []):
                 sf.pop("image", None)
                 sf.pop("versions", None)
+                # Nhãn lượt là dữ liệu KỸ THUẬT do read() gắn vào, sổ riêng đã
+                # giữ — để lọt vào sf-board.json là mỗi lần render lại đẻ một
+                # dòng diff rác trong kịch bản phim.
+                for _k in ("turn", "turn_o", "turn_port"):
+                    sf.pop(_k, None)
             for sh in sc.get("shots", []):
                 sh.pop("video", None)
                 sh.pop("vversions", None)
@@ -166,7 +225,8 @@ class Board:
                 return os.path.join(self.assets, name)
         return None
 
-    def _versions(self, sf_id: str) -> list[dict]:
+    def _versions(self, sf_id: str, nk: dict | None = None) -> list[dict]:
+        nk = self.turn_log() if nk is None else nk
         out = []
         for name in sorted(os.listdir(self.versions)):
             s, ext = os.path.splitext(name)
@@ -174,7 +234,9 @@ class Board:
                 p = os.path.join(self.versions, name)
                 if os.path.getsize(p) < 1024:
                     continue      # file rỗng đang được một luồng khác giữ chỗ
+                t = nk.get(name) or {}
                 out.append({"file": name, "url": f"/versions/{name}?t={int(os.path.getmtime(p))}",
+                            "turn": t.get("turn") or 0, "turn_o": t.get("o") or 0,
                             "at": time.strftime("%d/%m %H:%M", time.localtime(os.path.getmtime(p)))})
         out.sort(key=lambda x: int(x["file"].rsplit("_v", 1)[1].split(".")[0]))
         return out
@@ -198,7 +260,18 @@ class Board:
             if os.path.splitext(name)[0] == sf_id:
                 os.remove(os.path.join(self.assets, name))
         ext = os.path.splitext(src)[1].lower() or ".png"
-        shutil.copy2(src, os.path.join(self.assets, sf_id + ext))
+        dst = os.path.join(self.assets, sf_id + ext)
+        shutil.copy2(src, dst)
+        # ĐÓNG DẤU GIỜ MỚI CHO ẢNH CHÍNH.
+        #
+        # `copy2` bê nguyên mtime của bản nguồn sang. Chọn một bản CŨ thì mtime
+        # của ảnh chính LÙI VỀ QUÁ KHỨ, và hai thứ hỏng theo:
+        #   · `_thumb()` thấy bản thu nhỏ đã cache MỚI HƠN nguồn nên trả lại
+        #     đúng bản cũ — thẻ vẫn hiện ảnh trước đó dù đã đổi;
+        #   · `?t=<mtime>` cũng lùi theo nên trình duyệt có thể dùng lại cache.
+        # Đã đo 2026-08-07: SF-S3-01 ảnh chính mtime 09:27 trong khi thumb cache
+        # 20:29–21:41 — bấm chọn bản khác xong, ngoài board không đổi gì.
+        os.utime(dst, None)
 
     def save_upload(self, sf_id: str, raw: bytes, filename: str) -> None:
         ext = os.path.splitext(filename)[1].lower()
@@ -254,6 +327,66 @@ def _save_accounts():
     with ACC_LOCK:
         with open(ACC_PATH, "w", encoding="utf-8") as f:
             json.dump({"accounts": ACCOUNTS}, f, ensure_ascii=False, indent=2)
+
+
+# ---- Bộ đếm bản/ngày cho từng tài khoản ---------------------------------
+# ChatGPT và Grok KHÔNG công bố trần mỗi ngày là bao nhiêu, và trần còn đổi theo
+# gói với theo thời điểm. Nên cách duy nhất biết được là ĐẾM THẬT: ngày nào chạy
+# tới lúc bị chặn thì con số của đúng ngày đó chính là trần. Vì vậy cột đáng đọc
+# là KỶ LỤC, không phải số hôm nay.
+#
+# Lưu ở HOME chứ không lưu trong project: một tài khoản chạy cho nhiều phim, trần
+# tính theo tài khoản chứ không theo phim.
+DEM_PATH = os.path.expanduser("~/.grokpipe-dem-ngay.json")
+DEM_LOCK = threading.RLock()
+DEM: dict[str, dict[str, int]] = {}     # "9222" -> {"2026-08-05": 37}
+DEM_GIU = 60                            # giữ 60 ngày gần nhất, cắt bớt cho gọn
+
+
+def _ngay() -> str:
+    return time.strftime("%Y-%m-%d")
+
+
+def _dem_nap():
+    global DEM
+    try:
+        DEM = json.load(open(DEM_PATH, encoding="utf-8"))
+    except Exception:
+        DEM = {}
+
+
+def _dem_cong(port: int | None = None):
+    """Cộng 1 cho tài khoản vừa tạo xong một bản.
+
+    PHẢI gọi lúc file ĐÃ nằm trên đĩa. Đếm lúc gửi lệnh thì mọi lần thất bại đều
+    bị tính, và con số kỷ lục thành vô nghĩa — mà kỷ lục mới là thứ ta cần."""
+    if port is None:
+        ep = getattr(_TL, "endpoint", "") or ""
+        try:
+            port = int(ep.rstrip("/").rsplit(":", 1)[1])
+        except Exception:
+            return
+    with DEM_LOCK:
+        d = DEM.setdefault(str(port), {})
+        hn = _ngay()
+        d[hn] = d.get(hn, 0) + 1
+        for cu in sorted(d)[:-DEM_GIU]:
+            d.pop(cu, None)
+        try:
+            with open(DEM_PATH, "w", encoding="utf-8") as f:
+                json.dump(DEM, f, ensure_ascii=False, indent=1, sort_keys=True)
+        except Exception as e:
+            _LOG.warning("không ghi được bộ đếm ngày: %s", e)
+
+
+def _dem_xem(port: int) -> dict:
+    """{hom_nay, ky_luc, ky_luc_ngay} của một tài khoản."""
+    with DEM_LOCK:
+        d = dict(DEM.get(str(port), {}))
+    if not d:
+        return {"hom_nay": 0, "ky_luc": 0, "ky_luc_ngay": ""}
+    ngay, cao = max(d.items(), key=lambda x: (x[1], x[0]))
+    return {"hom_nay": d.get(_ngay(), 0), "ky_luc": cao, "ky_luc_ngay": ngay}
 
 
 def _init_accounts():
@@ -416,7 +549,34 @@ def _is_quota_error(e: Exception) -> bool:
     return any(k in m for k in (
         "hết lượt", "het luot", "rate limit", "limit reached", "quota",
         "you've reached", "upgrade to", "try again later", "không sinh ảnh",
+        "nghi-den",
     ))
+
+
+# ---- NGHỈ TỚI GIỜ (hết lượt có hạn) -------------------------------------
+# ChatGPT chặn ĐÍNH TỆP theo giờ và nói thẳng giờ mở lại ("…until 3:45 PM").
+# image_chatgpt.py nhét giờ đó vào chuỗi lỗi dưới dạng nhãn máy đọc
+# `[NGHI-DEN:HH:MM]` (hoặc `[NGHI-DEN:+<phút>]` khi không đọc được giờ).
+# Ở đây đổi nhãn thành mốc thời gian: tài khoản nghỉ tới đúng mốc rồi TỰ chạy
+# lại, không bắt user nhớ bấm 'Thử lại'.
+_RE_NGHI = re.compile(r"\[NGHI-DEN:(?:(\d{1,2}):(\d{2})|\+(\d+))\]")
+NGHI_BU = 60          # nghỉ thêm 60s sau giờ ChatGPT ghi, cho chắc
+
+
+def _moc_nghi(e: Exception) -> float:
+    """Mốc epoch được phép chạy lại; 0 = lỗi này không kèm hẹn giờ."""
+    m = _RE_NGHI.search(str(e))
+    if not m:
+        return 0.0
+    now = time.time()
+    if m.group(3):
+        return now + int(m.group(3)) * 60
+    gio, phut = int(m.group(1)), int(m.group(2))
+    t = time.localtime(now)
+    moc = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, gio, phut, 0, 0, 0, -1))
+    if moc < now - 60:          # giờ đã trôi qua → mốc của ngày mai
+        moc += 86400
+    return moc + NGHI_BU
 
 
 def _is_dead_session_error(e: Exception) -> bool:
@@ -460,8 +620,53 @@ def _release_tl():
 # ---------------------------------------------------------------- generation
 JOBS: dict[str, dict] = {}          # id -> {"state": running|done|error, "msg": str}
 # Hai hàng đợi tách biệt: ảnh chạy trên tài khoản ChatGPT, video trên tài khoản Grok.
-IMG_QUEUE: "queue.Queue[tuple]" = queue.Queue()
-VID_QUEUE: "queue.Queue[tuple]" = queue.Queue()
+# TRẦN ẢNH TRONG MỘT TIN NHẮN — GIỮ Ở 6, đã thử 8 rồi bỏ (2026-08-07).
+# Cơ chế "tải về trước, phân loại sau" đã gỡ được cái giá cũ của lô to (lệch một
+# ảnh là mất NGUYÊN lô), nhưng còn một cái giá nó không gỡ được: lô càng to, một
+# lượt lỗi càng kéo theo nhiều SF phải soi và gắn tay. Sáu ảnh chỉnh nhanh hơn
+# tám. Đừng nâng lại chỉ vì "giờ an toàn rồi".
+TOI_DA_ANH_MOT_LO = 6
+
+# ---- ƯU TIÊN THEO SF ID -------------------------------------------------
+# Hàng đợi FIFO thuần thì thứ tự chạy phụ thuộc thời điểm xếp vào — hai lô cùng
+# một địa điểm ra ở hai vòng auto khác nhau sẽ chạy theo giờ vào, không theo id.
+# Đã thấy: S2-08..13 xếp SAU S2-14..17 nên chạy sau, dù id nhỏ hơn.
+# Đổi sang PriorityQueue, khoá ưu tiên = SF id NHỎ NHẤT trong ident:
+#   · SF-M-…  và REF_…  → 0 (làm trước hết, vì SF con lấy master làm bối cảnh)
+#   · SF-S<a>-<b> / V-S<a>-<b> → a*1000 + b (S1 trước S2; trong scene, id nhỏ trước)
+#   · còn lại → 999999 (rơi xuống đáy)
+# Tiebreaker là seq đơn điệu → cùng ưu tiên thì giữ FIFO, và hai item ngang ưu
+# tiên không phải so tuple con (tránh phụ thuộc thứ tự trường bên trong).
+_HANG_SEQ = itertools.count()
+
+
+def _uu_tien(ident: str) -> int:
+    """SF id số nhỏ nhất trong ident. Nhỏ hơn = làm trước."""
+    ids = ident[3:].split(",") if ident.startswith("LO:") else [ident]
+
+    def _n(sf: str) -> int:
+        sf = sf.strip()
+        if sf.startswith("SF-M-") or sf.startswith("REF_"):
+            return 0
+        m = re.match(r"(?:SF|V)-S(\d+)-(\d+)", sf)
+        if m:
+            return int(m.group(1)) * 1000 + int(m.group(2))
+        return 999999
+    return min((_n(x) for x in ids), default=999999)
+
+
+def _xep(Q, item: tuple) -> None:
+    """Xếp một việc vào PriorityQueue theo ưu tiên."""
+    Q.put((_uu_tien(item[1]), next(_HANG_SEQ), item))
+
+
+def _lay(Q, **kw):
+    """Nhấc item ra khỏi PriorityQueue, gỡ bỏ khoá ưu tiên."""
+    return Q.get(**kw)[2]
+
+
+IMG_QUEUE: "queue.PriorityQueue" = queue.PriorityQueue()
+VID_QUEUE: "queue.PriorityQueue" = queue.PriorityQueue()
 BOARD_LOCK = threading.RLock()      # nhiều thợ cùng ghi sf-board.json
 _LOG = logging.getLogger("sfboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
@@ -471,17 +676,48 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", date
 _TL = threading.local()
 
 DEAD: dict[str, str] = {}           # endpoint -> lý do (hết lượt / cửa sổ Chrome đã đóng)
+DEAD_DEN: dict[str, float] = {}     # endpoint -> mốc epoch được phép chạy lại
 _DEAD_LOCK = threading.Lock()
 
 
-def _mark_dead(endpoint: str, reason: str, kind: str = "img"):
+def _mark_dead(endpoint: str, reason: str, kind: str = "img", den: float = 0.0):
     pool = _pool(kind)
     with _DEAD_LOCK:
         DEAD[endpoint] = reason
+        if den:
+            DEAD_DEN[endpoint] = den
+        else:
+            DEAD_DEN.pop(endpoint, None)
         alive = [e for e in pool if e not in DEAD]
     _LOG.warning("%s ở %s — còn %d/%d tài khoản %s chạy được",
                  reason, endpoint, len(alive), len(pool),
                  "Grok" if kind == "vid" else "ChatGPT")
+
+
+def _dang_nghi(endpoint: str) -> float:
+    """Mốc epoch tài khoản này được chạy lại; 0 = không phải đang nghỉ có hẹn."""
+    with _DEAD_LOCK:
+        return DEAD_DEN.get(endpoint, 0.0) if DEAD.get(endpoint) else 0.0
+
+
+def _mo_chrome_du_phong(kind: str, tru: str = "") -> int:
+    """Bật Chrome cho các tài khoản CÙNG LOẠI đang bật mà cửa sổ chưa mở.
+
+    Gọi khi một tài khoản vừa bị chặn: việc đã được chuyển sang tài khoản khác,
+    nhưng tài khoản khác chỉ nhận được việc nếu cửa sổ Chrome của nó đang chạy.
+    Chỉ mở tài khoản user ĐÃ BẬT — không tự thêm tài khoản mới, không đụng tới
+    trần RAM mà user tự đặt bằng danh sách tài khoản."""
+    with ACC_LOCK:
+        accs = [dict(a) for a in ACCOUNTS if a["enabled"] and a["kind"] == kind]
+    n = 0
+    for a in accs:
+        ep = _ep(a)
+        if ep == tru or DEAD.get(ep) or _endpoint_alive(ep):
+            continue
+        if _launch_chrome(a):
+            n += 1
+            _LOG.info("mở Chrome cho tài khoản %s (:%s) để chạy tiếp.", a["id"], a["port"])
+    return n
 
 
 def _alive_count(kind: str = "img") -> int:
@@ -513,12 +749,24 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
         if endpoint not in _pool(kind) or DEAD.get(endpoint):
             _release_tl()
             return
-        try:
-            item = QUEUE.get(timeout=2)
-            _, ident, tries = item[0], item[1], item[2]
-            manual = item[3] if len(item) > 3 else False
-        except queue.Empty:
-            continue
+        # VIỆC GIAO ĐÍCH DANH ĐI TRƯỚC: lô của địa điểm mà chat nằm ở tài khoản
+        # NÀY. Không lấy từ hàng chung — requeue vào hàng chung là trò xổ số:
+        # hai thợ sai cứ chuyền nhau nhặt-thả cùng một lô, thợ đúng đói vĩnh viễn.
+        item, tu_hang = None, False
+        if kind == "img":
+            _my_port = int(endpoint.rsplit(":", 1)[1] or 0)
+            with _CR_LOCK:
+                _rieng = CHO_RIENG.get(_my_port) or []
+                if _rieng:
+                    item = ("img", _rieng.pop(0), 0, True)
+        if item is None:
+            try:
+                item = _lay(QUEUE, timeout=2)
+                tu_hang = True
+            except queue.Empty:
+                continue
+        _, ident, tries = item[0], item[1], item[2]
+        manual = item[3] if len(item) > 3 else False
         # Chrome đã bị đóng/mở lại từ lần chạy trước (ngủ khi rảnh, user tắt-bật,
         # supervisor hồi sinh)? Nhả sạch Playwright của luồng này rồi nối lại từ
         # đầu — nếu không, mọi job sẽ chết ở bước mở tab.
@@ -528,7 +776,27 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
         stop = False
         try:
             if kind == "img":
-                _generate(ident, manual=manual)
+                # ident "LO:sf1,sf2,…" = một LÔ ảnh cùng địa điểm, gửi trong MỘT
+                # lượt của MỘT đoạn chat. Đường lô nằm cạnh đường một-ảnh, không
+                # thay thế nó: sửa lẻ vẫn phải dùng đường một-ảnh.
+                if _bi_huy(ident):
+                    _dat_job(ident, {"state": "error", "msg": "đã huỷ"})
+                elif ident.startswith("LO:"):
+                    _generate_lo([x for x in ident[3:].split(",") if x], tay=manual)
+                    # DỌN JOB CỦA IDENT LÔ khi lô đã xong hẳn. `_dat_job` đặt
+                    # JOBS["LO:a,b,c"] lúc lô phải chờ khoá địa điểm, nhưng
+                    # đường CHẠY XONG không đụng tới nó — nên nó kẹt 'queued'
+                    # vĩnh viễn. Giao diện giấu dòng LO: nên không ai thấy, còn
+                    # mọi phép kiểm "có việc nào đang chạy không" thì đọc phải
+                    # con ma đó (đã lừa đúng một lần khi kiểm trước lúc restart).
+                    # Chỉ dọn khi KHÔNG còn thành viên nào chờ/chạy — lô tự hoãn
+                    # rồi xếp lại vẫn phải giữ nguyên dòng trạng thái của nó.
+                    _tv = [x for x in ident[3:].split(",") if x]
+                    if not any(JOBS.get(x, {}).get("state") in ("queued", "running")
+                               for x in _tv):
+                        JOBS.pop(ident, None)
+                else:
+                    _generate(ident, manual=manual)
             else:
                 _gen_video(ident)
         except Exception as e:
@@ -536,23 +804,85 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                 _is_dead_session_error(e) and not _endpoint_alive(endpoint))
             if fatal:
                 reason = "hết lượt" if _is_quota_error(e) else "cửa sổ Chrome đã đóng"
-                _mark_dead(endpoint, reason, kind)
+                # Chặn CÓ HẸN GIỜ (hết lượt đính tệp): cho tài khoản nghỉ tới
+                # đúng giờ mở lại rồi tự sống lại, đồng thời bảo đảm còn Chrome
+                # khác đang mở để chạy tiếp phần việc còn lại.
+                den = _moc_nghi(e)
+                if den:
+                    reason = ("hết lượt đính tệp — nghỉ tới "
+                              + time.strftime("%H:%M", time.localtime(den)))
+                _mark_dead(endpoint, reason, kind, den)
                 _release_tl()
+                if den:
+                    _mo_chrome_du_phong(kind, tru=endpoint)
                 stop = True
                 if tries < len(_pool(kind)) and _alive_count(kind) > 0:
-                    JOBS[ident] = {"state": "running",
-                                   "msg": f"{reason} → chuyển sang tài khoản khác…"}
-                    QUEUE.put((kind, ident, tries + 1, manual))
+                    _dat_job(ident, {"state": "running",
+                                     "msg": f"{reason} → chuyển sang tài khoản khác…"})
+                    _xep(QUEUE, (kind, ident, tries + 1, manual))
                 else:
-                    JOBS[ident] = {"state": "error",
-                                   "msg": f"{reason}; không còn tài khoản nào khả dụng"}
+                    _dat_job(ident, {"state": "error",
+                                     "msg": f"{reason}; không còn tài khoản nào khả dụng"})
             else:
-                JOBS[ident] = {"state": "error", "msg": str(e)[:300]}
+                _dat_job(ident, {"state": "error", "msg": str(e)[:300]})
         finally:
-            QUEUE.task_done()
+            if tu_hang:                 # việc lấy từ CHO_RIENG không qua queue
+                QUEUE.task_done()
         if stop:
             _LOG.warning("Thợ %s (%s) dừng.", endpoint, kind)
             return
+
+
+_HOAN: dict[str, int] = {}        # lô bị hoãn (chờ khoá địa điểm) -> số lần
+_MASTER_LOCKS: dict[str, threading.Lock] = {}   # mỗi địa điểm một khoá lô
+_ML_LOCK = threading.Lock()
+CHO_RIENG: dict[int, list[str]] = {}   # port -> idents GIAO ĐÍCH DANH cho thợ đó
+_CR_LOCK = threading.Lock()
+DA_HUY: set[str] = set()          # ident user đã huỷ, thợ phải bỏ qua
+HUY_LOCK = threading.Lock()
+
+# Số THẾ HỆ, tăng mỗi lần user bấm "Dừng tất cả".
+#
+# Vì sao cần, dù đã có DA_HUY: DA_HUY chỉ được soi lúc thợ NHẤC việc ra khỏi hàng,
+# và nó là chốt dùng một lần (soi xong là xoá). Thợ đang nằm giữa chừng trong
+# generate_lo thì không cắt được; khi nó chạy xong và thấy lô thiếu ảnh, đường thử
+# lại TỰ ĐẨY lô vào hàng đợi — bước đó không kiểm cờ huỷ nào cả. Kết quả: bấm dừng,
+# hàng đợi sạch, nhưng vài phút sau đúng lô đó chạy lại như chưa hề bị dừng.
+# Thợ chụp lại số này lúc bắt đầu, và chỉ được tự xếp hàng nếu số chưa đổi.
+DUNG_GEN = 0
+
+# SF id user bấm DỪNG RIÊNG (nút ■ trên từng việc trong ngăn kéo hàng đợi).
+# Thợ đang chạy soi tập này ở mỗi nhịp poll rồi tự thoát — nhờ vậy dừng được MỘT
+# việc mà không phải đóng Chrome, tức không giết oan các việc khác cùng tài khoản.
+#
+# ĐÁNH CỜ THEO SF ID, KHÔNG THEO IDENT LÔ: _dat_job() rải trạng thái cho từng SF
+# thành viên và KHÔNG giữ khoá "LO:a,b,c" trong JOBS, nên tra ident trong JOBS là
+# tra vào chỗ trống — bản đầu viết theo ident nên bấm dừng không ăn gì.
+DUNG_RIENG: set[str] = set()
+
+
+def _bi_huy(ident: str) -> bool:
+    """Việc này đã bị huỷ chưa? Kiểm NGAY TRƯỚC khi bắt tay làm.
+
+    Chỉ vứt hàng đợi là không đủ: thợ nhấc việc ra khỏi hàng trong vòng 2 giây,
+    nên phần lớn cú bấm Huỷ sẽ trượt nếu không có chốt này."""
+    with HUY_LOCK:
+        if ident in DA_HUY:
+            DA_HUY.discard(ident)
+            return True
+    return False
+
+
+def _dat_job(ident: str, st: dict) -> None:
+    """Ghi trạng thái job. Với ident lô ("LO:a,b,c") thì RẢI cho TỪNG SF thành viên.
+
+    Không rải thì lô lỗi xong các SF vẫn kẹt ở 'running' vĩnh viễn — giao diện
+    quay vòng mà chẳng có gì đang chạy."""
+    JOBS[ident] = st
+    if ident.startswith("LO:"):
+        for i in ident[3:].split(","):
+            if i:
+                JOBS[i] = dict(st)
 
 
 def _enqueue(kind: str, ident: str, copies: int = 1, manual: bool = False):
@@ -571,7 +901,7 @@ def _enqueue(kind: str, ident: str, copies: int = 1, manual: bool = False):
         JOBS[ident] = {"state": "running",
                        "msg": "khởi động…" if n == 0 else f"đang xếp hàng ({n} việc trước)"}
     for _ in range(copies):
-        q.put((kind, ident, 0, manual))
+        _xep(q, (kind, ident, 0, manual))
 
 
 BATCH: dict[str, dict] = {}      # sf_id -> {total, done, err} khi tạo nhiều bản
@@ -632,6 +962,17 @@ def _supervisor():
                     with _DEAD_LOCK:
                         DEAD.pop(ep, None)
                     _LOG.info("Chrome %s đã mở lại — hồi sinh tài khoản.", ep)
+                # Hết giờ nghỉ (trần đính tệp theo giờ của ChatGPT) → tự sống lại.
+                # Chrome có thể đã bị user đóng trong lúc nghỉ nên mở lại luôn,
+                # nếu không thợ mới sẽ chết ngay ở bước nối CDP.
+                _den = _dang_nghi(ep)
+                if _den and time.time() >= _den:
+                    with _DEAD_LOCK:
+                        DEAD.pop(ep, None)
+                        DEAD_DEN.pop(ep, None)
+                    _LOG.info("Tài khoản %s đã hết giờ nghỉ — chạy lại.", a["id"])
+                    if not _endpoint_alive(ep):
+                        _launch_chrome(a)
                 if DEAD.get(ep):
                     continue
                 kinds = [a["kind"]]
@@ -665,30 +1006,31 @@ def _supervisor():
 AUTO: dict[str, dict] = {}       # scene_id -> {"try": {ident: số lần}, "last": {ident: vòng}}
 AUTO_LOCK = threading.Lock()
 
-# ═══════════════════ CỔNG KHÓA TẠO VIDEO ═══════════════════════════════════
-# Video CHỈ được tạo khi user tự bấm nút "Cho phép tạo video" trên giao diện.
-# Cờ nằm ở <project>/.video-gate — không có file hoặc nội dung khác "on" = KHÓA.
-# Mọi đường dẫn tạo video (API, auto-run, bulk) đều đi qua video_gate_on().
-# CLAUDE/AI TUYỆT ĐỐI KHÔNG ĐƯỢC BẬT CỜ NÀY. Xem KHONG-TU-BAT-VIDEO.md.
-def _gate_path() -> str:
-    # BOARD.dir là thư mục dự án đang mở (PROJ chưa từng tồn tại — lỗi cũ làm
-    # mọi lần bấm nút cổng video đều nổ NameError và bị từ chối).
-    return os.path.join(BOARD.dir, ".video-gate")
+# CỔNG KHÓA TẠO VIDEO đã BỎ 2026-08-09 theo yêu cầu user. Trước đó video chỉ chạy
+# khi user tự bấm nút trên giao diện, cờ nằm ở <project>/.video-gate. Giờ bấm "Tạo
+# video" hay chạy hàng loạt đều đi thẳng, không còn lớp chặn nào.
+#
+# Thay vào đó là CÔNG TẮC AUTO-VIDEO: chỉ chi phối vòng quét tự động (_auto_scene),
+# KHÔNG chặn thao tác tay. Tắt = auto chỉ lo ảnh SF, video để user tự bấm. Đây là
+# thuộc tính của từng phim (phim đang ở chặng vẽ ảnh khác phim đã sang chặng dựng
+# video) nên cờ nằm trong thư mục dự án, không phải ở HOME như cờ dán mã.
+def _auto_vid_path() -> str:
+    return os.path.join(BOARD.dir, ".auto-video.json")
 
 
-def video_gate_on() -> bool:
+def _auto_vid_doc() -> bool:
     try:
-        with open(_gate_path(), encoding="utf-8") as f:
-            return f.read().strip().lower() == "on"
+        return bool(json.load(open(_auto_vid_path(), encoding="utf-8"))["on"])
     except Exception:
-        return False
+        return False               # mặc định TẮT — auto tự dựng video là việc tốn
 
 
-def video_gate_set(on: bool, source: str = "?") -> bool:
-    with open(_gate_path(), "w", encoding="utf-8") as f:
-        f.write("on" if on else "off")
-    _LOG.info("CỔNG VIDEO %s (nguồn: %s)", "MỞ" if on else "ĐÓNG", source)
-    return on
+def _auto_vid_ghi(on: bool) -> None:
+    try:
+        with open(_auto_vid_path(), "w", encoding="utf-8") as f:
+            json.dump({"on": bool(on)}, f)
+    except OSError as e:
+        _LOG.warning("không ghi được cờ auto-video: %s", e)
 
 
 AUTO_PERIOD = 20                 # giây mỗi vòng quét
@@ -711,19 +1053,40 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     """Quét một scene, xếp việc còn thiếu. Trả (ảnh thiếu, ảnh tổng, video thiếu, video tổng)."""
     sfs, shots = sc.get("sfs", []), sc.get("shots", [])
 
-    # 1) ảnh SF còn thiếu
+    # 1) ảnh SF còn thiếu — CHẠY THEO LÔ, GOM THEO ĐỊA ĐIỂM.
+    #    Đường _enqueue đơn lẻ không có chat_url nên KHÔNG gửi luatchung; prompt
+    #    bây giờ đã cắt hết phần bối cảnh nên chạy kiểu đó là ảnh mất bối cảnh.
+    #    ẢNH GỐC TRƯỚC: SF con đính master làm refs.bg, master chưa có ảnh thì cả
+    #    lô dừng vì "thiếu ref". Nên vòng này chỉ xếp master còn thiếu; SF con bám
+    #    nó đợi vòng sau, lúc master đã có ảnh.
+    thieu_bg = {(f.get("refs") or {}).get("bg") for f in sfs}
+    thieu_bg = sorted(b for b in thieu_bg if b and not BOARD.find_file(b))
+    san_sang = [f["id"] for f in sfs
+                if not BOARD.find_file(f["id"])
+                and not ((f.get("refs") or {}).get("bg") in thieu_bg)]
     miss_img = [f["id"] for f in sfs if not BOARD.find_file(f["id"])]
-    for sid in miss_img:
-        if JOBS.get(sid, {}).get("state") == "running":
-            continue
-        if _auto_allow(st, sid, cyc):
-            _enqueue("img", sid)
-            _LOG.info("[auto %s] tạo lại ảnh %s (lần %d)", sc["id"], sid, st["try"][sid])
+    xep = [i for i in (thieu_bg + san_sang)
+           if JOBS.get(i, {}).get("state") not in ("running", "queued")
+           and _auto_allow(st, i, cyc)]
+    if xep:
+        _data = BOARD.read()
+        nhom: dict[str, list[str]] = {}
+        for i in xep:
+            nhom.setdefault(_nhom_cua(i, _data), []).append(i)
+        for m, xs in nhom.items():
+            xs.sort(key=_uu_tien)
+            for k in range(0, len(xs), TOI_DA_ANH_MOT_LO):
+                lo = xs[k:k + TOI_DA_ANH_MOT_LO]
+                for i in lo:
+                    JOBS[i] = {"state": "queued",
+                               "msg": f"chờ lô {len(lo)} ảnh · {_ten_gon(m, _data)}"}
+                _xep(IMG_QUEUE, ("img", "LO:" + ",".join(lo), 0, False))
+                _LOG.info("[auto %s] xếp lô %d ảnh · %s", sc["id"], len(lo), m)
 
     # 2) video còn thiếu, nhưng chỉ khi ảnh SF của shot đó đã có
-    #    VÀ chỉ khi user đã mở cổng video trên giao diện.
+    #    VÀ chỉ khi công tắc auto-video đang bật (mặc định tắt).
     miss_vid = [sh["id"] for sh in shots if not BOARD.video_file(sh["id"])]
-    for sh in (shots if video_gate_on() else []):
+    for sh in (shots if _auto_vid_doc() else []):
         if BOARD.video_file(sh["id"]) or not BOARD.find_file(sh.get("sf", "")):
             continue
         if JOBS.get(sh["id"], {}).get("state") == "running":
@@ -829,7 +1192,9 @@ def _accounts_status() -> list[dict]:
         songs = sum(1 for k, t in WORKERS.items() if k[0] == a["port"] and t.is_alive())
         out.append({**a, "endpoint": ep, "chrome": chrome,
                     "dead": DEAD.get(ep, ""), "worker": songs > 0,
-                    "tabs": max(1, int(a.get("tabs") or 1)), "tho_song": songs})
+                    "nghi_den": DEAD_DEN.get(ep, 0),
+                    "tabs": max(1, int(a.get("tabs") or 1)), "tho_song": songs,
+                    **_dem_xem(a["port"])})
     return out
 
 
@@ -1041,8 +1406,16 @@ def _gen_video(shot_id: str):
             g = _grok()
             with BOARD_LOCK:
                 out = BOARD.next_vversion(shot_id)
-            ok = g.generate(prompt, sf_file, out, duration_s=dur)
+            # Grok đẻ nhiều clip cho MỘT submit và trừ credit từng bản. Đưa hàm
+            # xin đường dẫn xuống để bản thừa cũng vào versions/ — đã trả tiền
+            # thì phải có mà so, đừng vứt.
+            def _duong_them():
+                with BOARD_LOCK:
+                    return BOARD.next_vversion(shot_id)
+            ok = g.generate(prompt, sf_file, out, duration_s=dur,
+                            duong_them=_duong_them)
             if ok and os.path.exists(out):
+                _dem_cong()
                 break
             raise RuntimeError("Grok không trả về video")
         except Exception as e:
@@ -1067,6 +1440,927 @@ def _gen_video(shot_id: str):
         BOARD.set_video(shot_id, out)
         _mark_picked(shot_id, "vpicked", os.path.basename(out))
     JOBS[shot_id] = {"state": "done", "msg": "xong"}
+
+
+def _ten_gon(khoa: str | None, data: dict | None = None) -> str:
+    """Tên ngắn của một nhóm, để nhét vào dòng trạng thái.
+
+    ĐỪNG cắt cứng `khoa[5:]`: phép đó viết cho tiền tố `SF-M-` thời còn master,
+    nay tên thẻ địa điểm là `SF-S6-01` nên cắt 5 ký tự ra chuỗi rác '6-01'.
+    Lấy `label` của thẻ; không có thì trả nguyên id."""
+    if not khoa:
+        return "lẻ"
+    if khoa.startswith("NV:"):
+        return khoa[3:]
+    if khoa == "PROP":
+        return "đạo cụ"
+    try:
+        f = (BOARD.get_sf(khoa) or {}) if data is None else \
+            {x["id"]: x for s in data.get("scenes", []) for x in s.get("sfs", [])}.get(khoa, {})
+        return (f.get("label") or khoa).split("—")[0].strip()[:28] or khoa
+    except Exception:
+        return khoa
+
+
+def _khoa_la_the(khoa: str | None) -> bool:
+    """Khoá nhóm này có trỏ vào MỘT THẺ SF thật không?
+
+    Hai loại khoá cùng tồn tại: id thẻ địa điểm (`SF-S6-01`) và khoá tổng hợp
+    ('NV:TÊN' cho nhân vật, 'PROP' cho đạo cụ) — loại sau không có thẻ nào để
+    bám nên chat của chúng lưu ở gốc file."""
+    return bool(khoa) and not khoa.startswith("NV:") and khoa != "PROP"
+
+
+def _la_the_dia_diem(f: dict) -> bool:
+    """Thẻ này có phải THẺ ĐỊA ĐIỂM không — tức chỗ dừng khi leo refs.bg.
+
+    Dấu hiệu chuẩn là **có `luatchung`**: khối luật chung chỉ đặt trên thẻ địa
+    điểm, và board gửi nó một lần lúc mở chat. Đó cũng là định nghĩa của 'một
+    địa điểm = một đoạn chat'.
+
+    Tiền tố `SF-M-` là quy ước CŨ (bỏ 2026-08-07). Vẫn nhận để dự án cũ chạy
+    được — ở đó master nối vào master (`BATH → FOYER → MANSION-EXT`), nên nếu
+    chỉ leo tới gốc thì cả toà nhà gộp thành MỘT nhóm: `luatchung` của phòng
+    ĐẦU TIÊN sẽ khoá look cho mọi phòng còn lại, vì board chỉ gửi nó một lần
+    lúc mở chat. Bếp thừa hưởng bảng màu và ánh sáng của phòng ngủ, im lặng."""
+    return bool((f.get("luatchung") or "").strip()) or f["id"].startswith("SF-M-")
+
+
+def _master_cua(sf_id: str, data: dict | None = None) -> str | None:
+    """Leo chuỗi refs.bg lên tới THẺ ĐỊA ĐIỂM — đó chính là ĐOẠN CHAT.
+
+    Không tìm thấy thẻ nào mang dấu hiệu địa điểm thì lấy GỐC của chuỗi: thẻ
+    đầu tiên không còn `refs.bg` nào để leo tiếp."""
+    data = data or BOARD.read()
+    tat = {f["id"]: f for s in data.get("scenes", []) for f in s.get("sfs", [])}
+    f, da = tat.get(sf_id), set()
+    while f and not _la_the_dia_diem(f) and f["id"] not in da:
+        da.add(f["id"])
+        ke = tat.get((f.get("refs") or {}).get("bg") or "")
+        if not ke:
+            break            # hết chuỗi → chính f là gốc
+        f = ke
+    return f["id"] if f else None
+
+
+def _cong_master(master: str | None, data: dict | None = None) -> str:
+    """CỔNG CHẶN: SF con của một địa điểm chỉ được chạy khi THẺ ĐỊA ĐIỂM ĐÃ CÓ
+    ẢNH (picked). Trả '' nếu được đi tiếp, ngược lại trả lý do.
+
+    Vì sao chặn cứng chứ không chỉ nhắc: ảnh thẻ địa điểm là BẢN NEO — board đính
+    nó làm `refs.bg` cho mọi khung trong địa điểm, nên nó khoá bảng màu, ánh sáng
+    và trục cho cả cụm. Chạy khung con khi chưa có neo là mỗi khung tự bịa một
+    look, và sai kiểu đó chỉ lộ ra khi đã dựng xong cả scene.
+
+    Nếu thẻ đầu chuỗi không phải là thẻ địa điểm (tức thiếu `luatchung`),
+    nó cũng sẽ bị chặn cứng, không cho chạy lọt lưới.
+
+    Nhóm nhân vật (`NV:`) và đạo cụ (`PROP`) không có thẻ địa điểm nên không gác.
+    """
+    if not master or not _khoa_la_the(master):
+        return ""
+    if data is None:
+        f = BOARD.get_sf(master) or {}
+    else:
+        f = {x["id"]: x for s in data.get("scenes", [])
+             for x in s.get("sfs", [])}.get(master) or {}
+    
+    if not f:
+        return f"không tìm thấy thẻ gốc {master}"
+    if not _la_the_dia_diem(f):
+        return f"thẻ gốc {master} thiếu luatchung (không phải thẻ địa điểm)"
+    
+    if not f.get("picked"):
+        return f"thẻ địa điểm {master} CHƯA CÓ ẢNH (picked)"
+    
+    return ""
+
+
+def _nhom_cua(sf_id: str, data: dict | None = None) -> str:
+    """Khoá NHÓM của một thẻ — nhóm chính là ĐOẠN CHAT sẽ vẽ nó.
+
+    Trước đây chỉ có MỘT khái niệm nhóm: leo refs.bg tới thẻ SF-M-… (địa điểm).
+    Mọi thẻ không leo tới đâu rơi hết vào một thùng vô danh chung — thực tế là
+    chân dung, trang phục và đạo cụ bị trộn làm một đống mấy chục thẻ, vừa khó
+    hiểu vừa SAI VỀ NGHỀ: các bộ trang phục của một nhân vật bị rải ra nhiều chat
+    trắng nên khuôn mặt trôi dần, trong khi lẽ ra chúng phải vẽ chung một chat với
+    chân dung của chính người đó.
+
+    Ba loại nhóm:
+      · 'SF-M-…'  ĐỊA ĐIỂM  — leo được tới master (giữ nguyên hành vi cũ)
+      · 'NV:TÊN'  NHÂN VẬT  — chân dung + mọi bộ trang phục của cùng một người
+      · 'PROP'    ĐẠO CỤ    — ảnh gốc đồ vật, không dính nhân vật nào
+      · ''        LẺ        — không xếp được, mỗi thẻ một chat riêng
+    """
+    # `_master_cua` TRẢ VỀ CHÍNH THẺ ĐÓ khi không leo được đi đâu (nó coi thẻ
+    # cụt là "gốc của chuỗi"). Nhận bừa giá trị đó là mọi thẻ REF thành một
+    # "địa điểm" của riêng nó, và hai nhánh NV:/PROP bên dưới thành CODE CHẾT.
+    # Hậu quả đúng bằng thứ docstring này viết ra để tránh: chân dung và từng bộ
+    # trang phục của một người mỗi cái một chat trắng, mặt trôi dần qua các bộ.
+    # Đã đo 2026-08-07: 3 thẻ WARREN ra 3 nhóm 'dia_diem' riêng.
+    # Nên: chỉ nhận `m` khi nó là thẻ ĐỊA ĐIỂM thật, hoặc là thẻ KHÁC (leo được).
+    m = _master_cua(sf_id, data)
+    if m and (m != sf_id or _la_the_dia_diem(
+            ({x["id"]: x for s in (data or {}).get("scenes", [])
+              for x in s.get("sfs", [])}.get(m) if data else BOARD.get_sf(m))
+            or {"id": m})):
+        return m
+    if sf_id.startswith("REF_PROP_"):
+        return "PROP"
+    # Mọi REF_<TÊN>_… còn lại là ảnh của MỘT nhân vật: chân dung, toàn thân theo
+    # trang phục, hay biến thể theo tuổi (REF_BABY_NEWBORN / REF_BABY_MONTHS).
+    # Bắt theo tiền tố tên chứ đừng liệt kê hậu tố — mỗi lần thêm loại ảnh mới mà
+    # quên cập nhật danh sách hậu tố là thẻ đó lại rơi ra thùng lẻ, im lặng.
+    mt = re.match(r"^REF_([A-Z0-9]+)_", sf_id)
+    if mt:
+        return "NV:" + mt.group(1)
+    return ""
+
+
+def _ten_nhom(khoa: str, tat: dict | None = None) -> tuple[str, str]:
+    """(biểu tượng, tên đọc được) của một khoá nhóm — dùng chung cho mọi giao diện."""
+    if not khoa:
+        return "⚠️", "Thẻ lẻ — mỗi cái một chat riêng"
+    if khoa == "PROP":
+        return "🎬", "Đạo cụ"
+    if khoa.startswith("NV:"):
+        return "👤", "Nhân vật " + khoa[3:]
+    nhan = ((tat or {}).get(khoa) or {}).get("label") or khoa
+    return "📍", nhan
+
+
+def _chat_cua_master(master: str) -> dict:
+    """{url, port} của đoạn chat gắn với NHÓM này. Rỗng = chưa có chat.
+
+    Nhóm ĐỊA ĐIỂM lưu chat ngay trên THẺ ĐỊA ĐIỂM. Nhóm NHÂN VẬT và ĐẠO CỤ
+    không có thẻ nào để bám nên lưu ở gốc file, mục 'chats'."""
+    d = BOARD.read()
+    if not _khoa_la_the(master):
+        return dict((d.get("chats") or {}).get(master) or {})
+    for s in d.get("scenes", []):
+        for f in s.get("sfs", []):
+            if f["id"] == master:
+                return dict(f.get("chat") or {})
+    return {}
+
+
+def _luu_chat(master: str, url: str, port: int, refs: set | None = None) -> None:
+    """Ghi chat_url vào master.
+
+    PHẢI lưu: mở chatgpt.com là ra chat TRẮNG, không phải chat cũ. Mà ChatGPT có
+    bộ nhớ xuyên chat nên chat trắng vẫn trả lời trôi chảy — hỏng kiểu đó hoàn
+    toàn im lặng, mỗi ảnh một chat trắng mà nhìn vẫn như đang chạy đúng."""
+    if not url or "/c/" not in url:
+        return
+    ban = {"url": url, "port": port, "refs": sorted(refs or set())}
+    with BOARD_LOCK:
+        d = BOARD.read()
+        if not _khoa_la_the(master):                     # nhóm nhân vật / đạo cụ
+            d.setdefault("chats", {})[master] = ban
+            BOARD.write(d)
+            return
+        for s in d.get("scenes", []):
+            for f in s.get("sfs", []):
+                if f["id"] == master:
+                    f["chat"] = ban
+                    BOARD.write(d)
+                    return
+
+
+def _lo_id_thap_hon_dang_cho(master: str, sf_ids: list[str], data: dict) -> str:
+    """Trả ID nhỏ nhất đang chờ/chạy trước lô hiện tại trong cùng nhóm.
+
+    PriorityQueue không đủ khi nhiều worker đã đồng thời nhấc nhiều lô khỏi hàng;
+    trạng thái JOBS là phần còn nhìn thấy được để giữ thứ tự tại cửa lấy khoá.
+    """
+    cua_minh = set(sf_ids)
+    uu_tien_hien_tai = min((_uu_tien(i) for i in sf_ids), default=999999)
+    dang_chan: list[str] = []
+    for scene in data.get("scenes", []):
+        for sf in scene.get("sfs", []):
+            sf_id = sf.get("id") or ""
+            if not sf_id or sf_id in cua_minh or _uu_tien(sf_id) >= uu_tien_hien_tai:
+                continue
+            if JOBS.get(sf_id, {}).get("state") not in ("queued", "running"):
+                continue
+            if _nhom_cua(sf_id, data) == master:
+                dang_chan.append(sf_id)
+    return min(dang_chan, key=_uu_tien) if dang_chan else ""
+
+
+# ======================================================================= CHỜ PHÂN LOẠI
+# TẢI VỀ TRƯỚC, PHÂN LOẠI SAU.
+#
+# Mọi ảnh của một lượt ChatGPT đều được tải xuống `cho-phan-loai/turn-NNNN/`
+# theo đúng thứ tự hiển thị (`01.png`, `02.png`, …) TRƯỚC khi board quyết định
+# ảnh nào của SF nào. Chỉ khi số ảnh khớp đúng số prompt VÀ lượt không trả kèm
+# chữ thì board mới tự ghép — nhưng ghép rồi VẪN GIỮ thư mục lượt, xem
+# `PL_GIU_TOI_DA` bên dưới.
+#
+# Vì sao đổi: bộ dò DOM của ChatGPT hỏng lại sau mỗi lần họ đổi giao diện, và
+# bản cũ phản ứng bằng cách VỨT cả lượt ảnh đã vẽ xong rồi gửi lại từ đầu — mất
+# lượt tạo ảnh (thứ có trần theo ngày) chỉ vì một phép đếm sai. Tải về trước thì
+# giao diện có đổi kiểu gì, ảnh vẫn nằm trên đĩa: hỏng nặng nhất cũng chỉ còn là
+# việc gắn tay, không còn là mất ảnh.
+#
+# Ba luật của khối này:
+#   1. KHÔNG BAO GIỜ vứt ảnh đã tải, kể cả lượt trả kèm chữ hay thừa ảnh.
+#   2. Lệch tới PL_LECH_TOI_DA ảnh thì coi LƯỢT ĐÃ XONG — không gửi lại, không
+#      đốt thêm lượt. User gắn tay trong bảng "Chờ phân loại".
+#   3. Số lượt ĐƠN ĐIỆU, không bao giờ dùng lại — nó là thứ user đọc trong log
+#      để lần ngược một ảnh về đúng lượt đã sinh ra nó.
+#   4. LƯỢT CÒN ẢNH CHƯA GẮN KHÔNG BAO GIỜ BỊ DỌN. Mức giữ chỉ chạm những lượt
+#      đã gắn hết — thứ duy nhất chắc chắn còn bản trong `versions/`.
+PL_LECH_TOI_DA = 2
+
+# HỘP CHỜ LUÔN TỒN TẠI, KỂ CẢ KHI LƯỢT ĐÃ GHÉP ĐÚNG (đổi 2026-08-07).
+# Trước đây ghép đủ số là xoá thư mục lượt ngay, nên lượt "chuẩn" biến mất khỏi
+# hộp chờ và muốn dịch một ảnh sang thẻ khác thì chỉ còn cách vẽ lại. Giờ giữ
+# lại: ảnh nằm nguyên trên đĩa, thanh chờ hiện đủ với dấu "→ đã gắn <SF>", kéo
+# thả sang thẻ khác được bất cứ lúc nào.
+#
+# Đổi lại là dung lượng: mỗi lượt giữ thêm một bản của chính những ảnh đã có
+# trong `versions/`. Nên chặn bằng mức giữ — chỉ dọn lượt ĐÃ GẮN HẾT, cũ nhất
+# trước, và ảnh của lượt đó vẫn còn nguyên trong `versions/` nên không mất gì.
+# Muốn giữ nhiều/ít hơn thì sửa đúng con số này.
+PL_GIU_TOI_DA = 40
+
+PL_LOCK = threading.RLock()
+
+# DÁN MÃ SF VÀO GÓC ẢNH — bật thì ChatGPT in mã (vd `SF-S7-03`) ở góc dưới-trái
+# của chính ảnh đó. Đây là cách DUY NHẤT nhận ra ảnh nào của thẻ nào khi một lượt
+# trả về lệch số ảnh: lúc ấy thứ tự — thứ duy nhất ta có để ghép — chính là thứ
+# vừa hỏng. Mã in trong ảnh là bằng chứng ảnh tự mang theo.
+#
+# ⚠ Nhãn NẰM TRONG ẢNH nên nó theo start frame vào video. Bật lúc dựng nháp, TẮT
+# trước khi render bản cuối. Lưu ở HOME chứ không trong project: đây là thói quen
+# làm việc của user, không phải thuộc tính của một bộ phim.
+MA_PATH = os.path.expanduser("~/.grokpipe-dan-ma.json")
+
+
+def _dan_ma_doc() -> bool:
+    return False
+
+
+def _dan_ma_ghi(on: bool) -> None:
+    try:
+        with open(MA_PATH, "w", encoding="utf-8") as f:
+            json.dump({"on": bool(on)}, f)
+    except OSError as e:
+        _LOG.warning("không ghi được cờ dán mã: %s", e)
+
+
+def _pl_ten(turn: int) -> str:
+    return f"turn-{turn:04d}"
+
+
+def _pl_duong(turn: int) -> str:
+    return os.path.join(BOARD.pl, _pl_ten(turn))
+
+
+def _pl_so_moi() -> int:
+    """Số lượt kế tiếp. Lấy max(bộ đếm trên đĩa, số thư mục đang có) + 1 để user
+    xoá sạch thư mục cũng không làm số quay vòng."""
+    with PL_LOCK:
+        os.makedirs(BOARD.pl, exist_ok=True)
+        p = os.path.join(BOARD.pl, ".so-luot")
+        try:
+            n = int((open(p, encoding="utf-8").read() or "0").strip())
+        except Exception:
+            n = 0
+        for ten in os.listdir(BOARD.pl):
+            m = re.match(r"^turn-(\d+)$", ten)
+            if m:
+                n = max(n, int(m.group(1)))
+        n += 1
+        try:
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(str(n))
+        except OSError as e:
+            _LOG.warning("không ghi được bộ đếm lượt: %s", e)
+        return n
+
+
+def _pl_meta(turn: int) -> dict:
+    try:
+        with open(os.path.join(_pl_duong(turn), "meta.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _pl_ghi_meta(meta: dict) -> None:
+    d = _pl_duong(int(meta["turn"]))
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, "meta.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, os.path.join(d, "meta.json"))
+
+
+def _pl_xoa(turn: int) -> bool:
+    """Xoá hẳn một lượt (ảnh + meta + thumbnail cache)."""
+    d = _pl_duong(turn)
+    if not os.path.isdir(d):
+        return False
+    shutil.rmtree(d, ignore_errors=True)
+    tk = os.path.join(BOARD.pl, ".thumbs")
+    if os.path.isdir(tk):
+        for ten in list(os.listdir(tk)):
+            if ten.startswith(_pl_ten(turn) + "__"):
+                try:
+                    os.remove(os.path.join(tk, ten))
+                except OSError:
+                    pass
+    return True
+
+
+def _pl_don_bot() -> None:
+    """Giữ hộp chờ ở mức `PL_GIU_TOI_DA` lượt ĐÃ GẮN HẾT, xoá dần từ lượt cũ nhất.
+
+    Lượt còn ảnh chưa gắn thì KHÔNG BAO GIỜ bị chạm (luật 4). Ảnh của lượt đã
+    gắn hết đều có bản trong `versions/` nên xoá không mất ảnh — chỉ mất khả
+    năng kéo-thả lại của mấy lượt xa nhất.
+
+    Dọn cái gì thì GHI RA LOG. Dọn im lặng thì lần sau user tìm một lượt cũ
+    không thấy sẽ tưởng board mất ảnh."""
+    try:
+        xong = [m for m in _pl_ds() if m.get("anh") and not (m.get("con_lai") or 0)]
+    except Exception as e:
+        _LOG.warning("hộp chờ: không đọc được danh sách để dọn: %s", e)
+        return
+    xong.sort(key=lambda m: int(m.get("turn") or 0))          # cũ nhất trước
+    for m in xong[:max(0, len(xong) - PL_GIU_TOI_DA)]:
+        t = int(m.get("turn") or 0)
+        if t and _pl_xoa(t):
+            _LOG.info("hộp chờ: dọn lượt %d (đã gắn hết, vượt mức giữ %d lượt) — "
+                      "ảnh vẫn còn trong versions/", t, PL_GIU_TOI_DA)
+
+
+def _pl_ds() -> list[dict]:
+    """Mọi lượt còn treo, lượt mới nhất lên đầu."""
+    out = []
+    try:
+        tens = os.listdir(BOARD.pl)
+    except OSError:
+        return out
+    for ten in tens:
+        m = re.match(r"^turn-(\d+)$", ten)
+        if not m:
+            continue
+        meta = _pl_meta(int(m.group(1)))
+        if not meta:
+            continue
+        con = []
+        for a in meta.get("anh", []):
+            p = os.path.join(BOARD.pl, ten, a.get("ten", ""))
+            if not os.path.isfile(p):
+                continue        # user đã xoá riêng ảnh này
+            con.append({**a, "url": f"/pl/{ten}/{a['ten']}",
+                        "kb": round(os.path.getsize(p) / 1024)})
+        meta["anh"] = con
+        meta["con_lai"] = sum(1 for a in con if not a.get("gan"))
+        out.append(meta)
+    out.sort(key=lambda x: -int(x.get("turn") or 0))
+    return out
+
+
+def _pl_dem() -> dict:
+    """{số lần gắn còn lùi được} — nút ↩ trên giao diện bật/tắt theo con số này.
+
+    Trước 2026-08-09 hàm còn trả số lượt và số ảnh chưa gắn cho dải phân loại;
+    dải đó đã bỏ nên chỉ còn phần hoàn tác (dùng chung cho tráo/chuyển ảnh)."""
+    with HT_LOCK:
+        ht = len(HOAN_TAC)
+        cuoi = dict(HOAN_TAC[-1]) if HOAN_TAC else {}
+    return {"ht": ht, "ht_cuoi": f"{cuoi.get('sf','')} · {cuoi.get('luc','')}" if cuoi else ""}
+
+
+def _pl_tai_ve(sess, srcs: list[str], viec: list[tuple[str, str]],
+               master: str | None, port: int, chat_url: str, ghi: dict) -> dict:
+    """Tải TẤT CẢ ảnh của một lượt xuống thư mục lượt, theo đúng thứ tự hiển thị.
+
+    Chạy TRƯỚC mọi phép đối chiếu số lượng: ảnh đã sinh là lượt đã tiêu, phải
+    nằm trên đĩa trước khi board dám phán lượt này đúng hay sai."""
+    turn = _pl_so_moi()
+    d = _pl_duong(turn)
+    os.makedirs(d, exist_ok=True)
+    with ACC_LOCK:
+        acct = next((a["id"] for a in ACCOUNTS if a["port"] == port), "")
+    tat = {f["id"]: f for s in BOARD.read().get("scenes", []) for f in s.get("sfs", [])}
+    bt, nhan = _ten_nhom(master or "", tat)
+    meta = {
+        "turn": turn,
+        "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "port": port, "acct": acct,
+        "master": master or "", "bieu_tuong": bt, "nhan": nhan,
+        "chat_url": chat_url or "",
+        "so_prompt": len(viec),
+        "so_anh": 0,
+        "loi_text": (ghi.get("loi_text") or "")[:600],
+        # DỰ KIẾN, không phải kết luận: ảnh thứ k của lượt LẼ RA là SF thứ k.
+        # Giữ lại để user có điểm bắt đầu khi gắn tay, kể cả khi lượt lệch.
+        "du_kien": [{"o": k, "sf": i,
+                     "nhan": (tat.get(i) or {}).get("label") or ""}
+                    for k, (i, _) in enumerate(viec, 1)],
+        "anh": [],
+        "ly_do": "",
+    }
+    _pl_ghi_meta(meta)
+    for k, src in enumerate(srcs, 1):
+        ten = f"{k:02d}.png"
+        if sess._tai_ve(src, os.path.join(d, ten)):
+            _dem_cong(port or None)
+            meta["anh"].append({"ten": ten, "o": k, "gan": "",
+                                "du_kien": viec[k - 1][0] if k <= len(viec) else ""})
+        else:
+            _LOG.warning("lượt %d: KHÔNG tải được ảnh thứ %d (%s)", turn, k, src[:80])
+    meta["so_anh"] = len(meta["anh"])
+    _pl_ghi_meta(meta)
+    _LOG.info("lượt %d: đã tải %d/%d ảnh về %s", turn, meta["so_anh"], len(srcs), d)
+    # Lượt KHÔNG tải nổi ảnh nào thì thư mục rỗng — giao diện bỏ qua lượt không
+    # có ảnh nên nó nằm lại vô hình và cứ thế chất đống. Dọn ngay; số lượt vẫn
+    # tiêu, không dùng lại, nên log vẫn lần ngược được.
+    if not meta["anh"]:
+        _pl_xoa(turn)
+        _LOG.info("lượt %d không tải được ảnh nào — đã dọn thư mục rỗng", turn)
+    return meta
+
+
+# ---- HOÀN TÁC MỘT LẦN GẮN ------------------------------------------------
+# Gắn không xoá gì: nó THÊM một bản rồi đặt bản đó làm ảnh chính. Nhưng với thẻ
+# VỐN CHƯA CÓ ẢNH thì không có bản cũ nào để bấm quay lại, và nút xoá bản từ chối
+# xoá "bản đang dùng" — nên gắn nhầm là kẹt, phải vào Finder dọn tay. Đã xảy ra
+# thật 2026-08-07: 10 ảnh mẫu gắn nhầm vào 5 thẻ trống, phải chạy script mới gỡ.
+# Sổ này ghi đủ để lùi đúng một nấc: bản vừa thêm, và bản đang dùng TRƯỚC đó.
+HOAN_TAC: list[dict] = []
+HT_LOCK = threading.Lock()
+
+
+def _ht_ghi(muc: dict) -> None:
+    with HT_LOCK:
+        HOAN_TAC.append(muc)
+        del HOAN_TAC[:-100]
+
+
+def _ban_dang_dung(sf_id: str) -> tuple[str, bool]:
+    """(tên bản trong versions/ của ẢNH ĐANG DÙNG, có phải bản tự tạo không).
+
+    Ưu tiên cờ `picked`. Không có (ảnh dán tay từ đời nào đó, chưa vào versions/)
+    thì dò theo nội dung; vẫn không thấy thì CHÉP ảnh đang dùng vào versions/ —
+    thà thừa một bản còn hơn để nó biến mất lúc bị thay.
+
+    Cờ thứ hai để lúc hoàn tác còn DỌN bản giữ hộ đó đi: thẻ vốn không có bản nào
+    thì lùi xong cũng phải không có bản nào, đừng để nó mọc thêm thứ user không
+    tạo ra."""
+    cur = BOARD.find_file(sf_id)
+    if not cur:
+        return "", False
+    sf = BOARD.get_sf(sf_id) or {}
+    p = sf.get("picked") or ""
+    if p and os.path.isfile(os.path.join(BOARD.versions, p)):
+        return p, False
+    try:
+        raw = open(cur, "rb").read()
+        for v in BOARD._versions(sf_id):
+            vp = os.path.join(BOARD.versions, v["file"])
+            if os.path.getsize(vp) == len(raw) and open(vp, "rb").read() == raw:
+                return v["file"], False
+    except OSError:
+        return "", False
+    with BOARD_LOCK:
+        giu = BOARD.next_version_path(sf_id, reserve=True)
+    try:
+        shutil.copy2(cur, giu)
+    except OSError:
+        _drop_reserved(giu)
+        return "", False
+    _LOG.info("giữ hộ ảnh đang dùng của %s vào %s trước khi thay",
+              sf_id, os.path.basename(giu))
+    return os.path.basename(giu), True
+
+
+# _pl_gan() (gắn TAY ảnh của lượt vào SF) đã bỏ 2026-08-09 cùng dải phân loại.
+# Việc ghép TỰ ĐỘNG khi tạo ảnh theo lô vẫn giữ nguyên trong _pl_tai_ve().
+
+
+def _ht_lui(n: int = 1) -> tuple[int, list[str]]:
+    """Lùi `n` lần gắn gần nhất. Trả (số lần đã lùi, mô tả từng lần).
+
+    Lùi = xoá bản vừa thêm, trả ảnh chính về đúng bản trước đó (hoặc về TRỐNG
+    nếu thẻ vốn chưa có ảnh), và bỏ dấu 'đã gắn' để ảnh quay lại thanh chờ phân
+    loại. Ảnh gốc trong `cho-phan-loai/` không bị đụng, nên gắn lại được ngay."""
+    ra = []
+    con = max(1, n)
+    while con > 0:
+        con -= 1
+        with HT_LOCK:
+            m = HOAN_TAC.pop() if HOAN_TAC else None
+            # MỘT CÚ TRÁO LÙI TRỌN CẶP. Hai dòng của cùng một lần tráo mang cùng
+            # `cap`; lùi một nửa thì hai thẻ đeo chung một ảnh — hỏng hơn lúc đầu.
+            if m and m.get("cap") and HOAN_TAC and HOAN_TAC[-1].get("cap") == m["cap"]:
+                con += 1
+        if not m:
+            break
+        i, moi, cu = m["sf"], m["moi"], m.get("cu") or ""
+        try:
+            p = os.path.join(BOARD.versions, moi)
+            if os.path.isfile(p):
+                os.remove(p)
+        except OSError as e:
+            _LOG.warning("hoàn tác: không xoá được %s: %s", moi, e)
+        with BOARD_LOCK:
+            if m.get("duyet"):
+                pass                      # bản đã duyệt chưa bao giờ bị thay
+            elif cu and os.path.isfile(os.path.join(BOARD.versions, cu)):
+                BOARD.set_current(i, os.path.join(BOARD.versions, cu))
+                if m.get("cu_tu_tao"):
+                    # Bản này do board tự chép ra để giữ hộ, không phải bản user
+                    # tạo. Trả ảnh xong thì dọn, để thẻ về ĐÚNG như trước.
+                    try:
+                        os.remove(os.path.join(BOARD.versions, cu))
+                    except OSError:
+                        pass
+                    cu = ""
+            else:
+                for ten in list(os.listdir(BOARD.assets)):
+                    if os.path.splitext(ten)[0] == i:
+                        os.remove(os.path.join(BOARD.assets, ten))
+        if not m.get("duyet"):
+            if cu:
+                _mark_picked(i, "picked", cu)
+            else:
+                # GỠ HẲN key, đừng ghi chuỗi rỗng: `"picked": ""` là rác nằm lại
+                # trong sf-board.json — file kịch bản phim, không phải sổ tạm.
+                with BOARD_LOCK:
+                    dl = BOARD.read(); doi = False
+                    for sc in dl.get("scenes", []):
+                        for sfd in sc.get("sfs", []):
+                            if sfd.get("id") == i and sfd.pop("picked", None) is not None:
+                                doi = True
+                    if doi:
+                        BOARD.write(dl)
+        nk = dict(BOARD.turn_log())
+        if nk.pop(moi, None) is not None:
+            try:
+                with open(BOARD.nk_path, "w", encoding="utf-8") as f:
+                    json.dump(nk, f, ensure_ascii=False, indent=1, sort_keys=True)
+                BOARD._nk = {"mtime": os.path.getmtime(BOARD.nk_path), "data": nk}
+            except OSError:
+                pass
+        meta = _pl_meta(int(m.get("turn") or 0))
+        if meta:
+            for a in meta.get("anh", []):
+                if a.get("ten") == m.get("ten") and a.get("gan") == i:
+                    a["gan"] = ""
+            _pl_ghi_meta(meta)
+        JOBS.pop(i, None)
+        ra.append(f"{i} ← lượt {m.get('turn')}/{m.get('ten')}"
+                  + (" (về bản " + cu + ")" if cu and not m.get("duyet")
+                     else " (về trạng thái chưa có ảnh)" if not m.get("duyet") else ""))
+        _LOG.info("hoàn tác gắn: %s", ra[-1])
+    return len(ra), ra
+
+
+def _generate_lo(sf_ids: list[str], tay: bool = False):
+    """Tạo NHIỀU ảnh trong MỘT lượt của MỘT đoạn chat (cùng địa điểm).
+
+    Dùng khi user tích chọn vài SF rồi bấm 'Tạo lại đã chọn'. Board gom theo địa
+    điểm trước khi xếp hàng, nên hàm này luôn nhận đúng một nhóm cùng chat."""
+    # Không tin thứ tự checkbox/request: chính thứ tự này quyết định cả cách chia
+    # lô lẫn thứ tự ghép ảnh ChatGPT trả về. Luôn chuẩn hoá theo ID ngay tại cửa
+    # cuối để mọi đường gọi (auto, tạo tay, retry, chạy lẻ) cùng một hành vi.
+    sf_ids = sorted((i for i in sf_ids if i), key=_uu_tien)
+    if not sf_ids:
+        return
+    data = BOARD.read()
+    master = _nhom_cua(sf_ids[0], data) or None
+    _ident = "LO:" + ",".join(sf_ids)
+
+    # MỘT ĐỊA ĐIỂM = MỘT LÔ TẠI MỘT THỜI ĐIỂM — chặn bằng KHOÁ THẬT, không phải
+    # bằng đọc JOBS: hai thợ nhấc hai lô cùng giây thì cả hai đều đọc thấy "chưa
+    # ai chạy" rồi cùng mở chat mới trên hai tài khoản (đã xảy ra 2 lần). Khoá
+    # theo master, giữ suốt từ lúc đọc chat tới lúc chốt chat; lô đến sau không
+    # lấy được khoá thì trả về hàng đợi thử lại.
+    # Lô toàn THẺ ĐỊA ĐIỂM chạy chat trắng, không đụng chat → không cần khoá.
+    if master and not all(_la_the_dia_diem(BOARD.get_sf(i) or {"id": i}) for i in sf_ids):
+        # PriorityQueue chỉ bảo đảm thứ tự NHẤC việc. Khi có nhiều worker, 02–07,
+        # 08–13 và 14–15 có thể bị ba thợ nhấc cùng lúc rồi 14–15 thắng cuộc đua
+        # lấy khoá master. Soi toàn bộ SF đang queued/running trước khi lấy khoá
+        # để lô ID lớn phải nhường lô ID nhỏ của CÙNG nhóm/chat.
+        with _ML_LOCK:
+            khoa = _MASTER_LOCKS.setdefault(master, threading.Lock())
+            _truoc = _lo_id_thap_hon_dang_cho(master, sf_ids, data)
+            _da_khoa = not _truoc and khoa.acquire(blocking=False)
+        if not _da_khoa:
+            _n = _HOAN.get(_ident, 0)
+            if _n < 240:                      # 240 × 5s = 20 phút, đủ cho lô trước
+                _HOAN[_ident] = _n + 1
+                _dat_job(_ident, {"state": "queued",
+                                  "msg": (f"chờ {_truoc} chạy trước"
+                                          if _truoc else
+                                          f"chờ lô trước của {_ten_gon(master)} xong")})
+                time.sleep(5)
+                _xep(IMG_QUEUE, ("img", _ident, 0, tay))
+                return
+            raise RuntimeError(f"chờ lô trước của {master} quá lâu — chạy lại tay")
+        _HOAN.pop(_ident, None)
+        try:
+            return _generate_lo_ruot(sf_ids, data, master, tay)
+        finally:
+            khoa.release()
+    return _generate_lo_ruot(sf_ids, data, master, tay)
+
+
+def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bool = False):
+    """Ruột của _generate_lo — chỉ được gọi khi đã cầm khoá của master (nếu cần)."""
+    # LỌC LẠI NGAY TRƯỚC KHI GỬI: bỏ SF đã có ảnh. Hàng đợi nằm trong RAM và có
+    # thể ôm việc cũ hàng chục phút; trong khoảng đó ảnh có thể đã về bằng đường
+    # khác (user dán tay vào thẻ, vớt tay từ chat, job trùng). Không lọc thì board
+    # render lại thứ đã có — tốn lượt mà không ai thấy sai.
+    # CHỈ áp cho lô CHẠY NỀN (tay=False). Lô do user bấm vẫn được đè, vì bấm
+    # "Tạo ảnh" trên thẻ đã có ảnh là chủ động muốn bản mới.
+    if not tay:
+        da_co = [i for i in sf_ids if BOARD.find_file(i)]
+        if da_co:
+            for i in da_co:
+                JOBS[i] = {"state": "done", "msg": "đã có ảnh — bỏ qua, không render lại"}
+            _LOG.info("bỏ %d SF đã có ảnh khỏi lô: %s", len(da_co), ", ".join(da_co))
+            sf_ids = [i for i in sf_ids if i not in da_co]
+            if not sf_ids:
+                return
+
+    viec, attach, thieu = [], [], []
+    for i in sf_ids:
+        sf = BOARD.get_sf(i)
+        if not sf or not (sf.get("prompt") or "").strip():
+            thieu.append(i); continue
+        viec.append((i, sf["prompt"].strip()))
+        a, mis, _ = _sf_attachments(sf)
+        if mis:
+            thieu.append(f"{i}(thiếu ref)"); continue
+        for x in a:
+            if x not in attach:
+                attach.append(x)
+    if thieu:
+        for i in sf_ids:
+            JOBS[i] = {"state": "error", "msg": "lô dừng: " + ", ".join(thieu[:4])}
+        raise RuntimeError("lô có SF hỏng: " + ", ".join(thieu[:4]))
+
+    # LÔ CHỈ CÓ ẢNH GỐC thì chạy CHAT TRẮNG và KHÔNG chốt chat của địa điểm.
+    # Chat của một địa điểm chỉ được chốt khi bắt đầu chạy SF CON, vì lúc đó mới
+    # có ảnh master ĐÃ DUYỆT để đính làm bối cảnh. Chốt từ lô master là gắn cả
+    # địa điểm vào một tài khoản trước khi biết bản master nào được chọn, và để
+    # lại trong chat những bản master hỏng.
+    chi_anh_goc = all(_la_the_dia_diem(BOARD.get_sf(i) or {"id": i}) for i in sf_ids)
+
+    # CỔNG CHẶN — đứng ở đây, TRƯỚC khi mở phiên Chrome và trước khi chốt chat.
+    # Chặn ở server chứ không chỉ ở giao diện: auto-runner, hàng giao đích danh
+    # và mọi lệnh gọi API đều đi qua chỗ này, còn nút bấm thì chỉ là một đường.
+    if not chi_anh_goc:
+        _ly = _cong_master(master)
+        if _ly:
+            for i in sf_ids:
+                JOBS[i] = {"state": "error",
+                           "msg": f"CHƯA CHẠY: {_ly}. Ảnh thẻ địa điểm là bản neo "
+                                  f"khoá màu · ánh sáng · trục cho cả địa điểm — "
+                                  f"chạy nó trước, rồi hãy chạy khung con."}
+            _HOAN.pop("LO:" + ",".join(sf_ids), None)
+            _LOG.info("chặn lô %d ảnh: %s", len(sf_ids), _ly)
+            return
+
+    chat = _chat_cua_master(master) if (master and not chi_anh_goc) else {}
+
+    # MỘT ĐỊA ĐIỂM = MỘT CHAT = MỘT TÀI KHOẢN. Chat sống trong profile Chrome của
+    # đúng tài khoản đã mở nó; tài khoản khác mở URL đó thì ChatGPT báo
+    # "Something went wrong", mà vì là 'chat cũ' nên board cũng không gửi lại
+    # luatchung và không đính lại ref — hỏng câm. Gặp lô lạc tài khoản thì trả về
+    # hàng đợi cho đúng thợ nhặt; chỉ khi tài khoản đó đã tắt mới mở chat mới.
+    _ident = "LO:" + ",".join(sf_ids)
+    _port_nay = int((getattr(_TL, "endpoint", "") or ":0").rsplit(":", 1)[1] or 0)
+    _port_chat = int(chat.get("port") or 0)
+    if chat.get("url") and _port_chat and _port_chat != _port_nay:
+        # GIAO ĐÍCH DANH cho thợ giữ chat, không thả về hàng chung: hàng chung là
+        # trò xổ số — hai thợ sai chuyền nhau nhặt-thả, thợ đúng đói vĩnh viễn.
+        # Tài khoản giữ chat đang NGHỈ CÓ HẸN (trần đính tệp của ChatGPT) vẫn là
+        # tài khoản đúng — giữ việc trong hàng riêng của nó, tới giờ thợ sống lại
+        # là chạy tiếp. Đừng rơi xuống nhánh "đang TẮT" ở dưới: nhánh đó báo lỗi
+        # và bắt user chạy tay, trong khi chỉ cần chờ.
+        _nghi = _dang_nghi(f"http://localhost:{_port_chat}")
+        if _nghi or _endpoint_alive(f"http://127.0.0.1:{_port_chat}"):
+            with _CR_LOCK:
+                o = CHO_RIENG.setdefault(_port_chat, [])
+                if _ident not in o:
+                    o.append(_ident)
+                    o.sort(key=_uu_tien)     # id nhỏ chạy trước trong hàng riêng
+            _dat_job(_ident, {"state": "queued",
+                              "msg": f"đã giao cho tài khoản giữ chat (cổng {_port_chat})"
+                                     + (f" · đang nghỉ tới "
+                                        f"{time.strftime('%H:%M', time.localtime(_nghi))}, "
+                                        f"tự chạy lại" if _nghi else "")})
+            return
+        # Tài khoản giữ chat CÒN TRONG DANH SÁCH nhưng Chrome chưa mở (vd vừa
+        # khởi động lại máy) → DỪNG và bảo user bật nó, TUYỆT ĐỐI không lẳng
+        # lặng mở chat mới: chat mới là mất trí nhớ bối cảnh của cả địa điểm.
+        # Chỉ khi tài khoản đã bị XOÁ hẳn khỏi danh sách mới đành mở chat mới.
+        with ACC_LOCK:
+            _con = any(a["port"] == _port_chat for a in ACCOUNTS)
+        if _con:
+            _HOAN.pop(_ident, None)
+            _acc_id = next((a["id"] for a in ACCOUNTS if a["port"] == _port_chat), "?")
+            _dat_job(_ident, {
+                "state": "error",
+                "msg": f"chat của {_ten_gon(master)} nằm ở tài khoản {_acc_id} "
+                       f"(cổng {_port_chat}) đang TẮT. Mở nó ở ⚙ Tài khoản rồi chạy lại "
+                       f"— đừng chạy bằng tài khoản khác kẻo mất trí nhớ bối cảnh."})
+            raise RuntimeError(f"{master}: tài khoản giữ chat (cổng {_port_chat}) đang tắt")
+        _LOG.warning("[%s] tài khoản giữ chat (cổng %s) không dùng được — mở chat MỚI ở cổng %s",
+                     master, _port_chat, _port_nay)
+        chat = {}
+    _HOAN.pop(_ident, None)
+
+    # REF THƯỜNG chỉ cần gửi một lần trong chat, nhưng MỖI NHÂN VẬT phải gửi lại
+    # theo CẶP: PORTRAIT neo khuôn mặt + FULL neo đúng trang phục. Chỉ gửi portrait
+    # làm model tự bịa áo (ca S5: Maya từ áo vàng HOME thành áo nâu dù mặt đúng).
+    # Bối cảnh và đạo cụ vẫn tận dụng bộ nhớ chat để tránh upload quá nhiều.
+    da_gui = set(chat.get("refs") or [])
+    def _loai_neo_nhan_vat(path: str) -> str:
+        stem = os.path.splitext(os.path.basename(path))[0]
+        if stem.endswith("_PORTRAIT"):
+            return "portrait"
+        if stem.endswith("_FULL"):
+            return "full"
+        return ""
+    neo_lap = [x for x in attach if _loai_neo_nhan_vat(x)] if chat.get("url") else []
+    can_dinh = ([x for x in attach
+                 if _loai_neo_nhan_vat(x) or os.path.basename(x) not in da_gui]
+                if chat.get("url") else attach)
+    so_portrait = sum(_loai_neo_nhan_vat(x) == "portrait" for x in neo_lap)
+    so_full = sum(_loai_neo_nhan_vat(x) == "full" for x in neo_lap)
+
+    # Khối luật chung của địa điểm, nếu master có. Chỉ gửi khi MỞ CHAT MỚI.
+    luat_chung = ""
+    if master:
+        m = BOARD.get_sf(master) or {}
+        luat_chung = (m.get("luatchung") or "").strip()
+
+    for i, _ in viec:
+        JOBS[i] = {"state": "running",
+                   "msg": f"lô {len(viec)} ảnh{_acct_label()}"
+                          f" · {'chat cũ' if chat.get('url') else 'mở chat mới'}"
+                          + (f" · đính {len(can_dinh)} ref"
+                             + (f" ({so_portrait} mặt + {so_full} trang phục)"
+                                if neo_lap else "")
+                             if chat.get('url') and can_dinh else "")}
+    _gen0 = DUNG_GEN          # chụp thế hệ TRƯỚC khi đi vào lượt chạy dài
+    sess = _session()
+    srcs, url, ghi = sess.generate_lo(viec, can_dinh, chat_url=chat.get("url", ""),
+                                      # KHÔNG dán mã lên ảnh REF. Ảnh REF được
+                                      # đính vào MỌI chat khác làm neo mặt và
+                                      # trang phục — chữ nằm trong ảnh neo là
+                                      # mời model chép chữ đó sang ảnh mới. Lô
+                                      # REF cũng gần như luôn một ảnh nên chẳng
+                                      # có thứ tự nào để mà lẫn.
+                                      luat_chung=luat_chung,
+                                      dan_ma=_dan_ma_doc() and not any(
+                                          i.startswith("REF_") for i, _ in viec),
+                                      nen_dung=lambda: any(i in DUNG_RIENG for i, _ in viec))
+
+    port = int((getattr(_TL, "endpoint", "") or ":0").rsplit(":", 1)[1] or 0)
+    if master and url and not chi_anh_goc:
+        _luu_chat(master, url, port, da_gui | {os.path.basename(x) for x in can_dinh})
+
+    # TẢI HẾT VỀ TRƯỚC KHI PHÁN. Kể cả lượt thiếu, thừa, hay trả kèm chữ — ảnh
+    # đã sinh là lượt đã tiêu, không được vứt vì một phép đếm.
+    luot = _pl_tai_ve(sess, srcs, viec, master, port, url, ghi) if srcs else None
+    n_ve = int((luot or {}).get("so_anh") or 0)
+    loi_text = (ghi.get("loi_text") or "").strip()
+
+    # SỐ ẢNH KHÁC SỐ PROMPT THÌ KHÔNG GHÉP. Lệch một nấc là ảnh gắn nhầm SF, và
+    # các ảnh cùng một địa điểm trông na ná nhau nên mắt rất khó bắt.
+    # Nguyên nhân hay gặp: guardrail ChatGPT từ chối MỘT ảnh giữa lô ("may
+    # violate our guardrails…"), thường chỉ cần xin lại là qua. Cơ chế tiếp tục:
+    #   · lệch tới PL_LECH_TOI_DA ảnh → coi LƯỢT ĐÃ XONG, ảnh nằm sẵn trên đĩa,
+    #     hiện thẳng lên thẻ để user bấm chọn. KHÔNG gửi lại: gửi lại là đốt
+    #     thêm một lượt để mua lại thứ đã có trong tay.
+    #   · lệch nhiều hơn thế (hoặc về 0 ảnh) → gần như chắc cả lượt bị chặn,
+    #     gửi lại cả lô 3 lần rồi mới tách chạy lẻ để cô lập prompt phạm.
+    _bi_dung = [i for i, _ in viec if i in DUNG_RIENG]
+    if _bi_dung:
+        with HUY_LOCK:
+            DUNG_RIENG.difference_update(i for i, _ in viec)
+        for i, _ in viec:
+            JOBS[i] = {"state": "error",
+                       "msg": "đã dừng riêng" if i in _bi_dung
+                              else "dừng theo lô (một lô là một tin nhắn)"}
+        _LOG.info("lô %d ảnh bị user dừng riêng — không thử lại", len(viec))
+        return
+
+    # ---- LƯỢT LỆCH: giữ nguyên ảnh, để user gắn tay ngay trên thẻ ----------
+    if luot and (n_ve != len(viec) or loi_text) and abs(n_ve - len(viec)) <= PL_LECH_TOI_DA:
+        _ly = (f"lượt trả kèm chữ ({loi_text[:60]}…)" if loi_text and n_ve == len(viec)
+               else f"thiếu {len(viec) - n_ve} ảnh" if n_ve < len(viec)
+               else f"thừa {n_ve - len(viec)} ảnh")
+        if loi_text and n_ve != len(viec):
+            _ly += " · lượt còn trả kèm chữ"
+        luot["ly_do"] = _ly
+        _pl_ghi_meta(luot)
+        _HOAN.pop("GR:" + _ident, None)
+        for i, _ in viec:
+            JOBS[i] = {"state": "error",
+                       "msg": f"lượt {luot['turn']}: {_ly} — {n_ve} ảnh ĐÃ TẢI VỀ, "
+                              f"bấm chọn ngay trên thẻ (không gửi lại, không mất ảnh)"}
+        _LOG.warning("lượt %d LỆCH (%d ảnh / %d prompt · %s) — giữ nguyên cho user chọn tay",
+                     luot["turn"], n_ve, len(viec), _ly)
+        return
+
+    if n_ve != len(viec):
+        # USER ĐÃ BẤM DỪNG trong lúc lượt này đang chạy → KHÔNG được tự xếp hàng lại.
+        # Không có chốt này thì cú "Dừng tất cả" bị vô hiệu một cách im lặng: lô hỏng
+        # quay lại hàng đợi rồi vẽ đè lên ảnh đang có.
+        if DUNG_GEN != _gen0:
+            for i, _ in viec:
+                JOBS[i] = {"state": "error", "msg": "đã dừng — không thử lại"}
+            _LOG.info("lô %d ảnh xong sau khi user bấm dừng — bỏ, không xếp hàng lại", len(viec))
+            return
+        # Guardrail chặn là chặn CẢ LƯỢT (thường về 0 ảnh) và phần lớn chỉ cần
+        # GỬI LẠI NGUYÊN LÔ là qua — đó là đường chính, giữ nguyên tốc độ lô.
+        # Tách chạy lẻ CHỈ là đường cùng sau 3 lần cả lô đều trượt: lúc đó gần
+        # như chắc có một prompt phạm thật, và chạy lẻ là cách duy nhất chỉ ra nó.
+        _gr = "GR:" + _ident
+        _n = _HOAN.get(_gr, 0)
+        if _n < 3:
+            _HOAN[_gr] = _n + 1
+            _con = (f" · {n_ve} ảnh vớt được đã để ở lượt {luot['turn']}"
+                    if luot and n_ve else "")
+            for i, _ in viec:
+                JOBS[i] = {"state": "queued",
+                           "msg": f"ChatGPT chặn/thiếu ảnh ({n_ve}/{len(viec)}) "
+                                  f"— gửi lại cả lô, lần {_n + 1}/3{_con}"}
+            time.sleep(15)
+            _xep(IMG_QUEUE, ("img", _ident, 0, tay))
+            return
+        _HOAN.pop(_gr, None)
+        if len(viec) > 1:
+            _LOG.warning("lô %d ảnh trượt 3 lần liền — tách chạy lẻ để cô lập prompt bị chặn",
+                         len(viec))
+            for i, _ in viec:
+                JOBS[i] = {"state": "queued", "msg": "cả lô trượt 3 lần → chạy lẻ tìm prompt bị chặn"}
+                _xep(IMG_QUEUE, ("img", "LO:" + i, 0, tay))
+            return
+        i = viec[0][0]
+        JOBS[i] = {"state": "error",
+                   "msg": "ChatGPT chặn đúng ảnh này nhiều lần (guardrail 'similarity to "
+                          "third-party content'). Cách chữa: sửa prompt — bớt chữ nhấn "
+                          "vào gương mặt/người nổi tiếng, đổi vài chi tiết bố cục; hoặc "
+                          "đổi ảnh ref của nhân vật rồi chạy lại."}
+        raise RuntimeError(f"{i}: guardrail chặn nhiều lần")
+
+    # ---- ĐỦ ĐÚNG SỐ VÀ KHÔNG KÈM CHỮ → GHÉP TỰ ĐỘNG ----------------------
+    # Ảnh đã nằm sẵn trong thư mục lượt, chỉ còn chép sang versions/. GHÉP RỒI
+    # VẪN GIỮ thư mục lượt (xem PL_GIU_TOI_DA): lượt ghép đúng cũng phải còn
+    # trong hộp chờ để dịch ảnh sang thẻ khác, không phải vẽ lại.
+    hong = []
+    for k, (i, _) in enumerate(viec, 1):
+        _HOAN.pop("GR:" + _ident, None)  # về đủ ảnh thì xoá đếm guardrail của lô
+        _HOAN.pop("GR:LO:" + i, None)    # và của bản chạy lẻ nếu từng tách
+        src = os.path.join(_pl_duong(luot["turn"]), luot["anh"][k - 1]["ten"])
+        with BOARD_LOCK:
+            out = BOARD.next_version_path(i, reserve=True)
+        try:
+            shutil.copy2(src, out)
+        except OSError as e:
+            _drop_reserved(out)
+            hong.append(i)
+            JOBS[i] = {"state": "error",
+                       "msg": f"ảnh đã tải về nhưng chép vào bản lỗi: {e} "
+                              f"— ảnh còn ở lượt {luot['turn']}"}
+            continue
+        # Ảnh này đã vào SF `i` → đánh dấu NGAY, trước nhánh "đã duyệt" ở dưới:
+        # nhánh đó `continue`, đặt dấu sau nó là bỏ sót đúng những ảnh vào thẻ đã
+        # duyệt. Hộp chờ đọc dấu này để hiện "→ đã gắn <SF>", và `_pl_don_bot()`
+        # dựa vào nó để biết lượt nào đã xong mà dọn được.
+        luot["anh"][k - 1]["gan"] = i
+        BOARD.turn_log_ghi(os.path.basename(out),
+                           {"turn": luot["turn"], "o": k, "port": port,
+                            "at": luot.get("at") or ""})
+        with BOARD_LOCK:
+            sf_now = BOARD.get_sf(i) or {}
+            if sf_now.get("status") == "approved" and BOARD.find_file(i):
+                JOBS[i] = {"state": "done",
+                           "msg": f"xong (lượt {luot['turn']}) — đã duyệt nên giữ bản cũ, "
+                                  f"bản mới ở dãy bản"}
+                continue
+            BOARD.set_current(i, out)
+            _mark_picked(i, "picked", os.path.basename(out))
+        JOBS[i] = {"state": "done", "msg": f"xong (lô · lượt {luot['turn']} #{k:02d})"}
+    if hong:
+        luot["ly_do"] = "chép vào versions/ lỗi ở " + ", ".join(hong[:4])
+    else:
+        luot["ly_do"] = (f"đã ghép tự động đủ {len(viec)} ảnh — giữ lại để "
+                         f"kéo sang thẻ khác nếu thứ tự chưa đúng")
+    _pl_ghi_meta(luot)
+    _pl_don_bot()
 
 
 def _generate(sf_id: str, manual: bool = False):
@@ -1098,6 +2392,7 @@ def _generate(sf_id: str, manual: bool = False):
                 out = BOARD.next_version_path(sf_id, reserve=True)
             ok = sess.generate(prompt, attach, out)
             if ok and os.path.exists(out) and os.path.getsize(out) > 1024:
+                _dem_cong()
                 break
             raise RuntimeError("ChatGPT không trả về ảnh (thử lại hoặc kiểm tra tab ChatGPT)")
         except Exception as e:
@@ -1249,12 +2544,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, HTML.encode("utf-8"), "text/html; charset=utf-8")
         elif u.path == "/api/board":
             self._json(BOARD.read())
-        elif u.path == "/api/video-gate":
-            # CHỈ ĐỌC trạng thái cổng. Việc bật/tắt nằm ở do_POST và chỉ chấp
-            # nhận cú bấm phát ra từ trang web (xem KHONG-TU-BAT-VIDEO.md).
-            self._json({"ok": True, "on": video_gate_on()})
         elif u.path == "/api/jobs":
-            self._json({"jobs": JOBS, "auto": _auto_status(),
+            # Kèm luôn NHÓM của từng việc: bảng hàng đợi phải xếp theo đoạn chat
+            # thì mới đọc được "đang vẽ ai / còn nợ nhóm nào", chứ một danh sách
+            # id phẳng thì nhìn cũng như không.
+            _d = BOARD.read()
+            _tat = {f["id"]: f for s in _d.get("scenes", []) for f in s.get("sfs", [])}
+            _nh = {}
+            for k in JOBS:
+                if k.startswith("LO:"):
+                    continue
+                kh = _nhom_cua(k, _d)
+                bt, ten = _ten_nhom(kh, _tat)
+                _nh[k] = {"khoa": kh, "bieu_tuong": bt, "nhan": ten}
+            self._json({"jobs": JOBS, "auto": _auto_status(), "nhom": _nh,
+                        "pl": _pl_dem(), "dan_ma": _dan_ma_doc(),
+                        "auto_vid": _auto_vid_doc(),
                         "mtime": int(os.path.getmtime(BOARD.path))})
         elif u.path == "/api/projects":
             self._json({
@@ -1268,9 +2573,12 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/accounts":
             self._json({"accounts": _accounts_status()})
         elif u.path.startswith("/assets/"):
-            self._serve_img(BOARD.assets, u.path)
+            # PHẢI truyền q: '?w=' (bản thu nhỏ) và '?dl=1' (tải về đúng tên)
+            # đều đọc từ đây. Thiếu nó thì mọi thumbnail lặng lẽ trả ảnh gốc
+            # ~2.8MB — đúng thứ _thumb() sinh ra để tránh.
+            self._serve_img(BOARD.assets, u.path, q)
         elif u.path.startswith("/versions/"):
-            self._serve_img(BOARD.versions, u.path)
+            self._serve_img(BOARD.versions, u.path, q)
         elif u.path.startswith("/videos/"):
             self._serve_video(BOARD.videos, u.path)
         elif u.path.startswith("/vversions/"):
@@ -1301,6 +2609,15 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/generate":
             if JOBS.get(sf_id, {}).get("state") == "running":
                 self._json({"ok": False, "err": "đang chạy"}); return
+            _d0 = BOARD.read()
+            if not _la_the_dia_diem(BOARD.get_sf(sf_id) or {"id": sf_id}):
+                _ly = _cong_master(_nhom_cua(sf_id, _d0), _d0)
+                if _ly:
+                    self._json({"ok": False, "khoa": True,
+                                "err": f"Chưa chạy được — {_ly}. Ảnh thẻ địa điểm là bản "
+                                       f"neo khoá màu · ánh sáng · trục cho cả địa điểm; "
+                                       f"chạy nó trước."}, 409)
+                    return
             with BOARD_LOCK:                 # user chủ động tạo lại → bỏ khoá cũ
                 data = BOARD.read(); ch = False
                 for sc in data.get("scenes", []):
@@ -1309,8 +2626,415 @@ class Handler(BaseHTTPRequestHandler):
                             del sfd["picked"]; ch = True
                 if ch:
                     BOARD.write(data)
-            _enqueue("img", sf_id, int(q.get("n", ["1"])[0] or 1), manual=True)
-            self._json({"ok": True})
+            # MỘT BẢN THÌ ĐI ĐƯỜNG LÔ (lô một ảnh). Đường _generate đơn lẻ gọi
+            # sess.generate() nên KHÔNG có chat_url và KHÔNG gửi luatchung —
+            # prompt bây giờ đã cắt hết phần bối cảnh vì tin luatchung sẽ tới,
+            # nên chạy đường đó là ra ảnh không có bối cảnh, không trục, không
+            # luật chữ. Nhiều bản (n>1) vẫn đi đường cũ: mỗi bản một tài khoản
+            # khác nhau, mà chat của địa điểm chỉ sống trên đúng một tài khoản.
+            so_ban = int(q.get("n", ["1"])[0] or 1)
+            if so_ban <= 1:
+                JOBS[sf_id] = {"state": "queued", "msg": "chờ lô 1 ảnh"}
+                _xep(IMG_QUEUE, ("img", "LO:" + sf_id, 0, True))
+            else:
+                _enqueue("img", sf_id, so_ban, manual=True)
+            self._json({"ok": True, "qua_lo": so_ban <= 1})
+        elif u.path == "/api/dung-het":
+            # DỪNG TẤT CẢ: tắt mọi auto, vét sạch hàng đợi, và ĐÓNG CỬA SỔ CHROME
+            # của những tài khoản ảnh đang bận. Đóng Chrome là cách DUY NHẤT cắt
+            # được việc đang chạy: thợ đang nằm trong vòng chờ ChatGPT vẽ, không
+            # có chỗ nào để nó ngó lại cờ huỷ giữa chừng.
+            global DUNG_GEN
+            DUNG_GEN += 1        # thợ đang chạy dở soi số này, thấy đổi là không thử lại
+            AUTO.clear()
+            bo = 0
+            for Q in (IMG_QUEUE, VID_QUEUE):
+                try:
+                    while True:
+                        it = Q.get_nowait()[2]           # (prio, seq, item) → item
+                        _dat_job(it[1], {"state": "error", "msg": "đã dừng"})
+                        Q.task_done(); bo += 1
+                except queue.Empty:
+                    pass
+            dang = [k for k, v in JOBS.items() if v.get("state") in ("running", "queued")]
+            with HUY_LOCK:
+                DA_HUY.update(dang)
+                DA_HUY.update(k for k in JOBS if k.startswith("LO:"))
+            for k in dang:
+                JOBS[k] = {"state": "error", "msg": "đã dừng"}
+            dong = []
+            if q.get("dong_chrome", ["1"])[0] == "1":
+                with ACC_LOCK:
+                    ports = [a["port"] for a in ACCOUNTS if a.get("enabled")]
+                for pt in ports:
+                    try:
+                        _kill_chrome(pt); dong.append(pt)
+                    except Exception:
+                        pass
+            self._json({"ok": True, "bo": bo, "dung": len(dang), "dong_chrome": dong})
+        elif u.path == "/api/huy":
+            # Chỉ vứt việc CHƯA chạy. Việc đang chạy phải để nó xong — cắt giữa
+            # chừng là mất cả ảnh đã sinh mà không thu lại được.
+            bo = 0
+            try:
+                while True:
+                    it = IMG_QUEUE.get_nowait()[2]       # (prio, seq, item) → item
+                    _dat_job(it[1], {"state": "error", "msg": "đã huỷ khỏi hàng đợi"})
+                    IMG_QUEUE.task_done(); bo += 1
+            except queue.Empty:
+                pass
+            # việc đã ra khỏi hàng nhưng thợ chưa bắt tay làm: ghi vào DA_HUY để
+            # thợ tự bỏ. Ident lô là "LO:a,b,c" nên phải suy ngược từ SF thành viên.
+            cho = {k for k, v in JOBS.items() if v.get("state") == "queued"}
+            with HUY_LOCK:
+                for k in cho:
+                    DA_HUY.add(k)
+                for k in list(JOBS):
+                    if k.startswith("LO:") and any(x in cho for x in k[3:].split(",")):
+                        DA_HUY.add(k)
+                DA_HUY.update("LO:" + ",".join(sorted(cho)) for _ in (0,))
+            for k in cho:
+                JOBS[k] = {"state": "error", "msg": "đã huỷ"}
+            dang = [k for k, v in JOBS.items() if v.get("state") == "running"]
+            self._json({"ok": True, "bo": bo, "cho_da_huy": len(cho), "dang_chay": dang})
+        elif u.path == "/api/xoa-loi":
+            # DỌN việc LỖI khỏi hàng đợi.
+            #
+            # Chỉ xoá DÒNG TRẠNG THÁI, không đụng ảnh hay prompt — việc lỗi đã
+            # dừng rồi, giữ nó lại chỉ làm rối danh sách. Trước đây hàng lỗi không
+            # có nút nào nên khi hàng đợi chỉ còn toàn lỗi, giao diện trông như
+            # không cho thao tác gì.
+            if (q.get("het", [""])[0] or "") in ("1", "true", "yes"):
+                bo = [k for k, v in JOBS.items() if v.get("state") == "error"]
+            else:
+                sf = (q.get("sf", [""])[0] or "").strip()
+                if JOBS.get(sf, {}).get("state") != "error":
+                    self._json({"ok": False, "err": "việc này không ở trạng thái lỗi"}); return
+                bo = [sf]
+            for k in bo:
+                JOBS.pop(k, None)
+            self._json({"ok": True, "bo": len(bo)})
+        elif u.path == "/api/dung-viec":
+            # DỪNG RIÊNG một việc ĐANG CHẠY, không đụng các việc khác.
+            # Thợ soi cờ này ở mỗi nhịp poll (5s) rồi bấm nút stop của ChatGPT và
+            # thoát — nên chậm nhất vài giây là dừng thật.
+            sf = (q.get("sf", [""])[0] or "").strip()
+            if JOBS.get(sf, {}).get("state") != "running":
+                self._json({"ok": False, "err": "việc này không đang chạy"}); return
+            with HUY_LOCK:
+                DUNG_RIENG.add(sf)
+            JOBS[sf] = {"state": "running", "msg": "đang dừng… (thợ soi cờ mỗi 5s)"}
+            self._json({"ok": True, "sf": sf})
+        elif u.path == "/api/huy-viec":
+            # HUỶ ĐÚNG MỘT VIỆC, không phải cả hàng đợi.
+            #
+            # Một lô là MỘT tin nhắn nên không cắt đôi được: cách làm là huỷ lô cũ
+            # rồi xếp lại lô mới gồm các thành viên còn lại. Việc ĐANG CHẠY thì
+            # không cắt được (thợ đang nằm trong lượt chờ ChatGPT vẽ) — chỉ có
+            # "Dừng tất cả" mới cắt nổi, vì nó đóng Chrome.
+            sf = (q.get("sf", [""])[0] or "").strip()
+            if not sf:
+                self._json({"ok": False, "err": "thiếu tham số sf"}); return
+            if JOBS.get(sf, {}).get("state") == "running":
+                self._json({"ok": False, "err": "việc này ĐANG CHẠY — không cắt giữa "
+                                                "chừng được. Dùng '⏹ Dừng tất cả'."}); return
+            bo, con_lai = [], []
+            for k, v in list(JOBS.items()):
+                if not k.startswith("LO:") or v.get("state") != "queued":
+                    continue
+                tv = [x for x in k[3:].split(",") if x]
+                if sf not in tv:
+                    continue
+                bo.append(k)
+                con_lai = [x for x in tv if x != sf]
+            with HUY_LOCK:
+                DA_HUY.update(bo)
+            with _CR_LOCK:                       # gỡ khỏi hàng giao đích danh
+                for p, ds in CHO_RIENG.items():
+                    CHO_RIENG[p] = [i for i in ds if i not in set(bo)]
+            for k in bo:
+                JOBS.pop(k, None)
+            if con_lai:                          # xếp lại phần còn lại thành lô mới
+                mid = "LO:" + ",".join(con_lai)
+                for i in con_lai:
+                    JOBS[i] = {"state": "queued", "msg": f"chờ lô {len(con_lai)} ảnh (đã bớt 1)"}
+                _xep(IMG_QUEUE, ("img", mid, 0, True))
+            JOBS[sf] = {"state": "error", "msg": "đã huỷ riêng việc này"}
+            self._json({"ok": True, "bo_lo": len(bo), "con_lai": len(con_lai)})
+        elif u.path == "/api/master":
+            # LIỆT KÊ / CHẠY HẾT THẺ ĐỊA ĐIỂM — đúng nếp cũ: xong toàn bộ ảnh gốc
+            # rồi mới tới khung con. Không có tham số `chay` thì chỉ đếm để giao
+            # diện hỏi trước; thẻ ĐÃ DUYỆT không bao giờ bị đụng tới.
+            data = BOARD.read()
+            ds = [f for s in data.get("scenes", []) for f in s.get("sfs", [])
+                  if _la_the_dia_diem(f)]
+            chua_anh = [f["id"] for f in ds if not BOARD.find_file(f["id"])]
+            chua_duyet = [f["id"] for f in ds
+                          if BOARD.find_file(f["id"]) and f.get("status") != "approved"]
+            xong = [f["id"] for f in ds if f.get("status") == "approved"]
+            if (q.get("chay", [""])[0] or "") not in ("1", "true", "yes"):
+                self._json({"ok": True, "tong": len(ds), "chua_anh": chua_anh,
+                            "chua_duyet": chua_duyet, "da_duyet": xong})
+                return
+            lai = (q.get("lai", [""])[0] or "") in ("1", "true", "yes")
+            can = chua_anh + (chua_duyet if lai else [])
+            if not can:
+                self._json({"ok": False, "err": "không còn thẻ địa điểm nào cần chạy"})
+                return
+            # MỖI THẺ ĐỊA ĐIỂM MỘT LÔ RIÊNG. Chúng thuộc các địa điểm khác nhau
+            # nên không chung chat được, và mỗi cái chạy chat trắng của chính nó.
+            for i in sorted(can, key=_uu_tien):
+                JOBS[i] = {"state": "queued", "msg": "chờ chạy ảnh gốc địa điểm"}
+                _xep(IMG_QUEUE, ("img", "LO:" + i, 0, True))
+            _LOG.info("chạy %d thẻ địa điểm: %s", len(can), ", ".join(can))
+            self._json({"ok": True, "so": len(can), "ds": can})
+        elif u.path == "/api/xem-lo":
+            # XEM TRƯỚC cách chia lô — KHÔNG xếp hàng, KHÔNG chạy gì.
+            #
+            # Đây là câu hỏi người dùng luôn phải đoán: "cái nào đi CHUNG một đoạn
+            # chat, cái nào TÁCH?". Luật đã có sẵn trong code (đoạn chat = địa điểm
+            # = thẻ master, leo theo refs.bg) nhưng không hiện ở đâu trên giao diện,
+            # nên mỗi lần bấm Tạo là một lần đánh cược. Endpoint này chỉ tính đúng
+            # phép chia mà /api/tao-lo sẽ làm, rồi trả về để giao diện bày ra trước.
+            ids = [x for x in (q.get("sf", [""])[0] or "").split(",") if x.strip()]
+            if not ids:
+                self._json({"ok": False, "err": "chưa chọn SF nào"}); return
+            data = BOARD.read()
+            tat = {f["id"]: f for s in data.get("scenes", []) for f in s.get("sfs", [])}
+            nhom: dict[str, list[str]] = {}
+            for i in ids:
+                nhom.setdefault(_nhom_cua(i, data), []).append(i)
+            # đếm sẵn số ảnh đã có theo từng master để không leo lại cho mỗi nhóm
+            dem_master: dict[str, int] = {}
+            for f in tat.values():
+                if BOARD.find_file(f["id"]):
+                    m = _nhom_cua(f["id"], data)
+                    dem_master[m] = dem_master.get(m, 0) + 1
+            out = []
+            for m, xs in nhom.items():
+                xs.sort(key=_uu_tien)
+                chat = _chat_cua_master(m) if m else {}
+                lo = []
+                for k in range(0, len(xs), TOI_DA_ANH_MOT_LO):
+                    phan = xs[k:k + TOI_DA_ANH_MOT_LO]
+                    lo.append({"sf": phan,
+                               "ky_tu": sum(len((tat.get(i) or {}).get("prompt") or "")
+                                            for i in phan)})
+                bieu_tuong, ten = _ten_nhom(m, tat)
+                # Nhóm toàn thẻ địa điểm thì KHÔNG tự gác chính mình.
+                _chi_goc = all(_la_the_dia_diem(tat.get(i) or {"id": i}) for i in xs)
+                out.append({
+                    "khoa": "" if _chi_goc else _cong_master(m, data),
+                    "master": m,
+                    "loai": ("dia_diem" if _khoa_la_the(m) else
+                             "nhan_vat" if m.startswith("NV:") else
+                             "dao_cu" if m == "PROP" else "le"),
+                    "bieu_tuong": bieu_tuong,
+                    "nhan": ten,
+                    "chat_mo": bool(chat.get("url")),
+                    "chat_url": chat.get("url", ""),
+                    "da_co": dem_master.get(m, 0),
+                    "lo": lo,
+                })
+            out.sort(key=lambda x: (x["master"] == "", x["master"]))
+            self._json({"ok": True, "nhom": out,
+                        "tran_anh_mot_lo": TOI_DA_ANH_MOT_LO,
+                        "tran_ky_tu_khuyen": 8000})
+        elif u.path == "/api/tao-lo":
+            # GOM THEO ĐỊA ĐIỂM rồi mới xếp hàng: mỗi địa điểm là một đoạn chat,
+            # nên các SF cùng địa điểm phải đi CHUNG một tin nhắn. Tích 2 ảnh ở
+            # Sảnh + 1 ở Bếp = 2 lô, không phải 3 lượt riêng.
+            ids = [x for x in (q.get("sf", [""])[0] or "").split(",") if x.strip()]
+            if not ids:
+                self._json({"ok": False, "err": "chưa chọn SF nào"}); return
+            data = BOARD.read()
+            nhom: dict[str, list[str]] = {}
+            for i in ids:
+                if JOBS.get(i, {}).get("state") == "running":
+                    continue
+                nhom.setdefault(_nhom_cua(i, data), []).append(i)
+            # CHẶN NGAY TẠI CỬA. Thợ cũng chặn (đó mới là chốt thật), nhưng chặn
+            # ở đây để user biết LIỀN thay vì thấy cả loạt job đỏ vài giây sau.
+            _chan = []
+            for m, xs in nhom.items():
+                if all(_la_the_dia_diem(BOARD.get_sf(i) or {"id": i}) for i in xs):
+                    continue                      # lô toàn thẻ địa điểm — không tự gác
+                ly = _cong_master(m, data)
+                if ly:
+                    _chan.append(f"{_ten_gon(m, data)}: {ly}")
+            if _chan:
+                self._json({"ok": False, "khoa": True,
+                            "err": "Chưa chạy được — " + " · ".join(_chan[:4])
+                                   + ". Ảnh thẻ địa điểm là bản neo khoá màu · ánh sáng "
+                                     "· trục cho cả địa điểm; chạy nó trước."},
+                           409)
+                return
+            with BOARD_LOCK:                 # user chủ động tạo lại → bỏ khoá cũ
+                ch = False
+                for sc in data.get("scenes", []):
+                    for sfd in sc.get("sfs", []):
+                        if sfd.get("id") in ids and "picked" in sfd:
+                            del sfd["picked"]; ch = True
+                if ch:
+                    BOARD.write(data)
+            # CẮT LÔ Ở TOI_DA_ANH_MOT_LO ẢNH. Trần này từng phải để thấp vì lệch
+            # một ảnh là bỏ nguyên lô; nay ảnh luôn được tải về trước nên lô to
+            # chỉ còn phải trả giá bằng thời gian chờ (~180s/ảnh).
+            # ÉP TÀI KHOẢN (tham số tk=<cổng>) — cũng chính là đường THOÁT khỏi
+            # một đoạn chat hỏng.
+            #
+            # Chat sống trong profile Chrome của đúng tài khoản đã mở nó, nên
+            # KHÔNG thể bê chat cũ sang tài khoản khác. Vì vậy ép tài khoản luôn
+            # kéo theo MỞ CHAT MỚI cho nhóm — và đó đúng là thứ cần khi chat cũ
+            # hỏng. Đã đo: 2 prompt hỏng 3 lần liền trong chat cũ, đưa sang chat
+            # trắng CÙNG tài khoản thì ra đủ 2/2.
+            ep = 0
+            try:
+                ep = int((q.get("tk", [""])[0] or "0").strip() or 0)
+            except ValueError:
+                ep = 0
+            chat_moi = (q.get("moi", [""])[0] or "") in ("1", "true", "yes")
+            if ep or chat_moi:
+                with BOARD_LOCK:
+                    dl = BOARD.read(); doi = False
+                    for m in nhom:
+                        if not m:
+                            continue
+                        if _khoa_la_the(m):
+                            for sc in dl.get("scenes", []):
+                                for sfd in sc.get("sfs", []):
+                                    if sfd.get("id") == m and sfd.pop("chat", None) is not None:
+                                        doi = True
+                        elif (dl.get("chats") or {}).pop(m, None) is not None:
+                            doi = True
+                    if doi:
+                        BOARD.write(dl)
+                        _LOG.info("mở chat mới cho %d nhóm%s", len(nhom),
+                                  f" · ép cổng {ep}" if ep else "")
+
+            so_lo = 0
+            for m, xs in nhom.items():
+                xs.sort(key=_uu_tien)
+                for k in range(0, len(xs), TOI_DA_ANH_MOT_LO):
+                    lo = xs[k:k + TOI_DA_ANH_MOT_LO]
+                    so_lo += 1
+                    ident = "LO:" + ",".join(lo)
+                    for i in lo:
+                        JOBS[i] = {"state": "queued",
+                                   "msg": f"chờ lô {len(lo)} ảnh · {_ten_gon(m)}"
+                                          + (f" · ép cổng {ep}" if ep else "")}
+                    if ep:
+                        with _CR_LOCK:           # giao ĐÍCH DANH cho thợ của cổng đó
+                            o = CHO_RIENG.setdefault(ep, [])
+                            o.append(ident)
+                            o.sort(key=_uu_tien)
+                    else:
+                        _xep(IMG_QUEUE, ("img", ident, 0, True))
+            self._json({"ok": True, "so_lo": so_lo, "ep_tk": ep,
+                        "lo": {m: len(x) for m, x in nhom.items()}})
+        elif u.path == "/api/dan-ma":
+            # Bật/tắt việc in mã SF vào góc ảnh. Chỉ ảnh render TỪ ĐÂY VỀ SAU
+            # đổi theo — ảnh đã có trên đĩa giữ nguyên như lúc nó được vẽ.
+            on = (q.get("on", [""])[0] or "") in ("1", "true", "yes")
+            _dan_ma_ghi(on)
+            _LOG.info("dán mã SF vào ảnh: %s", "BẬT" if on else "TẮT")
+            self._json({"ok": True, "on": on})
+        elif u.path == "/api/gan-lui":
+            # HOÀN TÁC lần gắn gần nhất (hoặc n lần). Đây là lý do gắn tay không
+            # đáng sợ: bấm nhầm thì lùi được, kể cả khi thẻ vốn chưa có ảnh.
+            try:
+                n = int(q.get("n", ["1"])[0] or 1)
+            except ValueError:
+                n = 1
+            so, mo_ta = _ht_lui(n)
+            self._json({"ok": so > 0, "so": so, "viec": mo_ta,
+                        "con": len(HOAN_TAC),
+                        "err": "" if so else "không còn lần gắn nào để lùi"})
+        elif u.path == "/api/sf-doi":
+            # TRÁO ĐỔI ảnh của HAI thẻ. Ca thật: ChatGPT vẽ đúng cả hai khung
+            # nhưng trả ngược thứ tự, nên hai thẻ đeo ảnh của nhau — chép một
+            # chiều thì phải làm hai lần và ở giữa có một khoảnh khắc cả hai
+            # cùng một ảnh, rất dễ bấm nhầm tiếp.
+            a, b = q.get("a", [""])[0], q.get("b", [""])[0]
+            fa, fb = (BOARD.find_file(a) if a else None), (BOARD.find_file(b) if b else None)
+            if a == b or not fa or not fb:
+                self._json({"ok": False,
+                            "err": "cần HAI thẻ khác nhau và cả hai đều đã có ảnh"}, 400)
+                return
+            # ẢNH ĐÃ DUYỆT KHÔNG BAO GIỜ BỊ THAY — tráo là ghi đè cả hai chiều,
+            # nên chỉ cần một bên đã chốt là từ chối, đừng làm nửa vời.
+            for i in (a, b):
+                if (BOARD.get_sf(i) or {}).get("status") == "approved":
+                    self._json({"ok": False,
+                                "err": f"{i} ĐÃ DUYỆT — không tráo. Bỏ duyệt trước "
+                                       f"nếu thật sự muốn đổi."}, 409)
+                    return
+            try:
+                raw_a, raw_b = open(fa, "rb").read(), open(fb, "rb").read()
+            except OSError as e:
+                self._json({"ok": False, "err": str(e)[:120]}, 500); return
+            cu_a, tao_a = _ban_dang_dung(a)
+            cu_b, tao_b = _ban_dang_dung(b)
+            with BOARD_LOCK:
+                out_a = BOARD.next_version_path(a, reserve=True)
+                out_b = BOARD.next_version_path(b, reserve=True)
+            try:
+                open(out_a, "wb").write(raw_b)      # a nhận ảnh của b
+                open(out_b, "wb").write(raw_a)      # b nhận ảnh của a
+            except OSError as e:
+                _drop_reserved(out_a); _drop_reserved(out_b)
+                self._json({"ok": False, "err": str(e)[:120]}, 500); return
+            with BOARD_LOCK:
+                BOARD.set_current(a, out_a)
+                BOARD.set_current(b, out_b)
+            _mark_picked(a, "picked", os.path.basename(out_a))
+            _mark_picked(b, "picked", os.path.basename(out_b))
+            # MỘT CÚ TRÁO = MỘT LẦN HOÀN TÁC. Ghi hai dòng cùng `cap` để nút ↩
+            # lùi cả hai chiều trong một nhát; lùi nửa vời còn tệ hơn không lùi.
+            cap = f"doi-{time.time():.3f}"
+            _ht_ghi({"sf": a, "moi": os.path.basename(out_a), "cu": cu_a,
+                     "cu_tu_tao": tao_a, "turn": 0, "ten": f"tráo với {b}",
+                     "duyet": False, "cap": cap, "luc": time.strftime("%H:%M:%S")})
+            _ht_ghi({"sf": b, "moi": os.path.basename(out_b), "cu": cu_b,
+                     "cu_tu_tao": tao_b, "turn": 0, "ten": f"tráo với {a}",
+                     "duyet": False, "cap": cap, "luc": time.strftime("%H:%M:%S")})
+            _LOG.info("tráo ảnh %s ⇄ %s", a, b)
+            self._json({"ok": True, "msg": f"đã tráo {a} ⇄ {b}"})
+        elif u.path == "/api/sf-chuyen":
+            # KÉO ảnh từ thẻ này sang thẻ kia — đường sửa khi ảnh nằm nhầm thẻ.
+            # CHÉP chứ không chuyển: thẻ nguồn giữ nguyên. Chuyển thật thì thẻ
+            # nguồn hoá trắng và không có gì hoàn tác được, trong khi bản thừa ở
+            # thẻ đích thì chỉ cần xoá một bản trong dãy.
+            tu, den = q.get("tu", [""])[0], q.get("den", [""])[0]
+            src = BOARD.find_file(tu) if tu else None
+            if not src:
+                self._json({"ok": False, "err": f"{tu} chưa có ảnh nào"}, 404); return
+            if not BOARD.get_sf(den):
+                self._json({"ok": False, "err": f"không có SF {den}"}, 404); return
+            cu, cu_tu_tao = _ban_dang_dung(den)   # chụp hiện trạng để còn lùi được
+            with BOARD_LOCK:
+                out = BOARD.next_version_path(den, reserve=True)
+            try:
+                shutil.copy2(src, out)
+            except OSError as e:
+                _drop_reserved(out)
+                self._json({"ok": False, "err": str(e)[:120]}, 500); return
+            nk = (BOARD.turn_log().get(
+                (BOARD.get_sf(tu) or {}).get("picked") or "") or {})
+            if nk.get("turn"):        # giữ vết lượt gốc để còn lần ngược được
+                BOARD.turn_log_ghi(os.path.basename(out), {**nk, "chuyen_tu": tu})
+            sf_den = BOARD.get_sf(den) or {}
+            _duyet = sf_den.get("status") == "approved" and BOARD.find_file(den)
+            _ht_ghi({"sf": den, "moi": os.path.basename(out), "cu": cu,
+                     "cu_tu_tao": cu_tu_tao, "turn": 0, "ten": f"chép từ {tu}", "duyet": bool(_duyet),
+                     "luc": time.strftime("%H:%M:%S")})
+            if _duyet:
+                self._json({"ok": True, "msg": f"{den} ĐÃ DUYỆT — chỉ thêm vào dãy bản"}); return
+            with BOARD_LOCK:
+                BOARD.set_current(den, out)
+            _mark_picked(den, "picked", os.path.basename(out))
+            _LOG.info("chép ảnh %s → %s (%s)", tu, den, os.path.basename(out))
+            self._json({"ok": True, "msg": "đã đặt làm ảnh chính"})
         elif u.path == "/api/pick-version":
             f = q.get("file", [""])[0]
             src = os.path.join(BOARD.versions, os.path.basename(f))
@@ -1387,6 +3111,13 @@ class Handler(BaseHTTPRequestHandler):
                 BOARD.write(data)
             self._json({"ok": True})
         # ---------- accounts ----------
+        elif u.path == "/api/auto-video":
+            # Công tắc auto-video: CHỈ chi phối vòng quét tự động, không chặn nút tay.
+            want = q.get("on", [""])[0]
+            if want != "":
+                _auto_vid_ghi(want == "1")
+                _LOG.info("AUTO-VIDEO %s", "BẬT" if want == "1" else "TẮT")
+            self._json({"ok": True, "on": _auto_vid_doc()}); return
         elif u.path == "/api/auto":
             # Bật/tắt chế độ chạy tự động cho một scene (hoặc tắt tất cả).
             op = q.get("op", ["toggle"])[0]
@@ -1440,10 +3171,19 @@ class Handler(BaseHTTPRequestHandler):
                     # Bật = mở lại Chrome (nếu chưa mở) + xóa dấu chết để chạy lại từ đầu
                     with _DEAD_LOCK:
                         DEAD.pop(_ep(acc), None)
+                        DEAD_DEN.pop(_ep(acc), None)
                     if not _endpoint_alive(_ep(acc)):
                         _launch_chrome(acc)
                 else:
-                    # Tắt = đóng luôn cửa sổ Chrome; thợ tự nghỉ ở vòng lặp kế tiếp
+                    # Tắt = đóng luôn cửa sổ Chrome; thợ tự nghỉ ở vòng lặp kế tiếp.
+                    # Việc đã giao đích danh cho thợ này thì báo lỗi rõ ràng thay
+                    # vì để mục rữa chờ một thợ không bao giờ quay lại.
+                    with _CR_LOCK:
+                        _mo_coi = CHO_RIENG.pop(acc["port"], [])
+                    for _id in _mo_coi:
+                        _dat_job(_id, {"state": "error",
+                                       "msg": f"tài khoản giữ chat ({acc['id']}) vừa bị tắt "
+                                              f"— bật lại nó rồi chạy lại"})
                     _kill_chrome(acc["port"])
                 self._json({"ok": True, "enabled": now})
             elif op == "launch":
@@ -1452,6 +3192,7 @@ class Handler(BaseHTTPRequestHandler):
             elif op == "revive":
                 with _DEAD_LOCK:
                     DEAD.pop(_ep(acc), None)
+                    DEAD_DEN.pop(_ep(acc), None)
                 self._json({"ok": True})
             elif op == "del":
                 # Xóa hẳn tài khoản: đóng Chrome, bỏ khỏi danh sách, XÓA LUÔN
@@ -1460,6 +3201,7 @@ class Handler(BaseHTTPRequestHandler):
                 time.sleep(1.5)          # đợi Chrome nhả file trước khi xóa thư mục
                 with _DEAD_LOCK:
                     DEAD.pop(_ep(acc), None)
+                    DEAD_DEN.pop(_ep(acc), None)
                 with ACC_LOCK:
                     ACCOUNTS[:] = [a for a in ACCOUNTS if a["port"] != port]
                 _save_accounts()
@@ -1469,27 +3211,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, "deleted": acc["id"], "freed": freed, "err": err})
             else:
                 self._json({"ok": False, "err": "op không hợp lệ"}, 400)
-        elif u.path == "/api/video-gate":
-            want = q.get("on", [""])[0]
-            if want == "":
-                self._json({"ok": True, "on": video_gate_on()}); return
-            # Chỉ chấp nhận cú bấm phát ra TỪ TRANG WEB của board. Lệnh gọi
-            # bằng curl/script không có bộ header này nên bị từ chối.
-            site = self.headers.get("Sec-Fetch-Site", "")
-            mode = self.headers.get("Sec-Fetch-Mode", "")
-            ref = self.headers.get("Referer", "")
-            if site != "same-origin" or mode != "cors" or "://" not in ref:
-                self._json({"ok": False, "on": video_gate_on(),
-                            "err": "Cổng video chỉ được bật/tắt bằng cách BẤM NÚT trên giao "
-                                   "diện. Yêu cầu này không đến từ trang web nên bị từ chối."},
-                           403); return
-            on = video_gate_set(want == "1", source=f"nút giao diện ({ref})")
-            self._json({"ok": True, "on": on}); return
         # ---------- video ----------
         elif u.path == "/api/genvideo":
-            if not video_gate_on():
-                self._json({"ok": False, "err": "CỔNG VIDEO ĐANG ĐÓNG — bấm nút "
-                            "'Cho phép tạo video' trên giao diện trước"}, 403); return
             if JOBS.get(sf_id, {}).get("state") == "running":
                 self._json({"ok": False, "err": "đang chạy"}); return
             _enqueue("vid", sf_id)
@@ -1585,1598 +3308,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 # ---------------------------------------------------------------- ui
-HTML = r"""<!doctype html>
-<html lang="vi"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>SF Board</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root,:root[data-theme="dark"]{
---bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--linehi:#3a4152;--hover:#242936;
---deep:#0b0d11;--tx:#e6e9ef;--tx2:#98a1b3;--acc:#5b8cff;--ok:#2ecc71;--warn:#f0b429;--bad:#ef4444;
---okline:#1e5c3a;--warnline:#5c4a13;--badline:#5c1f1f;--tagbg:#1b2540;--tagtx:#9db4ee;
---tagbg2:#2a2140;--tagtx2:#c8a8ee;--hdr:rgba(15,17,21,.93);--overlay:rgba(11,13,17,.86);
---badgebg:rgba(0,0,0,.68);--shadow:none}
-:root[data-theme="light"]{
---bg:#f4f6f9;--panel:#ffffff;--panel2:#eef1f6;--line:#dde2ea;--linehi:#b9c2d0;--hover:#e4e9f1;
---deep:#f7f9fc;--tx:#161a20;--tx2:#5f6b7d;--acc:#2f6bed;--ok:#129a55;--warn:#b8760a;--bad:#d92d20;
---okline:#8ad9ae;--warnline:#e6c07a;--badline:#f0a9a3;--tagbg:#e5edff;--tagtx:#2f5fd0;
---tagbg2:#f0e7ff;--tagtx2:#7b4fd0;--hdr:rgba(255,255,255,.93);--overlay:rgba(255,255,255,.88);
---badgebg:rgba(255,255,255,.85);--shadow:0 1px 2px rgba(16,24,40,.06)}
-body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-header{position:sticky;top:0;z-index:60;background:var(--hdr);backdrop-filter:blur(10px);
-border-bottom:1px solid var(--line);padding:11px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-h1{font-size:15px;font-weight:650}.film{color:var(--tx2);font-size:13px}
-.stats{display:flex;gap:7px;margin-left:auto;flex-wrap:wrap}
-.chip{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--panel)}
-.chip.ok{color:var(--ok);border-color:var(--okline)}.chip.warn{color:var(--warn);border-color:var(--warnline)}
-.chip.bad{color:var(--bad);border-color:var(--badline)}.chip.pend{color:var(--tx2)}
-button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--tx);
-padding:6px 11px;border-radius:8px;transition:.12s}
-button:hover{border-color:var(--linehi);background:var(--hover)}
-button.pri{background:var(--acc);border-color:var(--acc);color:#fff}button.pri:hover{background:#4a7bee}
-button.sm{padding:4px 9px;font-size:12px}button:disabled{opacity:.45;cursor:not-allowed}
-.stale{font-size:11px;font-weight:600;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;
-  padding:2px 8px;border-radius:999px;white-space:nowrap}
-a.sm.dl{display:inline-flex;align-items:center;padding:4px 9px;font-size:12px;text-decoration:none;
-  border:1px solid var(--line,#d5d8de);border-radius:7px;background:var(--card,#fff);color:inherit;cursor:pointer}
-a.sm.dl:hover{background:var(--acc,#2563eb);color:#fff;border-color:var(--acc,#2563eb)}
-.save{font-size:12px;color:var(--tx2);min-width:82px}.save.on{color:var(--ok)}
-main{padding:18px;max-width:1700px;margin:0 auto}
-.scene{margin-bottom:30px}
-.scene-h{display:flex;align-items:center;gap:11px;margin-bottom:13px;padding-bottom:9px;border-bottom:1px solid var(--line)}
-.scene-h h2{font-size:15px;font-weight:650}
-.sid{color:var(--acc);font-weight:700;font-size:12px;background:var(--tagbg);padding:3px 8px;border-radius:6px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:15px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
-.card.approved{border-color:var(--okline);box-shadow:inset 0 0 0 1px var(--okline)}
-.card.rejected{opacity:.5;border-color:var(--badline)}.card.revise{border-color:var(--warnline)}
-.thumb{position:relative;aspect-ratio:16/9;background:var(--deep);display:flex;align-items:center;justify-content:center;
-cursor:pointer;border-bottom:1px solid var(--line)}
-.thumb img{width:100%;height:100%;object-fit:cover}
-.thumb.drop{outline:2px dashed var(--acc);outline-offset:-8px}
-.empty{color:var(--tx2);font-size:12.5px;text-align:center;padding:16px;line-height:1.7}
-.badge{position:absolute;top:8px;left:8px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;
-background:var(--badgebg);backdrop-filter:blur(4px)}
-.badge.ok{color:var(--ok)}.badge.warn{color:var(--warn)}.badge.bad{color:var(--bad)}.badge.pend{color:var(--tx2)}
-.run{position:absolute;inset:0;background:var(--overlay);display:flex;flex-direction:column;gap:9px;
-align-items:center;justify-content:center;font-size:12.5px;color:var(--tx2);text-align:center;padding:14px}
-.spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp 1s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}
-.body{padding:11px;display:flex;flex-direction:column;gap:8px;flex:1}
-.sfid{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--acc);font-weight:700}
-input.ed,textarea.ed{width:100%;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--tx);
-padding:4px 6px;font:inherit}
-input.ed{font-weight:600;font-size:13.5px}
-textarea.ed{font-size:12.5px;color:var(--tx2);resize:vertical;min-height:36px;line-height:1.55}
-input.ed:hover,textarea.ed:hover{border-color:var(--line)}
-input.ed:focus,textarea.ed:focus{outline:none;border-color:var(--acc);background:var(--panel2)}
-.vers{display:flex;gap:5px;overflow-x:auto;padding:2px 0}
-.vers img{width:52px;height:30px;object-fit:cover;border-radius:5px;border:2px solid transparent;cursor:pointer;flex:none}
-.vers img:hover{border-color:var(--acc)}
-/* mỗi bản là một ô có nút × để xoá riêng */
-.vwrap{position:relative;flex:none;line-height:0}
-.vwrap .vx{position:absolute;top:-4px;right:-4px;width:16px;height:16px;border-radius:50%;
-background:var(--bad);color:#fff;font-size:11px;line-height:16px;text-align:center;
-cursor:pointer;opacity:0;transition:opacity .12s;font-weight:700}
-.vwrap:hover .vx{opacity:1}
-.vwrap .vx:hover{transform:scale(1.15)}
-.vers .cur{border-color:var(--ok,#1a7f37)}
-.vlab{font-size:10.5px;color:var(--tx2);align-self:center;flex:none;padding-right:3px}
-.refrow{display:flex;gap:6px;align-items:flex-start;font-size:12px}
-.refrow b{color:var(--tx2);font-weight:600;min-width:52px;padding-top:5px}
-.picker{flex:1;display:flex;gap:4px;flex-wrap:wrap}
-.pill{font-size:11px;background:var(--tagbg);color:var(--tagtx);padding:3px 7px;border-radius:5px;
-font-family:ui-monospace,monospace;cursor:pointer;border:1px solid transparent}
-.pill:hover{border-color:var(--bad);color:var(--bad)}
-.pill.add{background:var(--panel2);color:var(--tx2);border:1px dashed var(--line)}
-.pill.add:hover{border-color:var(--acc);color:var(--acc)}
-.pill.bg{background:var(--tagbg2);color:var(--tagtx2)}
-details{border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
-summary{cursor:pointer;padding:6px 9px;font-size:12px;color:var(--tx2);user-select:none}
-summary:hover{color:var(--tx)}
-details textarea{width:100%;background:var(--deep);border:none;border-top:1px solid var(--line);color:var(--tx);
-padding:10px;font:12px/1.6 ui-monospace,Menlo,monospace;resize:vertical;min-height:190px}
-details textarea:focus{outline:none}
-.notes{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--tx);
-padding:7px;font:inherit;font-size:12.5px;resize:vertical;min-height:44px;width:100%}
-.notes:focus{outline:none;border-color:var(--warn)}
-.acts{display:flex;gap:5px;flex-wrap:wrap;padding:9px 11px;border-top:1px solid var(--line);background:var(--panel2)}
-.ok-b:hover{border-color:var(--ok);color:var(--ok)}.warn-b:hover{border-color:var(--warn);color:var(--warn)}
-.bad-b:hover{border-color:var(--bad);color:var(--bad)}
-.err{color:var(--bad);font-size:11.5px;padding:0 11px 8px}
-dialog{border:1px solid var(--line);background:var(--panel);color:var(--tx);border-radius:14px;padding:0;max-width:min(1300px,95vw)}
-dialog::backdrop{background:rgba(0,0,0,.82)}dialog img{max-width:100%;max-height:84vh;display:block}
-.dlg-h{padding:10px 14px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line)}
-.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:15px}
-.hint{color:var(--tx2);font-size:12px}
-select{font:inherit;background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
-.empty-all{text-align:center;color:var(--tx2);padding:60px 20px}
-/* ---- chế độ Kịch bản ---- */
-.tabs{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:3px}
-.tabs button{border:none;background:transparent;padding:5px 13px;border-radius:6px;font-size:12.5px;color:var(--tx2)}
-.tabs button.on{background:var(--acc);color:#fff;font-weight:600}
-.shot{display:flex;gap:13px;background:var(--panel);border:1px solid var(--line);border-radius:11px;
-padding:11px;margin-bottom:10px;box-shadow:var(--shadow)}
-.shot.warn-sf{border-color:var(--badline)}
-.sf-side{flex:none;width:460px;display:flex;flex-direction:column;gap:6px}
-/* ảnh SF co giãn cùng nhịp với khung video để hai bên luôn bằng nhau */
-@media (max-width:1500px){.sf-side{width:340px}}
-@media (max-width:1200px){.sf-side{width:250px}}
-.sf-side .fr{aspect-ratio:16/9;background:var(--deep);border-radius:8px;overflow:hidden;border:1px solid var(--line);
-display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
-.sf-side .fr img{width:100%;height:100%;object-fit:cover}
-.sf-side .fr .no{color:var(--bad);font-size:11.5px;text-align:center;padding:8px;line-height:1.5}
-.sf-side .pick{display:flex;gap:5px;align-items:center}
-.sf-side select{flex:1;font-size:11.5px;padding:4px 6px;font-family:ui-monospace,monospace}
-.sf-badge{position:absolute;bottom:5px;left:5px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;
-background:var(--badgebg)}
-.sh-main{flex:1;display:flex;flex-direction:column;gap:7px;min-width:0}
-.sh-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.vid{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:var(--acc)}
-.dur{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--tx);font-size:11.5px;padding:2px 6px}
-.script{width:100%;background:var(--deep);border:1px solid var(--line);border-radius:8px;color:var(--tx);
-padding:9px 11px;font:13px/1.75 ui-monospace,Menlo,monospace;resize:vertical;min-height:62px;white-space:pre-wrap}
-.script:focus{outline:none;border-color:var(--acc)}
-.sh-acts{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-.scene-sum{color:var(--tx2);font-size:12px}
-select.ncopy{padding:3px 4px;font-size:12px;border-radius:7px;border:1px solid var(--line,#d5d8de);
-  background:var(--card,#fff);color:var(--tx2);cursor:pointer}
-.sfdens{font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line,#d5d8de);
-  color:var(--tx2);background:var(--card,#fff);white-space:nowrap}
-.sfdens.ok{color:#166534;background:#dcfce7;border-color:#86efac}
-.sfdens.few{color:#b45309;background:#fef3c7;border-color:#fcd34d}
-.sfdens.many{color:#9a3412;background:#ffedd5;border-color:#fdba74}
-/* ---- đo lời thoại ---- */
-.est{font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;font-family:ui-monospace,monospace;
-white-space:nowrap;border:1px solid transparent}
-.est.ok{color:var(--ok);border-color:var(--okline);background:transparent}
-.est.over{color:var(--bad);border-color:var(--badline)}
-.est.thin{color:var(--warn);border-color:var(--warnline)}
-.est.empty{color:var(--tx2);border-color:var(--line)}
-.shot-tools{display:flex;gap:4px}
-details.scr{margin-bottom:11px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
-details.scr summary{padding:8px 11px;font-size:12.5px;color:var(--tx2)}
-details.scr pre{white-space:pre-wrap;word-break:break-word;margin:0;padding:12px 14px;
-border-top:1px solid var(--line);font:12.5px/1.85 ui-monospace,Menlo,monospace;color:var(--tx);
-max-height:420px;overflow:auto;background:var(--deep);border-radius:0 0 9px 9px}
-
-/* ---- thanh nhảy scene bên trái ---- */
-#snav{position:fixed;left:0;top:var(--hdrh,52px);bottom:0;width:132px;overflow-y:auto;z-index:40;
-padding:10px 6px 20px;background:var(--hdr);border-right:1px solid var(--line);
-backdrop-filter:blur(8px)}
-#snav .snav-t{font-size:10.5px;font-weight:700;color:var(--tx2);padding:0 6px 6px;
-letter-spacing:.4px;text-transform:uppercase}
-#snav a{display:block;text-decoration:none;color:inherit;padding:5px 7px;border-radius:7px;
-margin-bottom:3px;border:1px solid transparent;cursor:pointer}
-#snav a:hover{background:var(--tagbg2);border-color:var(--line)}
-#snav a.cur{background:var(--tagbg2);border-color:var(--acc)}
-#snav .r1{display:flex;align-items:baseline;gap:5px}
-#snav .sv{font-family:ui-monospace,monospace;font-size:11.5px;font-weight:700;color:var(--acc)}
-#snav .sp{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--tx2)}
-#snav a.full .sp{color:var(--ok,#1a7f37)}
-#snav .bar{height:4px;border-radius:3px;background:var(--line);margin-top:4px;overflow:hidden}
-#snav .bar i{display:block;height:100%;background:var(--acc);border-radius:3px;
-transition:width .25s}
-#snav a.full .bar i{background:var(--ok,#1a7f37)}
-#snav .tot{margin-top:8px;padding:7px;border-top:1px solid var(--line);font-size:11px}
-#snav .allm{display:block;margin-top:6px;padding:6px 7px;border-radius:7px;font-size:11px;
-text-align:center;border:1px solid var(--acc);color:var(--acc);cursor:pointer;font-weight:600}
-#snav .allm:hover{background:var(--tagbg2)}
-body.hasnav main{padding-left:146px}
-section.scene{scroll-margin-top:calc(var(--hdrh,52px) + 12px)}
-@media (max-width:1100px){#snav{display:none}body.hasnav main{padding-left:18px}}
-
-
-/* ---- dải trang phục trong thẻ portrait ---- */
-.wrstrip{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 0 2px}
-.wrstrip b{font-size:10.5px;color:var(--tx2);font-weight:600;margin-right:2px}
-.wrstrip .wit{width:34px;height:52px;border-radius:5px;overflow:hidden;cursor:pointer;
-border:1.5px solid var(--line);background:var(--deep);flex:none;display:flex;
-align-items:center;justify-content:center}
-.wrstrip .wit img{width:100%;height:100%;object-fit:cover;display:block}
-.wrstrip .wit:hover{border-color:var(--acc)}
-.wrstrip .wit.ok{border-color:var(--ok,#1a7f37)}
-.wrstrip .wit i{color:var(--bad);font-size:11px}
-.wrstrip .wtog{padding:1px 7px;margin-left:auto}
-
-/* ---- chip ref: có ảnh nhỏ, bấm xem, ✕ riêng để bỏ ---- */
-.pill.ref{display:inline-flex;align-items:center;gap:5px;padding:2px 4px 2px 2px;cursor:pointer}
-.pill.ref:hover{border-color:var(--acc)}
-.pill.ref{font-family:ui-monospace,monospace;font-size:10.5px}
-.pill.ref .x{padding:0 3px;opacity:.45;font-weight:400}
-.pill.ref .x:hover{opacity:1;color:var(--bad)}
-
-/* ---- phân cấp thẻ: master to, con nhỏ ---- */
-.card.ismaster{grid-column:span 2}
-.kindtag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;
-padding:1px 6px;border-radius:999px;margin-right:5px;vertical-align:middle}
-.kindtag.m{background:var(--acc);color:#fff}
-.kindtag.a{background:var(--warn,#b45309);color:#fff}
-.kindtag.r{background:var(--tagbg2);color:var(--tagtx2)}
-@media (max-width:900px){.card.ismaster{grid-column:span 1}}
-
-/* ---- chọn Start frame có xem trước ---- */
-button.sfpick{display:inline-flex;align-items:center;gap:6px;max-width:260px;padding:3px 8px 3px 3px}
-button.sfpick img{width:44px;height:25px;object-fit:cover;border-radius:4px;display:block}
-button.sfpick .nosf{width:44px;text-align:center;color:var(--bad)}
-button.sfpick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-font-family:ui-monospace,monospace;font-size:11.5px}
-#sfpick,#mall{width:min(1100px,94vw);max-height:88vh}
-#ma-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:11px;
-padding:11px;overflow-y:auto;max-height:calc(88vh - 56px)}
-#ma-g .it{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;
-background:var(--panel)}
-#ma-g .it:hover{border-color:var(--acc)}
-#ma-g .it img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:var(--deep)}
-#ma-g .it .no{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;
-color:var(--tx2);font-size:11px;background:var(--deep)}
-#ma-g .it b{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--acc);
-padding:6px 8px 0}
-#ma-g .it i{display:block;font-style:normal;font-size:11px;color:var(--tx2);padding:1px 8px 3px}
-#ma-g .it u{display:block;text-decoration:none;font-size:10.5px;color:var(--tx2);
-padding:0 8px 7px;opacity:.75}
-#sp-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px;
-padding:10px;overflow-y:auto;max-height:calc(88vh - 56px)}
-#sp-g .it{border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;
-background:var(--panel)}
-#sp-g .it:hover{border-color:var(--acc)}
-#sp-g .it.cur{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
-#sp-g .it img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:var(--deep)}
-#sp-g .it .no{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;
-color:var(--tx2);font-size:11px;background:var(--deep)}
-#sp-g .it b{display:block;font-family:ui-monospace,monospace;font-size:11px;color:var(--acc);
-padding:5px 7px 0}
-#sp-g .it i{display:block;font-style:normal;font-size:11px;color:var(--tx2);padding:1px 7px 6px;
-overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#sp-g .hd{grid-column:1/-1;font-size:11.5px;font-weight:700;color:var(--tx2);
-padding:6px 2px 0;text-transform:uppercase;letter-spacing:.4px}
-
-/* ---- lớp video ---- */
-.shot.vok{border-color:var(--okline)}
-.v-side{flex:none;width:460px;display:flex;flex-direction:column;gap:6px}
-/* màn hẹp thì khung video co lại theo, không đẩy vỡ hàng */
-@media (max-width:1500px){.v-side{width:340px}}
-@media (max-width:1200px){.v-side{width:250px}}
-.vbox{position:relative;aspect-ratio:16/9;background:var(--deep);border:1px solid var(--line);
-border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.vbox.drop{outline:2px dashed var(--acc);outline-offset:-6px}
-.sf-side .fr.drop{outline:2px dashed var(--acc);outline-offset:-6px}
-.vbox video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
-.vempty{color:var(--tx2);font-size:11.5px;text-align:center;line-height:1.6;padding:10px}
-.vempty span{font-size:10.5px;opacity:.75}
-.vacts{display:flex;gap:4px;flex-wrap:wrap}
-.vnotes{min-height:50px;font-size:12px;padding:7px 9px;width:100%;resize:vertical}
-.noterow{display:flex;justify-content:flex-end;margin-top:-2px}
-/* có ghi chú thì viền cam để lướt mắt là thấy dòng nào đang vướng */
-.shot.hasnote{border-color:var(--warn)}
-.shot.hasnote .vnotes{border-color:var(--warn);background:var(--panel)}
-.v-side .vers{display:flex;gap:3px;flex-wrap:wrap}
-/* ---- dán ảnh ---- */
-.card.sel{outline:2px solid var(--acc);outline-offset:2px}
-.pastebox{border:2px dashed var(--line);border-radius:12px;background:var(--panel);
-display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-min-height:64px;padding:9px 12px;text-align:center;color:var(--tx2);font-size:12px;
-cursor:pointer;transition:.15s}
-.pastebox:hover,.pastebox.on{border-color:var(--acc);color:var(--acc);background:var(--panel2)}
-.pastebox b{font-size:13px;color:var(--tx)}
-.pastebox .big{font-size:16px;line-height:1}
-.pastebox{flex-direction:row;gap:9px;flex-wrap:wrap}
-.pastebox div:last-child{font-size:11px;opacity:.8}
-/* ---- yêu cầu AI ---- */
-button.ai{border-color:var(--acc);color:var(--acc)}
-/* thứ tự render: MASTER → NEO → góc con. Ảnh gốc phải xong trước. */
-.ordtag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;
-padding:2px 7px;border-radius:999px;letter-spacing:.3px}
-.ordtag.m{background:#7c3aed;color:#fff}
-.ordtag.n{background:#b45309;color:#fff}
-.ordtag.c{background:var(--panel2);color:var(--tx2);border:1px solid var(--line)}
-.card.ordm{border-color:#7c3aed}
-.card.ordn{border-color:#b45309}
-.ordnote{font-size:11px;color:var(--tx2);padding:2px 0}
-/* bản đang được dùng làm bản hiển thị/tải về */
-button.vpick{border-color:var(--ok,#1a7f37);color:var(--ok,#1a7f37);font-weight:700}
-button.ai.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-.shot.vbad{border-left:3px solid var(--bad)}
-.shot.vnew{border-left:3px solid var(--warn)}
-#vfilter.act{background:var(--acc);color:#fff;border-color:var(--acc)}
-#vbulk{background:var(--warn,#c77);color:#fff;border-color:var(--warn,#c77)}
-.music>summary{cursor:pointer;font-size:12px;color:var(--acc);padding:3px 0}
-.music .mopt{margin:5px 0 8px}
-.music .mrole{font-size:12px;line-height:1.5;margin:4px 0 9px;padding:7px 9px;
-  border-left:3px solid var(--acc);background:rgba(127,127,127,.07);border-radius:0 7px 7px 0}
-.music .mhead{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:3px}
-.music .mtext{width:100%;min-height:62px;font-size:11.5px;line-height:1.45;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:6px 8px;
-  border:1px solid var(--line,#ddd);border-radius:7px;background:var(--card,#fff);
-  color:inherit;resize:vertical}
-button.auto-b.on{background:#1f6f3f;color:#fff;border-color:#2a8a50;animation:autopulse 2s ease-in-out infinite}
-@keyframes autopulse{0%,100%{opacity:1}50%{opacity:.68}}
-#runall.on{background:var(--bad);border-color:var(--bad);color:#fff}
-.chip.ai{color:var(--acc);border-color:var(--acc);cursor:pointer}
-.aidone{font-size:11.5px;color:var(--ok);padding:2px 0;display:flex;align-items:center;gap:6px}
-.aidone .x{margin-left:auto;cursor:pointer;border:1px solid var(--line);background:var(--panel);
-border-radius:5px;padding:0 6px;font-size:11px;line-height:17px;color:var(--tx2)}
-.aidone .x:hover{border-color:var(--bad);color:var(--bad)}
-</style></head><body>
-
-<header>
-  <h1>SF Board</h1>
-  <span class="kind" id="kind"></span>
-  <span class="film" id="film"></span>
-  <div class="tabs" id="tabs">
-    <button data-v="script" class="on">Kịch bản</button>
-    <button data-v="sf">Start frames</button>
-  </div>
-  <div class="stats" id="stats"></div>
-  <select id="filter">
-    <option value="all">Tất cả</option><option value="pending">Chờ duyệt</option>
-    <option value="revise">Cần sửa</option><option value="approved">Đã duyệt</option>
-    <option value="noimg">Chưa có ảnh</option>
-    <option value="root">① Ảnh gốc cần chạy TRƯỚC (master + neo)</option>
-  </select>
-  <button id="vgate" onclick="toggleGate()" style="font-weight:700;padding:6px 12px"
-          title="CHỈ NGƯỜI DÙNG được bấm nút này. Khi đóng, mọi lệnh tạo video đều bị server từ chối.">
-    ⏳ đang kiểm tra…</button>
-  <select id="vfilter" title="Lọc video theo trạng thái — chỉ hiện những dòng cần xử lý">
-    <option value="all">Tất cả video</option>
-    <option value="pending">⬜ Chưa duyệt</option>
-    <option value="approved">✓ Đã duyệt</option>
-    <option value="rejected">✕ Bị loại</option>
-    <option value="novid">Chưa có video</option>
-    <option value="multi">⧉ Nhiều bản — cần chọn</option>
-    <option value="err">⚠ Lỗi khi tạo</option>
-    <option value="gap">⏱ Trống thời lượng</option>
-    <option value="stale">⚠ Prompt lệch thoại</option>
-    <option value="note">📝 Có ghi chú cần fix</option>
-    <option value="nosf">Thiếu ảnh SF</option>
-    <option value="beat">▶ Nhịp không thoại</option>
-    <option value="talk">💬 Cảnh có thoại</option>
-  </select>
-  <button id="vbulk" style="display:none" title="Tạo lại toàn bộ video đang hiện sau bộ lọc"></button>
-  <button id="theme" title="Sáng / Tối">🌙</button>
-  <span class="save" id="save"></span>
-</header>
-
-<nav id="snav"></nav>
-<main>
-  <div class="toolbar">
-    <button class="pri" onclick="addScene()">+ Thêm scene</button>
-    <button onclick="exportCapCut()" id="cc">🎬 Xuất CapCut</button>
-    <button onclick="toggleRunAll()" id="runall">▶ Chạy tuần tự</button>
-    <button onclick="toggleAccts()" id="acctbtn">⚙ Tài khoản</button>
-    <span class="hint" id="hint"></span>
-    <span class="hint" id="runstatus" style="color:var(--acc)"></span>
-  </div>
-  <div id="acctpanel" style="display:none;margin:8px 0;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card,#fff)">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-      <b>Tài khoản Chrome</b>
-      <button onclick="acctAdd('img')">+ ChatGPT</button>
-      <button onclick="acctAdd('vid')">+ Grok</button>
-      <span class="hint">Bật = mở Chrome + đưa vào vòng chạy · Tắt = đóng Chrome + ngừng dùng · login thì bạn tự làm trong cửa sổ</span>
-    </div>
-    <div id="acctrows" style="display:flex;flex-direction:column;gap:4px"></div>
-  </div>
-  <div id="root"></div>
-</main>
-
-<dialog id="mall"><div class="dlg-h"><b>Tất cả ảnh master của phim</b><span style="flex:1"></span>
-<span id="ma-n" style="opacity:.6;margin-right:10px"></span>
-<button onclick="mall.close()">Đóng</button></div>
-<div id="ma-g"></div></dialog>
-
-<dialog id="sfpick"><div class="dlg-h"><b id="sp-t"></b><span style="flex:1"></span>
-<input id="sp-q" placeholder="lọc theo mã hoặc tên góc…" style="width:230px">
-<button onclick="sfpick.close()">Đóng</button></div>
-<div id="sp-g"></div></dialog>
-
-<dialog id="lightbox"><div class="dlg-h"><b id="lb-t"></b><span style="flex:1"></span>
-<span id="lb-n" style="opacity:.6;margin-right:10px"></span>
-<button onclick="lbNav(-1)" title="Ảnh trước (phím ←)">‹</button>
-<button onclick="lbNav(1)" title="Ảnh sau (phím →)">›</button>
-<button onclick="lightbox.close()">Đóng</button></div><img id="lb-i"></dialog>
-
-<script>
-let DATA={scenes:[]},JOBS={},AUTO={},T=null,VIEW='script',DIRTY=false,MTIME=0;
-const $=s=>document.querySelector(s);
-const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const ST={proposed:['pend','Chờ duyệt'],approved:['ok','ĐÃ DUYỆT'],revise:['warn','Cần sửa'],rejected:['bad','Loại']};
-
-async function loadProjects(){
-  let d; try{ d = await (await fetch('/api/projects')).json(); }catch(e){ return; }
-  const k=$('#kind'); k.textContent=d.kind==='hook'?'HOOK':'PHIM'; k.className='kind '+d.kind;
-  document.title = (d.kind==='hook'?'[HOOK] ':'[PHIM] ') + 'SF Board :' + d.port;
-  $('#film').title = 'Cổng '+d.port+' · Chrome: '+(d.cdp||[]).join(', ');
-}
-
-async function load(){
-  DATA=await (await fetch('/api/board')).json();
-  MTIME=DATA.mtime||0;DIRTY=false;
-  $('#film').textContent='· '+(DATA.film||'');render();
-}
-async function poll(){
-  const r=await (await fetch('/api/jobs')).json();
-  const j=r.jobs||{};
-  const a=r.auto||{};
-  const changed=JSON.stringify(j)!==JSON.stringify(JOBS)||JSON.stringify(a)!==JSON.stringify(AUTO);
-  AUTO=a;
-  const wasRunning=Object.values(JOBS).some(x=>x.state==='running');
-  JOBS=j;
-  if(changed){
-    const nowRunning=Object.values(j).some(x=>x.state==='running');
-    if(wasRunning&&!nowRunning){await load();return}else{render()}
-  }
-  // file bị sửa từ bên ngoài (AI cập nhật prompt/kịch bản) → nạp lại
-  if(r.mtime&&r.mtime!==MTIME&&!DIRTY){
-    await load();
-    $('#save').textContent='đã đồng bộ ↻';$('#save').className='save on';
-    setTimeout(()=>$('#save').textContent='',2200);
-  }
-}
-setInterval(poll,1500);
-
-// ---------------------------------------------------------------- accounts
-let ACCT_OPEN=false,ACCT_TIMER=null;
-function toggleAccts(){
-  ACCT_OPEN=!ACCT_OPEN;
-  $('#acctpanel').style.display=ACCT_OPEN?'block':'none';
-  $('#acctbtn').classList.toggle('on',ACCT_OPEN);
-  if(ACCT_OPEN){pollAccts();ACCT_TIMER=setInterval(pollAccts,4000)}
-  else if(ACCT_TIMER){clearInterval(ACCT_TIMER);ACCT_TIMER=null}
-}
-async function pollAccts(){
-  try{
-    const r=await (await fetch('/api/accounts')).json();
-    const rows=(r.accounts||[]).map(a=>{
-      const dot=a.chrome?'🟢':'🔴';
-      const kind=a.kind==='img'?'ChatGPT · ảnh':'Grok · video';
-      const st=!a.enabled?'<span style="color:#999">đang tắt</span>'
-        :a.dead?`<span style="color:#c00">${esc(a.dead)}</span>`
-        :a.worker?'<span style="color:var(--acc)">sẵn sàng</span>'
-        :'<span style="color:#999">chờ thợ…</span>';
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:13px">
-        <span>${dot}</span><b style="width:64px">${esc(a.id)}</b>
-        <span style="width:96px">${kind}</span>
-        <span style="width:76px">:${a.port}</span>
-        <span style="flex:1">${st}</span>
-        <label title="Số tab chạy ĐỒNG THỜI trên cùng cửa sổ Chrome này.&#10;1 = chạy tuần tự từng việc (mặc định).&#10;Tăng lên để tạo nhiều video/ảnh song song trên CÙNG một tài khoản.&#10;Càng nhiều tab càng tốn RAM — tăng dần và xem máy có chịu nổi không."
-               style="display:flex;align-items:center;gap:4px;color:#666">tab
-          <input type="number" min="1" max="6" value="${a.tabs||1}" style="width:44px"
-                 onchange="acctTabs(${a.port},this.value)">
-          ${a.tho_song>1?`<span style="color:var(--acc)">×${a.tho_song}</span>`:''}
-        </label>
-        ${a.chrome?'':`<button onclick="acctOp('launch',${a.port})">Mở Chrome</button>`}
-        ${a.dead?`<button onclick="acctOp('revive',${a.port})">Thử lại</button>`:''}
-        <button onclick="acctOp('toggle',${a.port})">${a.enabled?'Tắt':'Bật'}</button>
-        <button class="bad-b" title="Xóa hẳn tài khoản này khỏi danh sách (dữ liệu đăng nhập trong profile Chrome vẫn giữ)" onclick="acctDel('${esc(a.id)}',${a.port},${a.enabled})">🗑</button>
-      </div>`});
-    $('#acctrows').innerHTML=rows.join('')||'<span class="hint">chưa có tài khoản nào</span>';
-  }catch(e){}
-}
-async function acctTabs(port,n){
-  await fetch(`/api/acct?op=tabs&port=${port}&n=${n}`,{method:'POST'});
-  setTimeout(pollAccts,400);
-}
-async function acctOp(op,port){
-  await fetch(`/api/acct?op=${op}&port=${port}`,{method:'POST'});
-  setTimeout(pollAccts,400);
-}
-async function acctDel(id,port,enabled){
-  const busy = enabled ? `\n\n⚠ Tài khoản này ĐANG BẬT và có thể đang chạy việc dở.` : '';
-  if(!confirm(
-    `XÓA HẲN tài khoản ${id}?`+busy+
-    `\n\nSẽ xóa LUÔN thư mục profile Chrome:`+
-    `\n· mất phiên đăng nhập, lần sau phải đăng nhập lại`+
-    `\n· KHÔNG hoàn tác được`
-  ))return;
-  const r=await (await fetch(`/api/acct?op=del&port=${port}`,{method:'POST'})).json();
-  if(r.err) alert('Đã xóa tài khoản, nhưng không xóa được profile:\n'+r.err);
-  else if(r.freed) $('#runstatus').textContent=`đã xóa ${id} · giải phóng ${r.freed}`;
-  setTimeout(pollAccts,400);
-  setTimeout(()=>$('#runstatus').textContent='',5000);
-}
-async function acctAdd(kind){
-  await fetch(`/api/acct?op=add&kind=${kind}`,{method:'POST'});
-  setTimeout(pollAccts,600);
-}
-
-function save(){
-  DIRTY=true;clearTimeout(T);$('#save').textContent='đang lưu…';$('#save').className='save';
-  T=setTimeout(async()=>{
-    const r=await (await fetch('/api/board',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(DATA)})).json();
-    if(r.mtime)MTIME=r.mtime;
-    DIRTY=false;
-    $('#save').textContent='đã lưu ✓';$('#save').className='save on';
-    setTimeout(()=>$('#save').textContent='',1600);
-  },450);
-}
-const allSF=()=>DATA.scenes.flatMap(s=>s.sfs.map(f=>({sc:s,f})));
-const find=id=>allSF().find(x=>x.f.id===id);
-
-function allShots(){return DATA.scenes.flatMap(s=>(s.shots||[]).map(x=>({sc:s,sh:x})))}
-
-function stats(){
-  if(VIEW==='sf'){
-    const a=allSF().map(x=>x.f),c=k=>a.filter(f=>f.status===k).length;
-    $('#stats').innerHTML=aiChip()+`<span class="chip ok">Duyệt ${c('approved')}</span>
-     <span class="chip warn">Sửa ${c('revise')}</span><span class="chip pend">Chờ ${c('proposed')}</span>
-     <span class="chip bad">Loại ${c('rejected')}</span><span class="chip">Tổng ${a.length}</span>`;
-  }else{
-    const sh=allShots().map(x=>x.sh);
-    const has=sh.filter(s=>s.video).length;
-    const ok=sh.filter(s=>s.vstatus==='approved').length;
-    const secs=sh.filter(s=>s.vstatus==='approved').reduce((a,s)=>a+(s.dur||10),0);
-    const st=sh.filter(stale).length;
-    $('#stats').innerHTML=aiChip()+`<span class="chip ok">Video duyệt ${ok}</span>
-     <span class="chip pend">Có video ${has}</span><span class="chip">Tổng shot ${sh.length}</span>
-     <span class="chip">${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')} phim</span>
-     ${st?`<span class="chip" style="background:#fef3c7;border-color:#fcd34d;color:#b45309;font-weight:600"
-       title="Có ${st} video mà lời thoại đã sửa sau khi prompt được viết — bảo AI viết lại prompt cho khớp">⚠ ${st} prompt lệch thoại</span>`:''}`;
-  }
-}
-
-function aiReqs(){
-  const out=[];
-  allSF().forEach(x=>{if(x.f.ai_request)out.push({kind:'SF',id:x.f.id,note:x.f.notes||''})});
-  allShots().forEach(x=>{if(x.sh.ai_request)out.push({kind:'VIDEO',id:x.sh.id,note:x.sh.notes||''})});
-  return out;
-}
-function aiChip(){
-  const n=aiReqs().length;
-  return n?`<span class="chip ai" onclick="showAI()" title="Bấm để copy danh sách gửi AI">🤖 ${n} yêu cầu cho AI</span>`
-   +`<span class="chip" onclick="clearAI()" style="cursor:pointer"
-      title="Đã xử lý xong đợt này — bỏ cờ 🤖 của tất cả, giữ nguyên ghi chú">✕ dọn yêu cầu</span>`:'';
-}
-function showAI(){
-  const r=aiReqs();
-  const txt=r.map(x=>`${x.kind} ${x.id}: ${x.note||'(chưa ghi chú)'}`).join('\n');
-  navigator.clipboard.writeText(txt);
-  alert('Đã copy '+r.length+' yêu cầu:\n\n'+txt+
-        '\n\nDán vào chat, hoặc nhắn AI \"xử lý yêu cầu trên bảng\".'+
-        '\n\nXong việc thì bấm nút \"✕ dọn yêu cầu\" cạnh chip để bỏ cờ 🤖 hàng loạt.');
-}
-// Dọn cờ 🤖 hàng loạt — làm xong một đợt thì bỏ hết cờ cũ để đánh dấu đợt mới,
-// không phải bấm tay từng thẻ. KHÔNG đụng tới ô ghi chú.
-function clearAI(){
-  const r=aiReqs();
-  if(!r.length)return;
-  if(!confirm('Bỏ cờ 🤖 của '+r.length+' mục đã đánh dấu?\n\n'+
-              'Ô ghi chú GIỮ NGUYÊN, chỉ bỏ dấu "cần AI xử lý".'))return;
-  allSF().forEach(x=>{if(x.f.ai_request){delete x.f.ai_request;delete x.f.ai_done}});
-  allShots().forEach(x=>{if(x.sh.ai_request){delete x.sh.ai_request;delete x.sh.ai_done}});
-  save();render();
-}
-
-let RUNALL={active:false,stop:false};
-
-function allShotsOrdered(){
-  return DATA.scenes.flatMap(sc=>(sc.shots||[]).map(sh=>({sc,sh})));
-}
-
-async function waitJob(id){
-  while(true){
-    const r=await (await fetch('/api/jobs')).json();
-    const j=(r.jobs||r)[id];   // tương thích cả 2 dạng response cũ/mới
-    if(!j||j.state!=='running')return j;
-    await new Promise(res=>setTimeout(res,4000));
-    if(RUNALL.stop)return j;
-  }
-}
-
-async function toggleRunAll(){
-  if(RUNALL.active){RUNALL.stop=true;$('#runstatus').textContent='đang dừng…';return}
-
-  if(VIEW==='sf'){
-    const all=allSF().filter(x=>x.f.prompt && !x.f.image);
-    if(!all.length){alert('Không có ảnh SF/Ref nào cần chạy (tất cả đã có ảnh hoặc thiếu prompt).');return}
-    if(!confirm(`Sẽ chạy tuần tự ${all.length} ảnh CHƯA có sẵn.\nCó thể bấm lại nút để DỪNG giữa chừng.\n\nBắt đầu?`))return;
-
-    RUNALL={active:true,stop:false};
-    $('#runall').textContent='■ Dừng';$('#runall').classList.add('on');
-
-    let done=0,failed=[];
-    for(const {f} of all){
-      if(RUNALL.stop)break;
-      $('#runstatus').textContent=`Đang tạo ảnh ${done+1}/${all.length}: ${f.id}…`;
-      JOBS[f.id]={state:'running',msg:'khởi động…'};render();
-      await fetch('/api/generate?sf='+encodeURIComponent(f.id),{method:'POST'});
-      const j=await waitJob(f.id);
-      if(RUNALL.stop)break;
-      done++;
-      if(j&&j.state==='error')failed.push(f.id+': '+j.msg);
-      await load();
-    }
-    RUNALL.active=false;
-    $('#runall').textContent='▶ Chạy tuần tự';$('#runall').classList.remove('on');
-    $('#runstatus').textContent='';
-    alert(`Xong. Đã tạo ${done}/${all.length} ảnh.`+(failed.length?`\n\nLỗi (${failed.length}):\n`+failed.join('\n'):''));
-    return;
-  }
-
-  const all=allShotsOrdered().filter(x=>{
-    const f=sfById(x.sh.sf);
-    return f && f.image && (x.sh.prompt||'').trim() && !x.sh.video;
-  });
-  if(!all.length){alert('Không có video nào cần chạy (mọi dòng đã có video, hoặc thiếu SF/prompt).');return}
-  if(!confirm(`Sẽ chạy tuần tự ${all.length} video CHƯA có sẵn (bỏ qua dòng đã có video).\nCó thể bấm lại nút để DỪNG giữa chừng.\n\nBắt đầu?`))return;
-
-  RUNALL={active:true,stop:false};
-  $('#runall').textContent='■ Dừng';$('#runall').classList.add('on');
-
-  let done=0,failed=[];
-  for(const {sh} of all){
-    if(RUNALL.stop)break;
-    $('#runstatus').textContent=`Đang chạy ${done+1}/${all.length}: ${sh.id}…`;
-    JOBS[sh.id]={state:'running',msg:'khởi động…'};render();
-    await fetch('/api/genvideo?sf='+encodeURIComponent(sh.id),{method:'POST'});
-    const j=await waitJob(sh.id);
-    if(RUNALL.stop)break;
-    done++;
-    if(j&&j.state==='error')failed.push(sh.id+': '+j.msg);
-    await load();
-  }
-
-  RUNALL.active=false;
-  $('#runall').textContent='▶ Chạy tuần tự';$('#runall').classList.remove('on');
-  $('#runstatus').textContent='';
-  alert(`Xong. Đã chạy ${done}/${all.length} video.`+(failed.length?`\n\nLỗi (${failed.length}):\n`+failed.join('\n'):''));
-}
-
-async function exportCapCut(){
-  const b=$('#cc');b.disabled=true;b.textContent='đang xuất…';
-  try{
-    const r=await (await fetch('/api/export-capcut?approved=1',{method:'POST'})).json();
-    if(r.ok){alert(`Đã tạo project CapCut!\n\n${r.count} video đã ghép theo thứ tự.\n`+
-      (r.skipped.length?`Bỏ qua ${r.skipped.length} shot chưa có video/bị loại.\n`:'')+
-      `\nMở CapCut → project mới nằm ở đầu danh sách.`);}
-    else alert('Lỗi: '+r.err);
-  }catch(e){alert('Lỗi: '+e)}
-  b.disabled=false;b.textContent='🎬 Xuất CapCut';
-}
-
-
-// ══ THANH NHẢY SCENE (trái) ══ mỗi scene một dòng + % ĐÃ DUYỆT của chế độ đang xem.
-// Chế độ Kịch bản đếm video đã duyệt (vstatus), chế độ Start frames đếm SF đã duyệt.
-function snav(){
-  const nav=document.getElementById('snav');
-  const scenes=(DATA.scenes||[]).filter(s=>s.id!=='REF');
-  if(!scenes.length){nav.innerHTML='';document.body.classList.remove('hasnav');return}
-  document.body.classList.add('hasnav');
-  const vid = VIEW==='script';
-  let dTot=0,nTot=0;
-  const rows=scenes.map(sc=>{
-    const items = vid ? (sc.shots||[]) : (sc.sfs||[]);
-    const n = items.length;
-    const d = vid ? items.filter(x=>x.vstatus==='approved').length
-                  : items.filter(x=>x.status==='approved').length;
-    dTot+=d; nTot+=n;
-    const pct = n?Math.round(d*100/n):0;
-    return `<a onclick="jumpScene('${sc.id}')" id="nv-${sc.id}" class="${n&&d===n?'full':''}">
-      <span class="r1"><span class="sv">${esc(sc.id)}</span><span class="sp">${n?pct+'%':'—'}</span></span>
-      <span class="bar"><i style="width:${pct}%"></i></span></a>`;
-  }).join('');
-  const tp = nTot?Math.round(dTot*100/nTot):0;
-  nav.innerHTML=`<div class="snav-t">${vid?'Video':'Start frame'}</div>${rows}
-    <div class="tot"><b>${tp}%</b> — ${dTot}/${nTot} đã duyệt</div>
-    <a class="allm" onclick="showMasters()">🗂 Xem tất cả master</a>`;
-  markScene();
-}
-// bọc render: vẽ xong ở BẤT KỲ chế độ nào cũng cập nhật lại thanh bên trái
-(function(){const _r=render;render=function(){_r.apply(this,arguments);snav();};})();
-function syncHdr(){
-  const h=document.querySelector('header');
-  if(h)document.documentElement.style.setProperty('--hdrh',h.offsetHeight+'px');
-}
-syncHdr();
-window.addEventListener('resize',syncHdr);
-if(window.ResizeObserver){
-  const h=document.querySelector('header');
-  if(h)new ResizeObserver(syncHdr).observe(h);
-}
-
-// ══ CHỌN START FRAME CÓ XEM TRƯỚC ══ dropdown chữ không cho biết ảnh nào,
-// nên thay bằng lưới thumbnail: SF của scene này trước, rồi master, rồi phần còn lại.
-let SP = null;
-
-// ══ XEM TẤT CẢ MASTER ══ mọi bối cảnh gốc của phim gom một chỗ, kèm số SF con
-// đang bám vào — để thấy ngay bối cảnh nào đang bị dồn quá nhiều cảnh.
-function showMasters(){
-  const all=allSF().map(x=>x.f);
-  const kids={};
-  all.forEach(f=>{const b=f.refs&&f.refs.bg; if(b)kids[b]=(kids[b]||0)+1});
-  const ms=all.filter(f=>f.id.startsWith('SF-M-'))
-              .sort((a,b)=>(kids[b.id]||0)-(kids[a.id]||0));
-  document.getElementById('ma-n').textContent=ms.length+' master';
-  const g=document.getElementById('ma-g');
-  g.innerHTML=ms.map(f=>{
-    const n=kids[f.id]||0;
-    const warn=n>25?' style="color:var(--bad);font-weight:700"':'';
-    return `<div class="it" data-m="${esc(f.id)}">
-      ${f.image?`<img src="${thumb(f.image,420)}" loading="lazy" decoding="async">`
-               :'<div class="no">chưa có ảnh</div>'}
-      <b>${esc(f.id)}</b><i>${esc(f.label||'')}</i>
-      <u${warn}>${n} SF con bám vào${n>25?' — đang dồn quá nhiều':''}</u></div>`;
-  }).join('')||'<div style="padding:14px">Chưa có master nào.</div>';
-  g.querySelectorAll('[data-m]').forEach(el=>el.onclick=()=>{
-    const r=find(el.dataset.m);
-    if(r&&r.f&&r.f.image)lbOpenAt(r.f); else alert(el.dataset.m+' chưa có ảnh.');});
-  mall.showModal();
-}
-
-function openSFPick(sc, sh){
-  SP = {sc, sh};
-  document.getElementById('sp-t').textContent =
-    'Chọn Start frame cho ' + sh.id + ' — chỉ trong scene ' + sc.id;
-  document.getElementById('sp-q').value = '';
-  drawSFPick();
-  sfpick.showModal();
-  setTimeout(()=>document.getElementById('sp-q').focus(), 30);
-}
-function drawSFPick(){
-  if(!SP) return;
-  const q = (document.getElementById('sp-q').value || '').trim().toLowerCase();
-  // CHỈ SF CỦA CHÍNH SCENE NÀY. Một SF thuộc về scene nào thì chỉ dòng video của
-  // scene đó được dùng — dùng chéo scene là nguồn gốc lỗi tụt pha không gian.
-  const hit = f => !q || f.id.toLowerCase().includes(q) || (f.label||'').toLowerCase().includes(q);
-  const own = SP.sc.sfs.filter(f=>!f.id.startsWith('REF_')).filter(hit);
-  const card = f => `<div class="it${f.id===SP.sh.sf?' cur':''}" data-pick="${esc(f.id)}">
-    ${f.image?`<img src="${thumb(f.image,300)}" loading="lazy" decoding="async">`
-             :'<div class="no">chưa có ảnh</div>'}
-    <b>${esc(f.id)}</b><i>${esc(f.label||'')}</i></div>`;
-  const g = document.getElementById('sp-g');
-  g.innerHTML = own.length
-    ? `<div class="hd">Scene ${esc(SP.sc.id)} — ${own.length} start frame</div>` + own.map(card).join('')
-    : `<div class="hd">Scene ${esc(SP.sc.id)} chưa có start frame nào${q?' khớp "'+esc(q)+'"':''}
-       — tạo mới ở tab Start frames, hoặc kéo–thả ảnh vào ô SF của dòng này.</div>`;
-  g.querySelectorAll('[data-pick]').forEach(el=>el.onclick=()=>pickSF(el.dataset.pick));
-}
-function pickSF(id){
-  const sh = SP.sh;
-  sh.sf = id;
-  // dòng Start frame trong prompt phải đi theo, nếu không ảnh một đằng prompt một nẻo
-  if(sh.prompt) sh.prompt = sh.prompt.replace(/Start frame:\s*\S+/, 'Start frame: ' + id);
-  save(); sfpick.close(); render();
-}
-document.addEventListener('input', e=>{ if(e.target.id==='sp-q') drawSFPick(); });
-
-
-// ══ THỨ TỰ RENDER: MASTER → NEO → góc con ══
-// Ảnh nào được SF khác dùng làm refs.bg thì phải render và duyệt TRƯỚC, vì các
-// khung sau bám vào nó để giữ vị trí người / bối cảnh. Xem "ẢNH NEO" trong skill.
-function bgUsers(sc){
-  const m={};
-  (sc.sfs||[]).forEach(f=>{const b=(f.refs||{}).bg; if(b)m[b]=(m[b]||0)+1});
-  return m;
-}
-function sfRank(f,users){
-  const isM = /^SF-M-/.test(f.id);
-  const kids = users[f.id]||0;
-  if(isM) return 0;          // master: gốc bối cảnh
-  if(kids>0) return 1;       // neo: có khung khác bám vào
-  return 2;                  // góc con
-}
-function sfOrderTag(f,users){
-  const r=sfRank(f,users), kids=users[f.id]||0;
-  if(r===0) return `<span class="ordtag m" title="Ảnh gốc bối cảnh — ${kids} khung bám vào. Chạy TRƯỚC TIÊN.">① MASTER${kids?' · '+kids:''}</span>`;
-  if(r===1) return `<span class="ordtag n" title="ẢNH NEO — ${kids} khung bám vào để giữ vị trí người. Chạy và DUYỆT trước khi chạy các khung đó.">② NEO · ${kids}</span>`;
-  return '';
-}
-
-function jumpScene(id){
-  const el=document.getElementById('sc-'+id);
-  if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
-}
-function markScene(){
-  const ss=[...document.querySelectorAll('section.scene')];
-  if(!ss.length)return;
-  let cur=ss[0];
-  const hh=(document.querySelector('header')||{}).offsetHeight||52;
-  for(const s of ss){ if(s.getBoundingClientRect().top<=hh+40) cur=s; }
-  document.querySelectorAll('#snav a').forEach(a=>a.classList.remove('cur'));
-  const a=document.getElementById('nv-'+cur.id.slice(3));
-  if(a)a.classList.add('cur');
-}
-let _mkT=null;
-window.addEventListener('scroll',()=>{clearTimeout(_mkT);_mkT=setTimeout(markScene,60)});
-
-function render(){
-  stats();
-  $('#filter').style.display = VIEW==='sf'?'':'none';
-  $('#vfilter').style.display = VIEW==='script'?'':'none';
-  $('#vfilter').className = $('#vfilter').value==='all'?'':'act';
-  if(VIEW!=='script')$('#vbulk').style.display='none';
-  $('#cc').style.display = VIEW==='script'?'':'none';
-  $('#runall').style.display = '';
-  $('#hint').innerHTML = VIEW==='script'
-    ? 'Badge <b>≈Xs / Ys</b> = ước lượng thời lượng thoại so với độ dài video — <b style="color:var(--bad)">đỏ = thừa lời</b>, <b style="color:var(--warn)">cam = trống</b> · <b>＋ Thêm dưới</b> để chèn video rồi tự copy–paste thoại sang'
-    : 'Kéo–thả hoặc <b>Ctrl+V</b> ảnh vào ô “Tạo SF mới” để dùng lại frame · bấm thẻ SF (Shift+bấm nếu đã có ảnh) rồi Ctrl+V để thay ảnh · <b>Tạo ảnh</b> để ChatGPT vẽ';
-  if(VIEW==='script'){renderScript();snav();return}
-  const fl=$('#filter').value;
-  const _uu=k=>{const m={};DATA.scenes.forEach(sc=>(sc.sfs||[]).forEach(f=>{
-    const b=(f.refs||{}).bg; if(b)m[b]=(m[b]||0)+1}));return m};
-  const _UU=_uu();
-  const keep=f=>fl==='all'?1:fl==='noimg'?!f.image
-    :fl==='root'?(/^SF-M-/.test(f.id)||(_UU[f.id]||0)>0)
-    :fl==='pending'?f.status==='proposed':f.status===fl;
-  const root=$('#root');root.innerHTML='';
-  if(!DATA.scenes.length){root.innerHTML='<div class="empty-all">Chưa có scene. Bấm “+ Thêm scene”.</div>';return}
-  DATA.scenes.forEach(sc=>{
-    const _u=bgUsers(sc);
-    // MASTER trước, rồi NEO, rồi góc con — đúng thứ tự phải render
-    const list=sc.sfs.filter(keep).slice().sort((a,b)=>sfRank(a,_u)-sfRank(b,_u));
-    const el=document.createElement('section');el.className='scene';el.id='sc-'+sc.id;
-    // tổng thời lượng scene + mật độ SF, để căn xem scene này cần bao nhiêu góc
-    const shs=sc.shots||[];
-    const secs=shs.reduce((a,s)=>a+(s.dur||10),0);
-    const mm=`${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
-    const nsf=sc.sfs.length;
-    const per=nsf?Math.round(secs/nsf):0;
-    const sug=secs?(secs<20?'2–3':secs<40?'3–5':secs<70?'5–7':secs<110?'7–9':'9–12'):'—';
-    const okn=!secs||!nsf?'':(nsf<+String(sug).split('–')[0]?'few':(nsf>+String(sug).split('–')[1]?'many':'ok'));
-    el.innerHTML=`<div class="scene-h"><span class="sid">${esc(sc.id)}</span><h2>${esc(sc.name)}</h2>
-      <span style="flex:1"></span>
-      ${secs?`<span class="scene-sum" title="Tổng thời lượng ${shs.length} shot của scene này">⏱ ${mm} · ${shs.length} shot</span>
-      <span class="sfdens ${okn}" title="Trung bình ${per}s phim cho mỗi SF. Với ${mm} thì nên có khoảng ${sug} SF — ít quá thì góc bị lặp, nhiều quá thì thừa ảnh phải render.">${nsf} SF · gợi ý ${sug}</span>`
-      :`<span class="hint">chưa chia shot</span>`}
-      <span class="hint">${list.length}/${nsf} hiện</span>
-      ${sc.id!=='REF'?autoBtn(sc):''}
-      <button class="sm" onclick="addSF('${sc.id}')">+ SF</button>
-      <button class="sm bad-b" onclick="delScene('${sc.id}')">Xóa scene</button></div><div class="grid"></div>`;
-    const g=el.querySelector('.grid');
-    g.appendChild(pasteBox(sc));
-    if(sc.id==='REF'){
-      // NHÓM THEO NHÂN VẬT: portrait là thẻ chính, các bản trang phục (_FULL)
-      // thành dải ảnh nhỏ bên trong thẻ đó — bấm ảnh nhỏ để phóng to,
-      // bấm ✎ để mở/đóng các thẻ trang phục đầy đủ (sửa prompt, tạo lại).
-      const who=id=>id.split('_')[1]||id;
-      const ports=list.filter(f=>f.id.endsWith('_PORTRAIT'));
-      const fulls=list.filter(f=>f.id.endsWith('_FULL'));
-      const rest =list.filter(f=>!f.id.endsWith('_PORTRAIT')&&!f.id.endsWith('_FULL'));
-      const byChar={};
-      fulls.forEach(f=>(byChar[who(f.id)]=byChar[who(f.id)]||[]).push(f));
-      ports.forEach(pf=>{
-        const ch=who(pf.id), kids=byChar[ch]||[];
-        delete byChar[ch];
-        const d=card(sc,pf);
-        if(kids.length){
-          const strip=document.createElement('div');
-          strip.className='wrstrip';
-          strip.innerHTML=`<b>Trang phục (${kids.length})</b>`+kids.map(k=>
-            `<span class="wit${k.status==='approved'?' ok':''}" data-wsee="${esc(k.id)}"
-               title="${esc(k.id)} — bấm để phóng to">
-               ${k.image?`<img src="${thumb(k.image,120)}" loading="lazy">`:'<i>?</i>'}</span>`).join('')
-            +`<button class="sm wtog" data-wtog="${esc(ch)}"
-               title="Mở/đóng thẻ đầy đủ của các bản trang phục (sửa prompt, tạo lại)">${WROPEN[ch]?'▾':'✎'}</button>`;
-          strip.querySelectorAll('[data-wsee]').forEach(el=>el.onclick=()=>{
-            const r=find(el.dataset.wsee);
-            if(r&&r.f&&r.f.image)lbOpenAt(r.f); else alert(el.dataset.wsee+' chưa có ảnh.');});
-          strip.querySelector('[data-wtog]').onclick=e=>{
-            WROPEN[ch]=!WROPEN[ch];render();};
-          d.querySelector('.body').insertBefore(strip,d.querySelector('.body').children[1]);
-        }
-        g.appendChild(d);
-        kids.forEach(k=>{const kd=card(sc,k); if(!WROPEN[ch])kd.style.display='none'; g.appendChild(kd);});
-      });
-      Object.values(byChar).flat().forEach(f=>g.appendChild(card(sc,f)));   // full mồ côi
-      rest.forEach(f=>g.appendChild(card(sc,f)));
-    } else {
-      list.forEach(f=>g.appendChild(card(sc,f)));
-    }
-    root.appendChild(el);
-  });
-}
-
-/* --- CHẠY TỰ ĐỘNG: bật cho scene rồi để đó, board tự tạo ảnh SF còn thiếu,
-   ảnh xong tới đâu đẩy video tới đó, cái nào lỗi tự bắn lại, xong thì tự tắt --- */
-async function toggleAuto(id){
-  const r=await (await fetch('/api/auto?op=toggle&scene='+encodeURIComponent(id),
-    {method:'POST'})).json();
-  AUTO=r.auto||{};render();
-}
-function autoBtn(sc){
-  const on=AUTO.hasOwnProperty(sc.id);
-  const st=AUTO[sc.id]||{};
-  const lab=on?(st.img&&st.vid?`⏳ ${st.img[0]}/${st.img[1]} ảnh · ${st.vid[0]}/${st.vid[1]} video`
-                              :'⏳ đang quét…'):'▶ Chạy hết';
-  const tip=on?'Đang tự chạy scene này. Bấm để dừng (việc đã xếp hàng vẫn chạy nốt).'
-              :'Tự tạo mọi ảnh SF còn thiếu của scene, ảnh xong tới đâu đẩy video tới đó, '
-              +'cái nào lỗi tự bắn lại. Xong cả scene thì tự tắt.';
-  return `<button class="sm auto-b ${on?'on':''}" title="${tip}" `
-        +`onclick="toggleAuto('${sc.id}')">${lab}</button>`;
-}
-
-/* ---------------- CHẾ ĐỘ KỊCH BẢN ---------------- */
-function sfById(id){const x=find(id);return x?x.f:null}
-
-function renderScript(){
-  const root=$('#root');root.innerHTML='';
-  const scenes=DATA.scenes.filter(s=>s.id!=='REF');
-  if(!scenes.length){root.innerHTML='<div class="empty-all">Chưa có scene.</div>';return}
-  const flt=$('#vfilter').value;
-  let shown=0,hidden=0;
-  scenes.forEach(sc=>{
-    const all=sc.shots||[];
-    const shots=all.filter(vkeep);
-    shown+=shots.length; hidden+=all.length-shots.length;
-    if(flt!=='all'&&!shots.length)return;          // scene không còn gì để xử lý → ẩn
-    const secs=all.reduce((a,s)=>a+(s.dur||10),0);
-    const done=all.filter(s=>{const f=sfById(s.sf);return f&&f.image}).length;
-    const el=document.createElement('section');el.className='scene';el.id='sc-'+sc.id;
-    el.innerHTML=`<div class="scene-h"><span class="sid">${esc(sc.id)}</span><h2>${esc(sc.name)}</h2>
-      <span style="flex:1"></span>
-      <span class="scene-sum">${all.length?`${done}/${all.length} video có SF · ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`:'chưa chia shot'}</span>
-      ${autoBtn(sc)}
-      <button class="sm" onclick="addShot('${sc.id}')">+ video</button></div>
-      ${sc.script?`<details class="scr" ${shots.length?'':'open'}><summary>📖 Kịch bản gốc</summary>
-        <pre>${esc(sc.script)}</pre></details>`:''}
-      <div class="shots"></div>`;
-    const box=el.querySelector('.shots');
-    shots.forEach(sh=>box.appendChild(shotRow(sc,sh,all.indexOf(sh))));
-    root.appendChild(el);
-  });
-  vbulkBar(shown,hidden);
-  if(flt!=='all'&&!shown)
-    root.innerHTML='<div class="empty-all">Không có video nào ở trạng thái này ✓</div>';
-}
-
-/* Nút thao tác hàng loạt trên đúng nhóm đang lọc */
-// Chỉ ba nhóm này thì "tạo lại" mới đúng là việc cần làm. "Trống thời lượng" và
-// "prompt lệch thoại" phải sửa chia thoại / viết lại prompt TRƯỚC — render lại ngay
-// chỉ dựng lại đúng cái sai cũ.
-const VBULK_OK={novid:'chưa có video',err:'lỗi khi tạo',rejected:'bị loại'};
-
-// ══ CỔNG VIDEO ══ Chỉ người dùng được bấm. Server từ chối mọi lệnh không phát
-// từ trang này, nên script/curl không bật được cờ.
-let GATE_ON=false;
-let WROPEN={};   // nhân vật nào đang mở thẻ trang phục đầy đủ
-function paintGate(){
-  const b=document.getElementById('vgate'); if(!b)return;
-  b.textContent = GATE_ON ? '🎬 Cho phép tạo video: ĐANG MỞ' : '🔒 Tạo video: ĐANG KHÓA';
-  b.style.background = GATE_ON ? '#1a7f37' : '#b42318';
-  b.style.color='#fff'; b.style.border='none'; b.style.borderRadius='6px';
-  b.style.cursor='pointer';
-}
-async function loadGate(){
-  try{ const r=await (await fetch('/api/video-gate')).json(); GATE_ON=!!r.on; }catch(e){}
-  paintGate();
-}
-async function toggleGate(){
-  const to = GATE_ON ? '0' : '1';
-  if(to==='1' && !confirm('MỞ cổng cho phép tạo video?\n\nSau khi mở, các lệnh tạo video sẽ chạy được.'))return;
-  const r=await (await fetch('/api/video-gate?on='+to,{method:'POST'})).json();
-  if(!r.ok){ alert(r.err||'Không đổi được cổng video'); }
-  GATE_ON=!!r.on; paintGate();
-}
-
-
-// ══ LIGHTBOX ĐIỀU HƯỚNG ‹ › ══ danh sách ảnh theo đúng thứ tự đang hiển thị.
-let LB_LIST=[],LB_IDX=-1;
-function lbOpen(items,idx){
-  LB_LIST=items;LB_IDX=idx;lbShow();lightbox.showModal();
-}
-function lbShow(){
-  if(LB_IDX<0||LB_IDX>=LB_LIST.length)return;
-  const it=LB_LIST[LB_IDX];
-  document.getElementById('lb-t').textContent=it.t;
-  document.getElementById('lb-i').src=it.src;
-  document.getElementById('lb-n').textContent=(LB_IDX+1)+'/'+LB_LIST.length;
-}
-function lbNav(d){
-  if(!LB_LIST.length)return;
-  LB_IDX=(LB_IDX+d+LB_LIST.length)%LB_LIST.length;lbShow();
-}
-document.addEventListener('keydown',e=>{
-  if(!document.getElementById('lightbox').open)return;
-  if(e.key==='ArrowLeft'){e.preventDefault();lbNav(-1)}
-  else if(e.key==='ArrowRight'){e.preventDefault();lbNav(1)}
-});
-function lbCollect(){
-  // Gom theo ĐÚNG thứ tự thẻ đang hiển thị trên trang, nhưng lấy ẢNH GỐC và
-  // nhãn từ DATA (không đoán URL từ src thu nhỏ — trước đây ghép sai nên
-  // findIndex luôn trượt và lightbox mở ở cuối danh sách).
-  const byId={};
-  (DATA.scenes||[]).forEach(sc=>(sc.sfs||[]).forEach(f=>{byId[f.id]=f}));
-  const out=[];
-  document.querySelectorAll('.thumb[data-sf]').forEach(th=>{
-    if(th.closest('#lightbox'))return;
-    const f=byId[th.dataset.sf];
-    if(f&&f.image)out.push({id:f.id,src:f.image,t:f.id+' — '+(f.label||'')});
-  });
-  return out;
-}
-function lbOpenAt(f){
-  // Mở lightbox ĐÚNG tại ảnh vừa bấm, để ‹ › đi tiếp từ chính nó.
-  const L=lbCollect();
-  let i=L.findIndex(x=>x.id===f.id);
-  if(i<0){L.push({id:f.id,src:f.image,t:f.id+' — '+(f.label||'')});i=L.length-1}
-  lbOpen(L,i);
-}
-
-function vbulkBar(shown,hidden){
-  const b=$('#vbulk'), fl=$('#vfilter').value;
-  // chỉ cho tạo lại hàng loạt ở những nhóm thật sự cần render lại —
-  // "chưa duyệt"/"đã duyệt"/"nhiều bản" là nhóm để XEM, bấm nhầm thì rất tốn
-  if(!VBULK_OK[fl]||!shown){b.style.display='none';return}
-  b.style.display='';
-  b.textContent=`↻ Tạo lại ${shown} video đang hiện`;
-  b.onclick=async()=>{
-    if(!confirm(`Tạo lại ${shown} video thuộc nhóm “${VBULK_OK[fl]}”?\n\n`
-      +`Bản cũ vẫn giữ lại thành version để so sánh.`))return;
-    const list=allShots().map(x=>x.sh).filter(vkeep);
-    for(const sh of list) await fetch('/api/genvideo?sf='+encodeURIComponent(sh.id),{method:'POST'});
-    $('#runstatus').textContent=`đã xếp ${list.length} video vào hàng đợi`;
-    setTimeout(()=>$('#runstatus').textContent='',4000);
-  };
-}
-
-// ~3.0 từ/giây — đo theo tốc độ đọc thực tế của giọng AI (điều chỉnh sau thực nghiệm)
-function estimate(text){
-  const clean=(text||'').replace(/^[A-ZĐÂÊÔƠƯ][A-ZĐÂÊÔƠƯ\s.]*:/gm,' ')  // bỏ nhãn tên
-                        .replace(/\([^)]*\)/g,' ')                       // bỏ chú thích trong ngoặc
-                        .replace(/[—–-]{1,2}\s*[a-z, ]+:/g,' ');          // bỏ chỉ dẫn giọng
-  const words=clean.trim().split(/\s+/).filter(w=>/[a-zA-ZÀ-ỹ']/.test(w));
-  return {n:words.length, sec:words.length/3.0};
-}
-// Thoại đã bị sửa sau khi prompt video được viết → prompt đang mô tả bản thoại cũ.
-// prompt_text là ảnh chụp lời thoại tại lúc AI viết prompt; shot chưa có mốc thì bỏ qua.
-/* Nhóm trạng thái của một video, dùng cho bộ lọc ở chế độ Kịch bản */
-function vcat(sh){
-  const f=sfById(sh.sf);
-  const {sec}=estimate(sh.text);
-  return {
-    novid:!sh.video,
-    approved:sh.vstatus==='approved',
-    rejected:sh.vstatus==='rejected',
-    pending:sh.vstatus!=='approved'&&sh.vstatus!=='rejected',
-    multi:(sh.vversions||[]).length>1,
-    err:(JOBS[sh.id]||{}).state==='error',
-    gap:((sh.dur||10)-sec)>3.2,
-    stale:stale(sh),
-    note:!!(sh.notes||'').trim(),
-    nosf:!f||!f.image,
-    beat:/-B\d+$/.test(sh.id),          // nhịp không thoại: id kết thúc bằng -B<số>
-    talk:!/-B\d+$/.test(sh.id),
-  };
-}
-function vkeep(sh){
-  const fl=$('#vfilter').value;
-  return fl==='all'?true:!!vcat(sh)[fl];
-}
-
-/* Bản thu nhỏ cho lưới — ảnh gốc chỉ nạp khi phóng to (lightbox) hoặc tải về */
-function thumb(u,w){ return u ? u + (u.includes('?')?'&':'?') + 'w=' + (w||420) : u }
-
-function stale(sh){
-  if(!sh.prompt||!sh.prompt.trim())return false;
-  if(sh.prompt_text===undefined||sh.prompt_text===null)return false;
-  return (sh.prompt_text||'').trim()!==(sh.text||'').trim();
-}
-function estBadge(sh){
-  const {n,sec}=estimate(sh.text);
-  const dur=sh.dur||10;
-  if(!n)return `<span class="est empty" title="Chưa có lời thoại">— / ${dur}s</span>`;
-  let cls='ok',tip=`${n} từ · vừa khít ${dur}s`;
-  if(sec>dur){cls='over';tip=`${n} từ ≈ ${sec.toFixed(1)}s — THỪA LỜI so với ${dur}s. Hãy tách bớt sang video khác hoặc đổi lên 10s.`}
-  else if(sec<dur*0.35){cls='thin';tip=`${n} từ ≈ ${sec.toFixed(1)}s — hơi trống so với ${dur}s. Có thể gộp với dòng kế hoặc hạ xuống 6s.`}
-  return `<span class="est ${cls}" title="${tip}">≈${sec.toFixed(1)}s / ${dur}s</span>`;
-}
-function newVidId(){
-  let mx=0;
-  DATA.scenes.forEach(s=>(s.shots||[]).forEach(x=>{
-    const m=/(\d+)/.exec(x.id); if(m) mx=Math.max(mx,+m[1]);
-  }));
-  return 'VID_'+String(mx+1).padStart(3,'0');
-}
-
-
-/* --- Prompt nhạc Suno cho nhịp không thoại: 2 lựa chọn, bấm để chép --- */
-function musicBox(sh){
-  const m=sh.music;
-  if(!m||!m.a)return '';
-  const opt=(tag)=>{
-    const val=m[tag]||'', kind=m[tag+'_kind']||'';
-    if(!val)return '';
-    return `<div class="mopt">
-      <div class="mhead"><b>${tag.toUpperCase()}</b>
-        <span class="hint">${esc(kind)}</span>
-        <span style="flex:1"></span>
-        <button class="sm" data-mcopy="${tag}" title="Chép prompt này để dán sang Suno">⧉ chép</button></div>
-      <textarea class="mtext" data-mk="${tag}" spellcheck="false">${esc(val)}</textarea>
-    </div>`;
-  };
-  const role = m.role?`<div class="mrole"><b>Vai trò nhạc:</b> ${esc(m.role)}</div>`:'';
-  return `<details class="music"><summary>🎵 Nhạc Suno — ${esc(m.emo||'')}</summary>
-    ${role}${opt('a')}${opt('b')}</details>`;
-}
-
-function shotRow(sc,sh,idx){
-  const f=sfById(sh.sf);
-  const opts=allSF().map(x=>x.f).filter(x=>!x.id.startsWith('REF_'));
-  const vjob=JOBS[sh.id]||{};const vrun=vjob.state==='running';
-  const d=document.createElement('div');
-  d.className='shot'+(!f||!f.image?' warn-sf':'')
-    +(sh.vstatus==='approved'?' vok':sh.vstatus==='rejected'?' vbad':sh.video?' vnew':'');
-  const st=f?(ST[f.status]||ST.proposed):null;
-  d.innerHTML=`
-    <div class="sf-side">
-      <div class="fr">${f&&f.image?`<img src="${thumb(f.image,640)}" loading="lazy" decoding="async">
-          <span class="sf-badge ${st[0]}">${st[1]}</span>`
-        :`<div class="no">${f?'SF chưa có ảnh':'chưa gán SF'}</div>`}</div>
-      <div class="pick">
-        <button class="sm sfpick" data-sfpick title="Bấm để chọn Start frame — có xem trước ảnh">
-          ${f&&f.image?`<img src="${thumb(f.image,80)}" loading="lazy">`:'<span class="nosf">⚠</span>'}
-          <span>${esc(sh.sf||'chưa chọn SF')}</span> ▾</button>
-      </div>
-      ${f?`<div class="hint" style="font-size:11px">${esc(f.label||'')}</div>`:''}
-    </div>
-    <div class="sh-main">
-      <div class="sh-head">
-        <span class="vid">${esc(sh.id)}</span>
-        <select class="dur" data-dur>
-          <option value="6" ${sh.dur==6?'selected':''}>6s</option>
-          <option value="10" ${sh.dur==10?'selected':''}>10s</option>
-        </select>
-        ${estBadge(sh)}
-        ${stale(sh)?`<span class="stale" title="Bạn đã sửa lời thoại sau khi prompt video được viết. Prompt hiện tại mô tả bản thoại cũ — bảo AI viết lại prompt cho khớp, rồi bấm ✓ đã khớp.">⚠ thoại đã đổi — prompt video chưa viết lại</span>
-        <button class="sm" data-sync title="Đánh dấu prompt đã khớp với thoại hiện tại">✓ đã khớp</button>`:''}
-        <span style="flex:1"></span>
-        <button class="sm" data-ins title="Thêm một video trống ngay dưới dòng này">＋ Thêm dưới</button>
-        <button class="sm" data-mv="-1">↑</button><button class="sm" data-mv="1">↓</button>
-        <button class="sm bad-b" data-del title="Xóa video này khỏi kịch bản">🗑</button>
-      </div>
-      <textarea class="script" data-k="text" spellcheck="false" placeholder="Lời thoại / hành động trong kịch bản…">${esc(sh.text||'')}</textarea>
-      <details><summary>Prompt video (sửa được)</summary>
-        <textarea data-k="prompt" spellcheck="false" placeholder="Prompt gửi Grok…">${esc(sh.prompt||'')}</textarea></details>
-      ${musicBox(sh)}
-      <textarea class="notes vnotes" data-k="notes"
-        placeholder="Ghi chú chung cho video này — SF chưa đúng, prompt cần sửa, thoại, tham chiếu…">${esc(sh.notes||'')}</textarea>
-      <div class="noterow">
-        <button class="sm ai ${sh.ai_request?'on':''}" data-va="ai"
-          title="Ghi rõ vấn đề ở ô trên rồi bấm — mục này vào danh sách yêu cầu AI ở header">
-          ${sh.ai_request?'✓ đã gửi AI':'🤖 Yêu cầu AI'}</button>
-      </div>
-    </div>
-    <div class="v-side">
-      <div class="vbox">
-        ${sh.video?`<video src="${sh.video}" controls preload="none"></video>`
-          :`<div class="vempty">chưa có video<br><span>kéo–thả .mp4 vào đây<br>hoặc bấm Tạo video</span></div>`}
-        ${vrun?`<div class="run"><div class="spin"></div><div>${esc(vjob.msg||'')}</div></div>`:''}
-        ${sh.vstatus==='approved'?'<span class="badge ok">DUYỆT</span>':sh.vstatus==='rejected'?'<span class="badge bad">LOẠI</span>':''}
-      </div>
-      ${(sh.vversions&&sh.vversions.length>1)?`<div class="vers">${sh.vversions.map((v,i)=>
-        `<span class="vwrap"><button class="sm${v.file===sh.vpicked?' vpick':''}" data-vv="${v.file}"
-          title="${v.at}${v.file===sh.vpicked?' — ĐANG DÙNG':''}">v${i+1}${
-          v.file===sh.vpicked?(sh.vstatus==='approved'?' ✓':' •'):''}</button>
-          <span class="vx" data-vvdel="${v.file}" title="Xoá bản v${i+1} này">×</span></span>`).join('')}</div>`:''}
-      <div class="vacts">
-        <button class="sm pri" data-va="gen" ${vrun?'disabled':''}>${sh.video?'Tạo lại':'Tạo video'}</button>
-        <button class="sm ok-b" data-va="approved">✓</button>
-        <button class="sm bad-b" data-va="rejected">✕</button>
-        ${sh.video?`<button class="sm" data-va="frame" title="Tua video tới khung ưng ý rồi bấm — lưu khung đó thành SF mới (tự chọn dòng dùng sau)">📸→SF</button>`:''}
-        ${sh.video?`<button class="sm" data-va="framedown" title="Tua video tới khung cuối rồi bấm — cắt khung đó thành SF và GÁN LUÔN cho video ngay bên dưới, để hai clip nối liền không bị khựng">📸↓</button>`:''}
-        ${sh.video?`<a class="sm dl" href="${sh.video}?dl=1&name=${encodeURIComponent(sh.id)}" download="${sh.id}.mp4" title="Tải video về máy">⬇</a>`:''}
-        ${sh.video?'<button class="sm bad-b" data-va="delv">🗑</button>':''}
-      </div>
-      ${vjob.state==='error'?`<div class="err" style="padding:0">⚠ ${esc(vjob.msg)}</div>`:''}
-      ${sh.ai_done?`<div class="aidone"><span>🤖 ${esc(sh.ai_done)}</span>
-        <span class="x" data-va="donex" title="Xong việc này rồi — xoá dòng báo để ghi yêu cầu mới">✕ dọn</span></div>`:''}
-    </div>`;
-  const fr=d.querySelector('.fr');
-  fr.onclick=()=>{if(f&&f.image)lbOpenAt(f)};
-  fr.title='Bấm để phóng to · kéo–thả ảnh vào đây để tạo SF MỚI và gán cho dòng này';
-  fr.ondragover=e=>{e.preventDefault();fr.classList.add('drop')};
-  fr.ondragleave=()=>fr.classList.remove('drop');
-  fr.ondrop=async e=>{e.preventDefault();fr.classList.remove('drop');
-    const file=e.dataTransfer.files[0];
-    if(!file||!file.type.startsWith('image/')){alert('Chỉ nhận file ảnh.');return}
-    await dropSFtoShot(sc,sh,file,file.name);};
-
-  d.querySelectorAll('[data-mcopy]').forEach(b=>b.onclick=async()=>{
-    const t=d.querySelector(`[data-mk="${b.dataset.mcopy}"]`);
-    try{await navigator.clipboard.writeText(t.value);
-      const o=b.textContent;b.textContent='✓ đã chép';setTimeout(()=>b.textContent=o,1400);
-    }catch(e){t.select();document.execCommand('copy')}
-  });
-  d.querySelectorAll('[data-mk]').forEach(t=>t.onchange=()=>{
-    sh.music=sh.music||{};sh.music[t.dataset.mk]=t.value;save();
-  });
-  const vbox=d.querySelector('.vbox');
-  vbox.ondragover=e=>{e.preventDefault();vbox.classList.add('drop')};
-  vbox.ondragleave=()=>vbox.classList.remove('drop');
-  vbox.ondrop=async e=>{e.preventDefault();vbox.classList.remove('drop');
-    const file=e.dataTransfer.files[0];if(!file)return;
-    await fetch('/api/upload-video?sf='+encodeURIComponent(sh.id),{method:'POST',body:file});
-    await load();};
-  d.querySelectorAll('[data-vv]').forEach(el=>el.onclick=async()=>{
-    await fetch(`/api/pick-vversion?sf=${encodeURIComponent(sh.id)}&file=${encodeURIComponent(el.dataset.vv)}`,{method:'POST'});
-    await load();});
-  d.querySelectorAll('[data-vvdel]').forEach(el=>el.onclick=async e=>{
-    e.stopPropagation();
-    if(!confirm('Xoá hẳn bản video này khỏi ổ đĩa?\n\n'+el.dataset.vvdel+'\n\nKhông khôi phục được.'))return;
-    const r=await (await fetch(`/api/del-vversion?sf=${encodeURIComponent(sh.id)}&file=${encodeURIComponent(el.dataset.vvdel)}`,
-      {method:'POST'})).json();
-    if(!r.ok){alert(r.err||'Không xoá được');return}
-    await load();});
-  d.querySelectorAll('[data-va]').forEach(b=>b.onclick=async()=>{
-    const a=b.dataset.va;
-    if(a==='gen'){
-      if(sh.vstatus==='approved'&&!confirm(
-        'Video này ĐÃ DUYỆT — bản đang hiển thị là bản bạn chốt.\n\n'+
-        'Tạo bản mới sẽ KHÔNG thay bản đã duyệt; bản mới nằm ở dãy bản để so.\n'+
-        'Muốn thay hẳn thì bấm ✓ lần nữa để bỏ duyệt trước.\n\nVẫn tạo thêm bản mới?'))return;
-      JOBS[sh.id]={state:'running',msg:'khởi động…'};render();
-      await fetch('/api/genvideo?sf='+encodeURIComponent(sh.id),{method:'POST'});return}
-    if(a==='donex'){delete sh.ai_done;save();render();return}
-    if(a==='ai'){
-      sh.ai_request=!sh.ai_request;
-      if(sh.ai_request)delete sh.ai_done;   // yêu cầu mới → báo cáo cũ hết hiệu lực
-      save();render();return}
-    if(a==='frame'){await frameToSF(sc,sh,d);return}
-    if(a==='framedown'){await frameToNextShot(sc,sh,idx,d);return}
-    if(a==='delv'){if(!confirm('Xóa video '+sh.id+' (cả lịch sử)?'))return;
-      await fetch('/api/delete-video?sf='+encodeURIComponent(sh.id),{method:'POST'});await load();return}
-    // bấm lại đúng trạng thái đang có = bỏ đánh dấu → đó là cách mở khoá bản chốt
-    sh.vstatus = (sh.vstatus===a) ? null : a;
-    save();render();});
-  d.querySelector('[data-sfpick]').onclick=()=>openSFPick(sc,sh);
-  d.querySelector('[data-dur]').onchange=e=>{sh.dur=+e.target.value;save();render()};
-  if((sh.notes||'').trim())d.classList.add('hasnote');
-  d.querySelectorAll('[data-k]').forEach(el=>el.oninput=e=>{
-    sh[e.target.dataset.k]=e.target.value;save();
-    if(e.target.dataset.k==='notes')
-      d.classList.toggle('hasnote',!!e.target.value.trim());
-    if(e.target.dataset.k==='text'){
-      const badge=d.querySelector('.sh-head .est');
-      if(badge)badge.outerHTML=estBadge(sh);
-    }
-  });
-  d.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{
-    const j=idx+(+b.dataset.mv);if(j<0||j>=sc.shots.length)return;
-    [sc.shots[idx],sc.shots[j]]=[sc.shots[j],sc.shots[idx]];save();render()});
-  d.querySelector('[data-del]').onclick=()=>{
-    if(!confirm('Xóa '+sh.id+'?'))return;
-    sc.shots.splice(idx,1);save();render()};
-
-  d.querySelector('[data-ins]').onclick=()=>{
-    sc.shots.splice(idx+1,0,{id:newVidId(),sf:sh.sf,dur:10,text:'',
-      prompt:'',status:'todo',notes:''});
-    save();render();
-  };
-  const syncb=d.querySelector('[data-sync]');
-  if(syncb)syncb.onclick=()=>{sh.prompt_text=sh.text||'';save();render()};
-  return d;
-}
-
-// Cắt khung hiện tại của video này thành SF rồi GÁN LUÔN cho shot ngay bên dưới —
-// dùng khi muốn hai clip nối liền: frame cuối clip trước = frame đầu clip sau.
-async function frameToNextShot(sc,sh,idx,rowEl){
-  const next=sc.shots[idx+1];
-  if(!next){alert('Đây là video cuối của scene, không có dòng nào bên dưới để gán.');return}
-  const v=rowEl.querySelector('.vbox video');
-  if(!v){alert('Chưa có video');return}
-  const t=v.currentTime;
-  if(!t||t<0.05){
-    alert('Hãy TUA video tới đúng khung hình muốn lấy (thường là khung CUỐI), bấm tạm dừng, rồi mới bấm 📸↓.\n\nHiện con trỏ đang ở giây '+t.toFixed(2));
-    return;
-  }
-  const used=new Set(sc.sfs.map(f=>f.id));
-  let suggest='';
-  for(let i=0;i<26;i++){
-    const c=String.fromCharCode(65+i);
-    const cand=`SF-${sc.id}-${c}`;
-    if(!used.has(cand)){suggest=cand;break}
-  }
-  const old=next.sf||'(chưa có)';
-  if(!confirm(`Cắt khung tại giây ${t.toFixed(2)} của ${sh.id}\n→ tạo SF "${suggest}"\n→ GÁN cho ${next.id} (đang dùng ${old}).\n\nTiếp tục?`))return;
-  const r=await (await fetch(`/api/frame-to-sf?shot=${encodeURIComponent(sh.id)}&t=${t}&sf=${encodeURIComponent(suggest)}`,
-    {method:'POST'})).json();
-  if(!r.ok){alert('Lỗi: '+r.err);return}
-  await load();
-  // gán cho shot dưới sau khi board đã nạp lại (next là tham chiếu cũ nên tìm lại theo id)
-  const sc2=DATA.scenes.find(s=>s.id===sc.id);
-  const n2=sc2&&sc2.shots.find(x=>x.id===next.id);
-  if(n2){n2.sf=r.sf;save();render();}
-  alert(`Đã tạo ${r.sf} và gán cho ${next.id}.\n\nNhớ bảo AI viết lại prompt video của ${next.id} cho khớp khung mới.`);
-}
-
-async function frameToSF(sc,sh,rowEl){
-  const v=rowEl.querySelector('.vbox video');
-  if(!v){alert('Chưa có video');return}
-  const t=v.currentTime;
-  if(!t||t<0.05){
-    alert('Hãy TUA video tới đúng khung hình bạn muốn giữ (bấm play rồi tạm dừng), sau đó mới bấm 📸→SF.\n\nHiện con trỏ đang ở giây '+t.toFixed(2));
-    return;
-  }
-  // gợi ý mã SF kế tiếp trong scene
-  const used=new Set(sc.sfs.map(f=>f.id));
-  let suggest='';
-  for(let i=0;i<26;i++){
-    const c=String.fromCharCode(65+i);
-    const cand=`SF-${sc.id}-${c}`;
-    if(!used.has(cand)){suggest=cand;break}
-  }
-  const id=prompt(`Lưu khung hình tại giây ${t.toFixed(2)} của ${sh.id} thành SF mới.\n\nNhập mã SF (để trống = huỷ):`,suggest);
-  if(!id)return;
-  const r=await (await fetch(`/api/frame-to-sf?shot=${encodeURIComponent(sh.id)}&t=${t}&sf=${encodeURIComponent(id.trim())}`,
-    {method:'POST'})).json();
-  if(r.ok){await load();alert('Đã tạo '+r.sf+' từ khung hình này.\nXem ở tab "Start frames", và nó đã có trong dropdown chọn SF của mọi dòng.');}
-  else alert('Lỗi: '+r.err);
-}
-
-function addShot(sid){
-  const sc=DATA.scenes.find(s=>s.id===sid);
-  const n=sc.shots.length+1;
-  const id=prompt('Mã video:','VID_'+String(n).padStart(3,'0'));
-  if(!id)return;
-  sc.shots.push({id:id.trim(),sf:(sc.sfs[0]||{}).id||'',dur:10,text:'',prompt:'',status:'todo',notes:''});
-  save();render();
-}
-
-/* ---------------- DÁN ẢNH ---------------- */
-let SEL=null;   // SF đang được chọn để Ctrl+V đè ảnh
-
-function nextSFId(sc){
-  const used=new Set(sc.sfs.map(f=>f.id));
-  for(let i=0;i<26;i++){
-    const c=`SF-${sc.id}-${String.fromCharCode(65+i)}`;
-    if(!used.has(c))return c;
-  }
-  return `SF-${sc.id}-${Date.now()%1000}`;
-}
-
-async function uploadTo(sfId,blob,name){
-  await fetch(`/api/upload?sf=${encodeURIComponent(sfId)}&name=${encodeURIComponent(name||'paste.png')}`,
-    {method:'POST',body:blob});
-}
-
-
-// Kéo–thả ảnh vào ô SF bên tab Kịch bản: tạo SF MỚI (vào danh sách SF của scene,
-// hiện trong dropdown mọi dòng video) rồi GÁN luôn cho chính dòng vừa thả.
-// Không ghi đè ảnh của SF đang dùng — SF cũ có thể đang được dòng khác dùng chung.
-async function dropSFtoShot(sc, sh, blob, name){
-  const id = prompt(
-    'Tạo SF MỚI từ ảnh này và gán cho ' + sh.id + '.\n\n' +
-    'SF hiện tại (' + (sh.sf || 'chưa có') + ') KHÔNG bị thay — nó có thể đang dùng ở dòng khác.\n\n' +
-    'Nhập mã SF mới:', nextSFId(sc));
-  if(!id) return;
-  const key = id.trim();
-  if(find(key)){ alert('Mã ' + key + ' đã tồn tại. Chọn mã khác.'); return }
-  sc.sfs.push({id:key, label:'(ảnh kéo vào)',
-    desc:'Ảnh kéo thẳng vào dòng ' + sh.id + ' ở tab Kịch bản.',
-    prompt:'', status:'proposed', notes:'', usedBy:[], refs:{chars:[], bg:null}});
-  sh.sf = key;                                  // gán ngay cho dòng vừa thả
-  if(sh.prompt) sh.prompt = sh.prompt.replace(/Start frame:\s*\S+/, 'Start frame: ' + key);
-  await fetch('/api/board',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(DATA)});
-  await uploadTo(key, blob, name);
-  await load();
-}
-
-async function createSFfromBlob(sc,blob,name){
-  const id=prompt('Tạo SF mới từ ảnh này.\n\nNhập mã SF:',nextSFId(sc));
-  if(!id)return;
-  const key=id.trim();
-  if(find(key)){alert('Mã '+key+' đã tồn tại. Chọn mã khác.');return}
-  sc.sfs.push({id:key,label:'(ảnh dán vào)',desc:'Frame lấy lại / ảnh dán từ ngoài.',
-    prompt:'',status:'proposed',notes:'',usedBy:[],refs:{chars:[],bg:null}});
-  await fetch('/api/board',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DATA)});
-  await uploadTo(key,blob,name);
-  await load();
-  alert('Đã tạo '+key+'.\nSang tab "Kịch bản" là chọn được nó trong dropdown SF của mọi dòng video.');
-}
-
-function pasteBox(sc){
-  const d=document.createElement('div');
-  d.className='pastebox';
-  d.innerHTML=`<div class="big">＋</div><b>Tạo SF mới từ ảnh</b>
-    <div>Bấm vào đây rồi <b>Ctrl+V</b> để dán ảnh trong clipboard<br>hoặc kéo–thả file ảnh vào ô này</div>`;
-  d.onclick=()=>{SEL={scene:sc,sf:null};document.querySelectorAll('.pastebox').forEach(x=>x.classList.remove('on'));
-    d.classList.add('on');document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));};
-  d.ondragover=e=>{e.preventDefault();d.classList.add('on')};
-  d.ondragleave=()=>d.classList.remove('on');
-  d.ondrop=async e=>{e.preventDefault();d.classList.remove('on');
-    const f=e.dataTransfer.files[0];if(f)await createSFfromBlob(sc,f,f.name);};
-  return d;
-}
-
-// Ctrl+V toàn trang
-window.addEventListener('paste',async e=>{
-  if(VIEW!=='sf')return;
-  const items=[...(e.clipboardData?.items||[])].filter(i=>i.type.startsWith('image/'));
-  if(!items.length)return;
-  e.preventDefault();
-  const blob=items[0].getAsFile();
-  if(!SEL){alert('Hãy bấm chọn một thẻ SF (để thay ảnh) hoặc ô "Tạo SF mới từ ảnh" trước, rồi Ctrl+V.');return}
-  if(SEL.sf){await uploadTo(SEL.sf,blob,'paste.png');await load();}
-  else if(SEL.scene){await createSFfromBlob(SEL.scene,blob,'paste.png');}
-});
-
-/* ---------------- CHẾ ĐỘ START FRAME ---------------- */
-function card(sc,f){
-  const [cls,txt]=ST[f.status]||ST.proposed;
-  const _bu=bgUsers(sc), _rank=sfRank(f,_bu), _otag=sfOrderTag(f,_bu);
-  const _bg=(f.refs||{}).bg;
-  const job=JOBS[f.id]||{};const running=job.state==='running';
-  const refs=f.refs||{chars:[],bg:null};
-  const d=document.createElement('div');
-  const isM=f.id.startsWith('SF-M-');
-  const isR=f.id.startsWith('REF_');
-  const isPortrait=isR&&f.id.endsWith('_PORTRAIT');
-  d.className='card '+(f.status==='approved'?'approved':f.status==='rejected'?'rejected':f.status==='revise'?'revise':'')
-    +(isM?' ismaster':'');
-  d.innerHTML=`
-   <div class="thumb" data-sf="${f.id}">
-     ${f.image?`<img src="${thumb(f.image,320)}" loading="lazy" decoding="async">`:`<div class="empty">Chưa có ảnh<br><b>Kéo–thả ảnh vào đây</b><br>hoặc bấm <b>Tạo ảnh</b></div>`}
-     <span class="badge ${cls}">${txt}</span>
-     ${running?`<div class="run"><div class="spin"></div><div>${esc(job.msg||'đang tạo…')}</div></div>`:''}
-   </div>
-   <div class="body">
-     <div class="sfid">${isPortrait?'<span class="kindtag r">CHÂN DUNG</span>'
-       :isR?'<span class="kindtag a">TRANG PHỤC</span>'
-       :isM?'<span class="kindtag m">MASTER</span>':''}${esc(f.id)}</div>
-     <input class="ed" data-k="label" value="${esc(f.label||'')}" placeholder="Tên góc máy…">
-     <textarea class="ed" data-k="desc" placeholder="Mô tả / dùng cho beat nào…">${esc(f.desc||'')}</textarea>
-     <div class="refrow"><b>Nhân vật</b><div class="picker" data-p="chars">
-       ${(refs.chars||[]).map(r=>`<span class="pill ref" data-see="${esc(r)}" title="Bấm để xem ảnh"
-         >${esc(r)}<b class="x" data-rm="${esc(r)}" title="Bỏ ref này">✕</b></span>`).join('')}
-       <span class="pill add" data-add="chars">+ thêm</span></div></div>
-     <div class="refrow"><b>Bối cảnh</b><div class="picker" data-p="bg">
-       ${refs.bg?`<span class="pill bg ref" data-see="${esc(refs.bg)}" title="Bấm để xem ảnh"
-         >${esc(refs.bg)}<b class="x" data-rmbg="1" title="Bỏ ref này">✕</b></span>`
-         :`<span class="pill add" data-add="bg">+ chọn</span>`}
-       </div></div>
-     ${(f.versions&&f.versions.length>1)?`<div class="vers"><span class="vlab">bản:</span>
-       ${f.versions.map((v,i)=>`<span class="vwrap"><img src="${thumb(v.url,240)}" loading="lazy"
-         decoding="async" title="v${i+1} · ${v.at} — bấm để chọn làm ảnh chính"
-         class="${v.file===f.picked?'cur':''}" data-v="${v.file}">
-         <span class="vx" data-vdel="${v.file}" title="Xoá bản v${i+1} này">×</span></span>`).join('')}</div>`:''}
-     <details><summary>Prompt (sửa được)</summary>
-       <textarea data-k="prompt" spellcheck="false">${esc(f.prompt||'')}</textarea></details>
-     <textarea class="notes" data-k="notes" placeholder="Ghi chú / yêu cầu chỉnh sửa…">${esc(f.notes||'')}</textarea>
-     ${f.ai_done?`<div class="aidone"><span>🤖 ${esc(f.ai_done)}</span>
-       <span class="x" data-a="donex" title="Xong việc này rồi — xoá dòng báo để ghi yêu cầu mới">✕ dọn</span></div>`:''}
-   </div>
-   ${job.state==='error'?`<div class="err">⚠ ${esc(job.msg)}</div>`:''}
-   <div class="acts">
-     <button class="sm pri" data-a="gen" ${running?'disabled':''}>${f.image?'Tạo lại':'Tạo ảnh'}</button>
-     <select class="ncopy" data-n title="Số bản tạo cùng lúc — mỗi bản chạy trên một tài khoản khác nhau, xong rồi bấm v1/v2… để chọn bản ưng ý" ${running?'disabled':''}>
-       <option value="1">×1</option><option value="2">×2</option>
-       <option value="3">×3</option><option value="4">×4</option></select>
-     <button class="sm ok-b" data-a="approved">✓</button>
-     <button class="sm warn-b" data-a="revise">✎</button>
-     <button class="sm bad-b" data-a="rejected">✕</button>
-     <span style="flex:1"></span>
-     ${f.image?`<a class="sm dl" href="${f.image}?dl=1&name=${encodeURIComponent(f.id)}" download="${f.id}.png" title="Tải ảnh về máy">⬇</a>`:''}
-     <button class="sm ai ${f.ai_request?'on':''}" data-a="ai" title="Ghi rõ vấn đề ở ô ghi chú rồi bấm — mục này vào danh sách yêu cầu AI ở header">${f.ai_request?'✓ đã gửi AI':'🤖 Yêu cầu AI'}</button>
-     <button class="sm" data-a="dup">Nhân bản</button>
-     <button class="sm" data-a="copy">Copy →</button>
-     <button class="sm bad-b" data-a="del">🗑</button>
-   </div>`;
-
-  const th=d.querySelector('.thumb');
-  th.onclick=e=>{
-    if(e.shiftKey||!f.image){   // chọn thẻ để dán đè (hoặc thẻ chưa có ảnh)
-      SEL={scene:sc,sf:f.id};
-      document.querySelectorAll('.card').forEach(c=>c.classList.remove('sel'));
-      document.querySelectorAll('.pastebox').forEach(x=>x.classList.remove('on'));
-      d.classList.add('sel');
-      return;
-    }
-    lbOpenAt(f);
-  };
-  th.ondragover=e=>{e.preventDefault();th.classList.add('drop')};
-  th.ondragleave=()=>th.classList.remove('drop');
-  th.ondrop=async e=>{e.preventDefault();th.classList.remove('drop');
-    const file=e.dataTransfer.files[0];if(!file)return;
-    await fetch(`/api/upload?sf=${encodeURIComponent(f.id)}&name=${encodeURIComponent(file.name)}`,{method:'POST',body:file});
-    await load();};
-
-  d.querySelectorAll('[data-k]').forEach(el=>el.oninput=e=>{f[e.target.dataset.k]=e.target.value;save()});
-  d.querySelectorAll('[data-v]').forEach(el=>el.onclick=async e=>{
-    e.stopPropagation();
-    await fetch(`/api/pick-version?sf=${encodeURIComponent(f.id)}&file=${encodeURIComponent(el.dataset.v)}`,{method:'POST'});
-    await load();});
-  d.querySelectorAll('[data-vdel]').forEach(el=>el.onclick=async e=>{
-    e.stopPropagation();
-    if(!confirm('Xoá hẳn bản này khỏi ổ đĩa?\n\n'+el.dataset.vdel+'\n\nKhông khôi phục được.'))return;
-    const r=await (await fetch(`/api/del-version?sf=${encodeURIComponent(f.id)}&file=${encodeURIComponent(el.dataset.vdel)}`,
-      {method:'POST'})).json();
-    if(!r.ok){alert(r.err||'Không xoá được');return}
-    await load();});
-  d.querySelectorAll('[data-see]').forEach(el=>el.onclick=e=>{
-    if(e.target.classList.contains('x'))return;      // bấm ✕ thì để handler xoá lo
-    const r=find(el.dataset.see);
-    if(r&&r.f&&r.f.image)lbOpenAt(r.f); else alert(el.dataset.see+' chưa có ảnh.');});
-  d.querySelectorAll('[data-rm]').forEach(el=>el.onclick=e=>{
-    e.stopPropagation();
-    f.refs.chars=f.refs.chars.filter(x=>x!==el.dataset.rm);save();render()});
-  const rmbg=d.querySelector('[data-rmbg]');
-  if(rmbg)rmbg.onclick=e=>{e.stopPropagation();f.refs.bg=null;save();render()};
-  d.querySelectorAll('[data-add]').forEach(el=>el.onclick=()=>addRef(f,el.dataset.add));
-  d.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
-    const sel=d.querySelector('[data-n]');
-    act(sc,f,b.dataset.a, sel?sel.value:1);
-  });
-  return d;
-}
-
-function addRef(f,kind){
-  const opts=allSF().map(x=>x.f.id);
-  const pick=prompt(`Chọn ảnh ${kind==='bg'?'BỐI CẢNH':'NHÂN VẬT'} — nhập mã:\n\n`+opts.join('\n'));
-  if(!pick)return;const id=pick.trim();
-  if(!opts.includes(id)){alert('Không có mã '+id);return}
-  f.refs=f.refs||{chars:[],bg:null};
-  if(kind==='bg')f.refs.bg=id;
-  else if(!f.refs.chars.includes(id))f.refs.chars.push(id);
-  save();render();
-}
-
-async function act(sc,f,a,n){
-  if(a==='gen'){
-    n=Math.max(1,Math.min(+n||1,4));
-    JOBS[f.id]={state:'running',msg:n>1?`đang tạo 0/${n} bản…`:'khởi động…'};render();
-    await fetch(`/api/generate?sf=${encodeURIComponent(f.id)}&n=${n}`,{method:'POST'});return}
-  if(a==='del'){
-    if(!confirm('Xóa '+f.id+' (kèm mọi ảnh & phiên bản)?'))return;
-    await fetch('/api/delete-files?sf='+encodeURIComponent(f.id),{method:'POST'});
-    sc.sfs=sc.sfs.filter(x=>x.id!==f.id);save();render();return}
-  if(a==='donex'){delete f.ai_done;save();render();return}
-  if(a==='ai'){
-    f.ai_request=!f.ai_request;
-    if(f.ai_request)delete f.ai_done;       // yêu cầu mới → báo cáo cũ hết hiệu lực
-    save();render();return}
-  if(a==='dup'){
-    let nid=f.id+'-B',k=2;while(find(nid)){nid=f.id+'-B'+k;k++}
-    sc.sfs.splice(sc.sfs.indexOf(f)+1,0,{...f,id:nid,status:'proposed',notes:'',image:null,versions:[]});
-    save();render();return}
-  if(a==='copy'){
-    const t=prompt('Copy sang scene nào?\n\n'+DATA.scenes.map(s=>s.id+' — '+s.name).join('\n'),sc.id);
-    if(!t)return;const dst=DATA.scenes.find(s=>s.id===t.trim());
-    if(!dst){alert('Không có scene '+t);return}
-    let nid=f.id+'-COPY',k=2;while(find(nid)){nid=f.id+'-COPY'+k;k++}
-    dst.sfs.push({...f,id:nid,status:'proposed',notes:'',usedBy:[],image:null,versions:[]});
-    save();render();return}
-  f.status = (f.status===a) ? 'proposed' : a;
-  save();render();
-}
-
-function addSF(sid){
-  const sc=DATA.scenes.find(s=>s.id===sid);
-  const id=prompt('Mã SF mới:','SF-'+sid+'-'+String.fromCharCode(65+sc.sfs.length));
-  if(!id)return;if(find(id.trim())){alert('Mã đã tồn tại');return}
-  sc.sfs.push({id:id.trim(),label:'',desc:'',prompt:'',status:'proposed',notes:'',usedBy:[],refs:{chars:[],bg:null}});
-  save();render();
-}
-function addScene(){
-  const id=prompt('Mã scene:','S'+(DATA.scenes.length+1));if(!id)return;
-  DATA.scenes.push({id:id.trim(),name:prompt('Tên scene:','')||'',sfs:[]});save();render();
-}
-function delScene(sid){
-  if(!confirm('Xóa scene '+sid+' và toàn bộ SF?'))return;
-  DATA.scenes=DATA.scenes.filter(s=>s.id!==sid);save();render();
-}
-/* ---- sáng / tối ---- */
-function setTheme(t){
-  document.documentElement.dataset.theme=t;
-  localStorage.setItem('sfboard-theme',t);
-  $('#theme').textContent = t==='dark'?'🌙':'☀️';
-}
-setTheme(localStorage.getItem('sfboard-theme') ||
-  (window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'));
-$('#theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
-
-$('#filter').onchange=render;
-$('#vfilter').onchange=render;
-document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
-  VIEW=b.dataset.v;
-  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
-  render();
-});
-loadProjects();
-loadGate();setInterval(loadGate,5000);
-load();
-</script></body></html>
-"""
+# Giao diện board tách sang ui/board.html (2026-08-09) — sfboard.py từ 6.231 còn ~3.400
+# dòng. SỬA GIAO DIỆN THÌ SỬA FILE ĐÓ, không dán HTML/CSS/JS ngược vào đây.
+HTML = open(os.path.join(_HERE, "ui", "board.html"), encoding="utf-8").read()
 
 
 
@@ -3353,7 +3487,9 @@ def main():
     print(f"Phim    : {BOARD.dir}")
     print(f"Dữ liệu : {BOARD.path}")
     _init_accounts()
+    _dem_nap()
     print(f"Tài khoản: {ACC_PATH}  (quản lý bật/tắt/mở Chrome ngay trên board — nút ⚙ Tài khoản)")
+    print(f"Đếm ngày : {DEM_PATH}  (số bản mỗi tài khoản làm được trong ngày — đọc cột 'cao nhất')")
     # Tài khoản đang BẬT mà chưa có cửa sổ Chrome → mở sẵn ngay lúc khởi động.
     # Chỉ làm một lần ở đây, không làm trong supervisor: nếu bạn cố ý đóng một
     # cửa sổ giữa chừng thì nó phải nằm im, không bị mở lại liên tục.
