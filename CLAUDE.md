@@ -37,16 +37,23 @@ PIPELINE-<TÊN>.project/     # mỗi phim một thư mục
 
 ## Chạy board
 
+⛔ **Luôn gọi `./.venv/bin/python3`, KHÔNG gọi `python3` trần** — cho MỌI script trong
+`sfboard/` và `grokpipe/`. `playwright` chỉ cài trong `.venv`; `python3` trần là bản 3.9 của
+macOS, board vẫn lên nhưng mọi job chết với `No module named 'playwright'`.
+
 ```bash
-python3 sfboard/sfboard.py PIPELINE-RUTHS-HOUSE.project --port 8779
+./.venv/bin/python3 sfboard/sfboard.py PIPELINE-RUTHS-HOUSE.project --port 8779
 ```
 
-Cổng cố định theo phim: RUTHS-HOUSE **8779**, 8DOLLARS **8778**, PORCH-LIGHT **8780**, THE-APRON **8781**.
+Cổng cố định theo phim: RUTHS-HOUSE **8779**, 8DOLLARS **8778**, PORCH-LIGHT **8780**,
+TAXI-DRIVER **8781**, LOOKING-POOR **8782**.
 Chạy nền trên macOS phải bọc subshell + `disown` (`setsid` KHÔNG có trên macOS):
 
 ```bash
-( nohup python3 -u sfboard/sfboard.py <PROJECT> --port <PORT> > /tmp/sfboard.log 2>&1 < /dev/null & disown )
+( nohup ./.venv/bin/python3 -u sfboard/sfboard.py <PROJECT> --port <PORT> > /tmp/sfboard.log 2>&1 < /dev/null & disown )
 ```
+
+Gọn nhất là `./chay-board.command <PROJECT>` — script đã chọn sẵn đúng python và cổng.
 
 **Kiểm `/api/jobs` trước khi khởi động lại board** — restart giữa chừng làm mất
 hàng đợi và job video đang chạy dở sẽ không kịp lưu thành bản chính.
@@ -89,8 +96,8 @@ Skill `skills-film` chỉ chứa nghề làm phim. Mọi thứ về **dữ liệ
   shot mồ côi; quét lần cuối ngay trước khi render hàng loạt. Kiểm luôn media mồ côi trong
   `assets/` và `videos/`.
 - **CẤM sửa/đọc trực tiếp file 917KB `sf-board.json` bằng text-editor hoặc lệnh bash thay thế.**
-  - **Để ĐỌC một scene:** Bắt buộc dùng `python3 sfboard/sua-board.py xem <PROJECT> <SCENE_ID>`.
-  - **Để GHI/THÊM/SỬA:** Tạo một file JSON trung gian cực nhỏ (ví dụ `patch.json` chứa riêng các thẻ cần sửa) rồi dùng lệnh `python3 sfboard/sua-board.py patch <PROJECT> <SCENE_ID> <patch.json>`. Công cụ này sẽ tự lọc rác (như `note`, `usedBy`), ép kiểu (`dur`), và giữ nguyên cấu trúc file gốc.
+  - **Để ĐỌC một scene:** Bắt buộc dùng `./.venv/bin/python3 sfboard/sua-board.py xem <PROJECT> <SCENE_ID>`.
+  - **Để GHI/THÊM/SỬA:** Tạo một file JSON trung gian cực nhỏ (ví dụ `patch.json` chứa riêng các thẻ cần sửa) rồi dùng lệnh `./.venv/bin/python3 sfboard/sua-board.py patch <PROJECT> <SCENE_ID> <patch.json>`. Công cụ này sẽ tự lọc rác (như `note`, `usedBy`), ép kiểu (`dur`), và giữ nguyên cấu trúc file gốc.
 
 - **`luatchung` — khối LUẬT CHUNG của địa điểm. THẺ NÀO MANG NÓ LÀ THẺ ĐỊA ĐIỂM.** Đó cũng là
   dấu hiệu `sfboard.py` và `kiem-luat.py` dùng để nhận ra chỗ dừng khi leo `refs.bg` — một địa
@@ -116,9 +123,9 @@ Skill `skills-film` chỉ chứa nghề làm phim. Mọi thứ về **dữ liệ
 **Công cụ kiểm:**
 
 ```bash
-python3 sfboard/chay-anh.py <PROJECT> --port <PORT>      # render hàng loạt ảnh SF (master trước, SF con sau)
-python3 sfboard/liet-ke-dao-cu.py <PROJECT>              # liệt kê đạo cụ chủ chốt (bước 2)
-python3 sfboard/kiem-noi-shot.py <PROJECT> [S1 S2 ...]   # bắt nhân vật "nhảy" giữa hai shot
+./.venv/bin/python3 sfboard/chay-anh.py <PROJECT> --port <PORT>      # render hàng loạt ảnh SF (master trước, SF con sau)
+./.venv/bin/python3 sfboard/liet-ke-dao-cu.py <PROJECT>              # liệt kê đạo cụ chủ chốt (bước 2)
+./.venv/bin/python3 sfboard/kiem-noi-shot.py <PROJECT> [S1 S2 ...]   # bắt nhân vật "nhảy" giữa hai shot
 ```
 
 ## ⛔ LUẬT CỨNG — GIT: REPO NÀY CÔNG KHAI

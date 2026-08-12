@@ -1,0 +1,265 @@
+"""DOM của ChatGPT — selector và mọi đoạn JS chạy trong trang.
+
+TÁCH KHỎI image_chatgpt.py 2026-08-12. Lý do: ChatGPT đổi giao diện liên tục, và
+mỗi lần đổi là phải lần trong hơn 1.600 dòng điều phối để tìm chỗ sửa. Gom vào
+đây thì lần sau chỉ mở một file — `image_chatgpt.py` còn lại thuần phần điều
+phối lô, không dính DOM.
+
+Ba luật khi sửa (rút từ những lần hỏng thật):
+  1. BÁM THUỘC TÍNH, ĐỪNG BÁM CHỮ. Giao diện có thể sang tiếng Việt bất cứ lúc
+     nào; `data-testid` thì không đổi theo ngôn ngữ. Chữ chỉ để dự phòng.
+  2. COI CHỪNG PHẦN TỬ ẨN ĐỨNG TRƯỚC PHẦN TỬ THẬT. `querySelector` lấy cái đầu
+     tiên trong DOM, mà cái đầu tiên có lúc là ô ẩn — xem `JS_O_SOAN`.
+  3. FAIL-CLOSED. Phân biệt cho được "không thấy gì" với "thấy nhưng rỗng";
+     nhập nhèm hai cái đó thì lô chết mà log vẫn sạch.
+"""
+
+# --------------------------------------------------------------------------
+# Selector — chỉnh ở đây khi ChatGPT đổi giao diện.
+# --------------------------------------------------------------------------
+SELECTORS = {
+    "composer": "#prompt-textarea",
+    "file_input": "input[type=file]",
+    "send_button": "button[data-testid='send-button']",
+    "stop_button": "button[data-testid='stop-button']",
+    # UI mới dùng data-turn=assistant trên <section>; giữ selector cũ để tương
+    # thích. generate() sẽ loại toàn bộ URL đã có trước khi gửi prompt.
+    "assistant_turn": "[data-turn='assistant'], [data-message-author-role='assistant']",
+    "assistant_image": "[data-turn='assistant'] img, [data-message-author-role='assistant'] img",
+    # khối overlay Edit/tải xuất hiện khi ảnh đã sinh xong
+    "image_done": "[data-testid='image-gen-overlay-actions']",
+    # thumbnail ảnh đính kèm hiện trong ô soạn (đếm để XÁC MINH upload đủ)
+    # Thumbnail ảnh đính kèm nằm trong <form> của ô soạn. Đã đo trên UI thật:
+    # "form img" = đúng số ảnh đang đính, và = 0 khi chưa đính gì.
+    "composer_attachment": "form img",
+}
+
+
+# Ô soạn ĐANG HIỆN, đọc từ TRONG TRANG. Mọi khối `evaluate` chạm ô soạn phải đi
+# qua đây thay cho `querySelector('#prompt-textarea')`.
+#
+# `querySelector` lấy cái ĐẦU TIÊN trong DOM, mà cái đầu tiên có lúc là ô ẩn
+# (`aria-hidden="true"`) — đúng thứ đã giết lô SF-S7-02..07 ngày 2026-08-07.
+# Vá `_o_soan()` phía Python là chưa đủ: phía JS vẫn đọc/ghi vào ô ẩn, và hậu
+# quả nặng hơn cú timeout ban đầu vì nó IM LẶNG —
+#   · đọc ngược ra chuỗi rỗng  → báo "ô prompt không khớp" rồi bỏ cả lô
+#   · `_da_roi_o_soan()` thấy trống → báo GỬI THÀNH CÔNG dù click bị nuốt,
+#     board ngồi chờ ảnh không bao giờ về.
+# Là BIỂU THỨC (IIFE) chứ không phải câu lệnh, để nối được vào giữa arrow
+# function mà `page.evaluate` nhận.
+_JS_O_SOAN = """(() => {
+    const ds = [...document.querySelectorAll('#prompt-textarea')];
+    return ds.find(e => {
+        const r = e.getBoundingClientRect();
+        return e.getAttribute('aria-hidden') !== 'true' && r.width > 0 && r.height > 0;
+    }) || null;
+})()"""
+
+
+JS_CHON_CHE_DO = """() => { const b = [...document.querySelectorAll('form button')]
+                    .find(e => /^(Instant|Medium|High)/.test((e.textContent||'').trim()));
+                    return b ? b.textContent.trim() : ''; }"""
+
+JS_CHON_CHE_DO_2 = """() => { const b = [...document.querySelectorAll('form button')]
+                    .find(e => /^(Instant|Medium|High)/.test((e.textContent||'').trim()));
+                    return b ? b.textContent.trim() : ''; }"""
+
+JS_DOWNLOAD = """(u) => {
+                    const imgs = Array.from(document.querySelectorAll(
+                        "[data-turn='assistant'] img, [data-message-author-role='assistant'] img"
+                    ));
+                    const img = imgs.find(i => (i.currentSrc || i.src || '') === u);
+                    if (!img || !img.complete || !img.naturalWidth) return null;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    return canvas.toDataURL('image/png').split(',')[1];
+                }"""
+
+JS_DOWNLOAD_2 = """async (u) => {
+                    const r = await fetch(u, {credentials: 'include'});
+                    const b = await r.blob();
+                    return await new Promise(res => {
+                        const fr = new FileReader();
+                        fr.onloadend = () => res(fr.result.split(',')[1]);
+                        fr.readAsDataURL(b);
+                    });
+                }"""
+
+JS_ANH_DANG_CO = """() => { const out = [], seen = new Set();
+                    document.querySelectorAll("[data-turn='assistant'] img,"
+                        + "[data-message-author-role='assistant'] img").forEach(i => {
+                        const s = i.currentSrc || i.src || '';
+                        if (s && !s.startsWith('blob:') && !seen.has(s)) { seen.add(s); out.push(s); }
+                    });
+                    return out; }"""
+
+JS_DANH_SACH_ID = """() => { const out = [], seen = new Set();
+                    const uSel = "[data-turn='user'],[data-message-author-role='user']";
+                    document.querySelectorAll('img').forEach(i => {
+                        const s = i.currentSrc || i.src || '';
+                        if (!s.includes('/backend-api/estuary/content')) return;
+                        if (i.closest(uSel)) return;
+                        const alt = (i.alt || '').trim();
+                        const nut = i.closest('button[aria-label^="Open image "]');
+                        // ChatGPT hiện đổi alt sau khi hoàn tất từ
+                        // `Generated image` thành `Generated image: <tựa tự sinh>`.
+                        // So khớp tuyệt đối làm bộ đếm rơi từ đủ N xuống còn 1
+                        // (chỉ node blur có alt rỗng), khiến job chờ vô hạn.
+                        if ((alt && !alt.toLowerCase().startsWith('generated image')) || nut) return;
+                        let k = s;
+                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
+                        if (!seen.has(k)) { seen.add(k); out.push([k, s]); } });
+                    return out; }"""
+
+JS_DANH_SACH_REF_ID = """() => { const out = [], seen = new Set();
+                    document.querySelectorAll('img').forEach(i => {
+                        const s = i.currentSrc || i.src || '';
+                        if (!s.includes('/backend-api/estuary/content')) return;
+                        const alt = (i.alt || '').trim();
+                        const nut = i.closest('button[aria-label^="Open image "]');
+                        if ((!alt || alt.toLowerCase().startsWith('generated image')) && !nut) return;
+                        let k = s;
+                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
+                        if (!seen.has(k)) { seen.add(k); out.push(k); } });
+                    return out; }"""
+
+JS_ANH_SAU_MOC_TURN = r"""async ({moc, quet}) => {
+                    const nghi = ms => new Promise(r => setTimeout(r, ms));
+                    const out = [];
+                    const turns = [...document.querySelectorAll(
+                        '[data-turn="assistant"][data-testid^="conversation-turn-"]'
+                    )].map(t => {
+                        const m = (t.getAttribute('data-testid') || '')
+                            .match(/conversation-turn-(\d+)/);
+                        return [m ? Number(m[1]) : -1, t];
+                    }).filter(([n]) => n > moc).sort((a, b) => a[0] - b[0]);
+                    const gom = (n, t, seen) => t.querySelectorAll('img').forEach(i => {
+                        const s = i.currentSrc || i.src || '';
+                        if (!s.includes('/backend-api/estuary/content')) return;
+                        const alt = (i.alt || '').trim().toLowerCase();
+                        if (alt && !alt.startsWith('generated image')) return;
+                        let k = s;
+                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
+                        if (!seen.has(k)) { seen.add(k); out.push([n, k, s]); }
+                    });
+                    for (const [n, t] of turns) {
+                        const seen = new Set();
+                        const cs = [...t.querySelectorAll('div')].filter(c => {
+                            const st = getComputedStyle(c);
+                            return /auto|scroll/.test(st.overflowY || '')
+                                && c.querySelector('[class*="group/imagegen-image"]');
+                        });
+                        if (!quet || !cs.length) {
+                            // Trong lúc poll chỉ cần đếm. Ảnh preview lớn và
+                            // thumbnail trùng ID nên Set sẽ khử trùng.
+                            gom(n, t, seen);
+                            continue;
+                        }
+                        for (const c of cs) {
+                            const cu = c.scrollTop;
+                            const buoc = Math.max(48, (c.clientHeight || 120) - 8);
+                            for (let y = 0; y <= c.scrollHeight; y += buoc) {
+                                c.scrollTop = y; await nghi(100);
+                            }
+                            c.scrollTop = cu;
+                            // THỨ TỰ CHỈ lấy từ dãy button thumbnail. Ảnh lớn
+                            // là thumbnail ĐANG CHỌN, không phải output số 1;
+                            // đặt nó lên đầu từng làm 01↔02 và 07↔08.
+                            c.querySelectorAll('button').forEach(b => {
+                                const i = b.querySelector('img');
+                                const s = i ? (i.currentSrc || i.src || '') : '';
+                                if (!s.includes('/backend-api/estuary/content')) return;
+                                let k = s;
+                                try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
+                                if (!seen.has(k)) { seen.add(k); out.push([n, k, s]); }
+                            });
+                        }
+                    }
+                    return out;
+                }"""
+
+JS_QUET_CUON = """async () => {
+                    const nghi = ms => new Promise(r => setTimeout(r, ms));
+                    const out = [], seen = new Set();
+                    const uSel = "[data-turn='user'],[data-message-author-role='user']";
+                    const gom = () => document.querySelectorAll('img').forEach(i => {
+                        const s = i.currentSrc || i.src || '';
+                        if (!s.includes('/backend-api/estuary/content')) return;
+                        if (i.closest(uSel)) return;
+                        const alt = (i.alt || '').trim();
+                        const nut = i.closest('button[aria-label^="Open image "]');
+                        if ((alt && alt.toLowerCase() !== 'generated image') || nut) return;
+                        let k = s;
+                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
+                        if (!seen.has(k)) { seen.add(k); out.push([k, s]); }
+                    });
+                    // Carousel ảnh chỉ mount khoảng 2 thumbnail một lúc. Cuộn
+                    // riêng từng cột thumbnail; nếu không một lượt đủ 6 trên UI
+                    // có thể chỉ còn 2 ID trong DOM và board báo sai 2/6.
+                    const quetCarousel = async () => {
+                        const cs = [...document.querySelectorAll('div')].filter(c => {
+                            const st = getComputedStyle(c);
+                            return /auto|scroll/.test(st.overflowY || '')
+                                && c.querySelector('[class*="group/imagegen-image"]');
+                        });
+                        for (const c of cs) {
+                            const cu = c.scrollTop;
+                            const buoc = Math.max(48, (c.clientHeight || 120) - 8);
+                            for (let y = 0; y <= c.scrollHeight; y += buoc) {
+                                c.scrollTop = y; await nghi(140); gom();
+                            }
+                            c.scrollTop = cu;
+                        }
+                    };
+                    // tìm khung cuộn thật của thread, không phải window
+                    let el = document.scrollingElement || document.documentElement;
+                    for (const c of document.querySelectorAll('main div')) {
+                        if (c.scrollHeight > c.clientHeight + 200) { el = c; break; }
+                    }
+                    const h = el.scrollHeight, buoc = Math.max(400, el.clientHeight - 100);
+                    for (let y = 0; y < h; y += buoc) {
+                        el.scrollTop = y; await nghi(160); gom(); await quetCarousel();
+                    }
+                    el.scrollTop = el.scrollHeight;   // trả về đáy như cũ
+                    await nghi(180); gom(); await quetCarousel();
+                    return out;
+                }"""
+
+JS_DEM_TU_CHOI = """() => ((document.body.innerText || '')
+                    .match(/guardrail|violate our|something went wrong/gi) || []).length"""
+
+JS_TIN_NHAN_TEXT_TRO_LY = """() => { const out = {};
+                    document.querySelectorAll(
+                        '[data-message-author-role="assistant"][data-message-id]'
+                    ).forEach(e => {
+                        const id = e.getAttribute('data-message-id') || '';
+                        const text = (e.innerText || e.textContent || '').trim();
+                        if (id) out[id] = text;
+                    });
+                    return out; }"""
+
+JS_TRANG_THAI_O_SOAN = """() => [...document.querySelectorAll('#prompt-textarea')].map(e => {
+                    const r = e.getBoundingClientRect();
+                    return {hidden: e.getAttribute('aria-hidden'),
+                            w: Math.round(r.width), h: Math.round(r.height),
+                            disabled: e.getAttribute('contenteditable') === 'false'};
+                })"""
+
+JS_TAI_VE = """async u => { const r = await fetch(u); if (!r.ok) return null;
+                        const b = await r.blob();
+                        return await new Promise(res => { const f = new FileReader();
+                            f.onload = () => res(String(f.result).split(',')[1]);
+                            f.readAsDataURL(b); }); }"""
+
+JS_MOC_TURN_TRO_LY = r"""() => Math.max(-1, ...[...document.querySelectorAll(
+                    '[data-turn="assistant"][data-testid^="conversation-turn-"]'
+                )].map(e => Number((e.getAttribute('data-testid') || '')
+                    .match(/conversation-turn-(\d+)/)?.[1] || -1)))"""
+
+JS_TEN_DA_LEN = r"""() => [...document.querySelectorAll('button[aria-label]')]
+                        .map(e => ((e.getAttribute('aria-label') || '')
+                             .match(/([^\s:\\/]+\.(?:png|jpe?g|webp))\s*$/i) || [])[1])
+                        .filter(Boolean)"""

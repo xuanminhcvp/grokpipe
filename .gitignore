@@ -75,6 +75,10 @@ Nhân vật/
 # ⛔ Công cụ kiểm — mã hoá sẵn ngưỡng của skill, giữ trên máy
 sfboard/kiem-luat.py
 sfboard/kiem-noi-shot.py
+sfboard/kiem-bang-shot.py
+sfboard/kiem-sf.py
+sfboard/kiem-trang-phuc.py
+sfboard/kiem-dia-diem.py
 sfboard/sua-board.py
 
 # kho git của repo PRIVATE — không bao giờ đẩy lên repo public

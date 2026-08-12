@@ -508,8 +508,9 @@ class GrokSession:
         raise C.ExecutorError(f"Tải video thất bại sau 4 lần thử: {str(last_err)[:200]}")
 
     def close(self) -> None:
-        with _CLAIM_LOCK:
-            pass
+        # (bỏ 2026-08-12) chỗ này từng `with _CLAIM_LOCK: pass` — tàn dư của cơ
+        # chế giữ chỗ đã xoá. Khối rỗng nên không làm gì, nhưng cái tên thì không
+        # còn tồn tại: mỗi lần đóng phiên Grok là một NameError nuốt vào except.
         if self.shared_ctx is not None:   # context dùng chung do runner quản lý
             self.ready = False
             return

@@ -33,7 +33,10 @@ Bật/tắt và mở cửa sổ ngay trong board, mục **⚙ Tài khoản**.
 ./chay-board.command PIPELINE-8DOLLARS.project    # phim khác
 ```
 
-Hoặc gọi thẳng: `python3 sfboard/sfboard.py <PROJECT> --port <PORT>`
+Hoặc gọi thẳng: `./.venv/bin/python3 sfboard/sfboard.py <PROJECT> --port <PORT>`
+
+⛔ Phải là `./.venv/bin/python3`. `python3` trần là bản 3.9 của macOS, không có
+`playwright` → mọi job chết với `No module named 'playwright'`.
 
 ## 5. Sao lưu
 

@@ -41,47 +41,16 @@ def _ordered_attachments(task: Task, store: Store) -> list[str]:
     return paths
 
 
-# ----------------------------------------------------------------------------
-# Selector — chỉnh ở đây khi ChatGPT đổi giao diện.
-# ----------------------------------------------------------------------------
-SELECTORS = {
-    "composer": "#prompt-textarea",
-    "file_input": "input[type=file]",
-    "send_button": "button[data-testid='send-button']",
-    "stop_button": "button[data-testid='stop-button']",
-    # UI mới dùng data-turn=assistant trên <section>; giữ selector cũ để tương
-    # thích. generate() sẽ loại toàn bộ URL đã có trước khi gửi prompt.
-    "assistant_turn": "[data-turn='assistant'], [data-message-author-role='assistant']",
-    "assistant_image": "[data-turn='assistant'] img, [data-message-author-role='assistant'] img",
-    # khối overlay Edit/tải xuất hiện khi ảnh đã sinh xong
-    "image_done": "[data-testid='image-gen-overlay-actions']",
-    # thumbnail ảnh đính kèm hiện trong ô soạn (đếm để XÁC MINH upload đủ)
-    # Thumbnail ảnh đính kèm nằm trong <form> của ô soạn. Đã đo trên UI thật:
-    # "form img" = đúng số ảnh đang đính, và = 0 khi chưa đính gì.
-    "composer_attachment": "form img",
-}
-
-
-# Ô soạn ĐANG HIỆN, đọc từ TRONG TRANG. Mọi khối `evaluate` chạm ô soạn phải đi
-# qua đây thay cho `querySelector('#prompt-textarea')`.
-#
-# `querySelector` lấy cái ĐẦU TIÊN trong DOM, mà cái đầu tiên có lúc là ô ẩn
-# (`aria-hidden="true"`) — đúng thứ đã giết lô SF-S7-02..07 ngày 2026-08-07.
-# Vá `_o_soan()` phía Python là chưa đủ: phía JS vẫn đọc/ghi vào ô ẩn, và hậu
-# quả nặng hơn cú timeout ban đầu vì nó IM LẶNG —
-#   · đọc ngược ra chuỗi rỗng  → báo "ô prompt không khớp" rồi bỏ cả lô
-#   · `_da_roi_o_soan()` thấy trống → báo GỬI THÀNH CÔNG dù click bị nuốt,
-#     board ngồi chờ ảnh không bao giờ về.
-# Là BIỂU THỨC (IIFE) chứ không phải câu lệnh, để nối được vào giữa arrow
-# function mà `page.evaluate` nhận.
-_JS_O_SOAN = """(() => {
-    const ds = [...document.querySelectorAll('#prompt-textarea')];
-    return ds.find(e => {
-        const r = e.getBoundingClientRect();
-        return e.getAttribute('aria-hidden') !== 'true' && r.width > 0 && r.height > 0;
-    }) || null;
-})()"""
-
+# DOM CỦA CHATGPT NẰM Ở dom_chatgpt.py (tách 2026-08-12) — selector và mọi đoạn
+# JS chạy trong trang. ChatGPT đổi giao diện liên tục; gom một chỗ thì lần sau
+# chỉ phải mở một file, còn đây giữ thuần phần điều phối lô.
+from .dom_chatgpt import (      # noqa: F401
+    SELECTORS, _JS_O_SOAN,
+    JS_CHON_CHE_DO, JS_CHON_CHE_DO_2, JS_DOWNLOAD, JS_DOWNLOAD_2,
+    JS_ANH_DANG_CO, JS_DANH_SACH_ID, JS_DANH_SACH_REF_ID, JS_ANH_SAU_MOC_TURN,
+    JS_QUET_CUON, JS_DEM_TU_CHOI, JS_TIN_NHAN_TEXT_TRO_LY, JS_TRANG_THAI_O_SOAN,
+    JS_TAI_VE, JS_MOC_TURN_TRO_LY, JS_TEN_DA_LEN,
+)
 
 # ─────────────── HẾT LƯỢT ĐÍNH TỆP (khác hẳn hết lượt TẠO ẢNH) ───────────────
 # ChatGPT có một trần RIÊNG cho việc ĐÍNH TỆP, và nó chặn theo GIỜ:
@@ -153,12 +122,23 @@ def _nhe_hoa(paths: list[str], logger) -> list[str]:
     return ra
 
 
+_TAG_TAB = "cgslot"          # window.name của tab: mỗi thợ một chỗ ngồi riêng
+_HOST_CHATGPT = ("chatgpt.com", "chat.openai.com")
+
+
+def _LA_TAB_CHATGPT(pg) -> bool:
+    try:
+        return any(h in (pg.url or "") for h in _HOST_CHATGPT)
+    except Exception:
+        return False
+
+
 class ChatGPTSession:
     """Giữ 1 phiên trình duyệt xuyên suốt pipeline."""
 
     def __init__(self, user_data_dir: str, logger, headless: bool = False,
                  url: str = "https://chatgpt.com/", gen_timeout: float = 300.0,
-                 cdp_endpoint: str | None = None, shared_ctx=None):
+                 cdp_endpoint: str | None = None, shared_ctx=None, slot: int = 0):
         self.user_data_dir = os.path.abspath(user_data_dir)
         self.logger = logger
         self.headless = headless
@@ -166,12 +146,14 @@ class ChatGPTSession:
         self.gen_timeout = gen_timeout
         self.cdp_endpoint = cdp_endpoint    # nối vào Chrome thật (vd http://localhost:9222)
         self.shared_ctx = shared_ctx        # context CDP dùng chung (do runner tạo)
+        self.slot = int(slot)               # chỗ ngồi: mỗi thợ một TAB riêng
         self._pw = None
         self._ctx = None
         self._browser = None
         self._is_cdp = False
         self.page = None
         self.ready = False
+        self.loi_cuoi = ""      # lý do thật của lần start() hỏng gần nhất
 
     def start(self) -> bool:
         if not _HAS_PW and self.shared_ctx is None:
@@ -182,7 +164,7 @@ class ChatGPTSession:
                 # dùng chung kết nối CDP với executor khác (1 Playwright/tiến trình)
                 self._is_cdp = True
                 self._ctx = self.shared_ctx
-                self.page = self._pick_page(self._ctx, ("chatgpt.com", "chat.openai.com"))
+                self.page = self._tim_tab()
             elif self.cdp_endpoint:
                 self._pw = sync_playwright().start()
                 self._start_cdp()
@@ -194,19 +176,50 @@ class ChatGPTSession:
             self.ready = True
             return True
         except Exception as e:
+            # Giữ lại lý do THẬT: bên gọi chỉ nhận False, không có nó thì board
+            # phải đoán bừa và hay đổ oan cho "chưa đăng nhập".
+            self.loi_cuoi = f"{type(e).__name__}: {e}"
             self.logger.warning(f"Không khởi động được Playwright ({e}) — dùng thủ công.")
             self.close()
             return False
 
-    @staticmethod
-    def _pick_page(ctx, hosts):
-        for p in ctx.pages:
+    def _tim_tab(self):
+        """Tab riêng của luồng này, nhận ra qua window.name = 'cgslot<N>'.
+
+        MỖI THỢ MỘT TAB, KHÔNG DÙNG CHUNG. Bản cũ (`_pick_page`) vớ lấy tab đầu
+        tiên thấy chatgpt.com, nên đặt tabs>1 cho một tài khoản là mấy luồng thợ
+        cùng trỏ vào MỘT tab: cùng gõ vào một ô soạn, cùng bấm submit, cùng đợi
+        ảnh — prompt đè lên nhau và ảnh lô này gán cho lô kia. Grok đã có cơ chế
+        này từ trước; đây là bản cho ChatGPT.
+
+        `window.name` sống theo tab và qua cả điều hướng, nên đánh dấu ở đây là
+        đủ để nhận lại đúng tab của mình sau khi trang tải lại."""
+        tag = f"{_TAG_TAB}{self.slot}"
+
+        def ten(pg):
             try:
-                if any(h in (p.url or "") for h in hosts):
-                    return p
+                return pg.evaluate("window.name") or ""
             except Exception:
-                pass
-        return ctx.new_page()
+                return ""
+
+        if self.page is not None and not self.page.is_closed() and ten(self.page) == tag:
+            return self.page
+        mo = [pg for pg in self._ctx.pages if not pg.is_closed()]
+        for pg in mo:
+            if _LA_TAB_CHATGPT(pg) and ten(pg) == tag:
+                return pg
+        # Slot 0 nhận nuôi một tab chatgpt CHƯA ai đánh dấu — để dùng lại tab
+        # user đang mở sẵn (đã đăng nhập, đã qua Cloudflare), khỏi đẻ tab thừa.
+        # Slot khác LUÔN mở tab mới của riêng nó.
+        if self.slot == 0:
+            for pg in mo:
+                if _LA_TAB_CHATGPT(pg) and not ten(pg).startswith(_TAG_TAB):
+                    pg.evaluate("n => { window.name = n }", tag)
+                    return pg
+        pg = self._ctx.new_page()
+        pg.goto(self.url, wait_until="domcontentloaded")
+        pg.evaluate("n => { window.name = n }", tag)
+        return pg
 
     def _start_profile(self) -> None:
         """Mở profile riêng (bạn tự đăng nhập + qua Cloudflare một lần)."""
@@ -285,9 +298,7 @@ class ChatGPTSession:
         hiện trạng trước khi gửi."""
         try:
             dang = self.page.evaluate(
-                """() => { const b = [...document.querySelectorAll('form button')]
-                    .find(e => /^(Instant|Medium|High)/.test((e.textContent||'').trim()));
-                    return b ? b.textContent.trim() : ''; }""")
+                JS_CHON_CHE_DO)
             if not dang or dang.startswith(ten):
                 return dang
             self.page.get_by_role("button", name=dang).first.click(timeout=5000)
@@ -323,9 +334,7 @@ class ChatGPTSession:
             # KIỂM LẠI THEO HIỆN TRẠNG, không theo ý định. Bản cũ coi như đã đổi
             # ngay sau cú bấm, nên chạy cả buổi ở Instant mà log vẫn sạch bong.
             sau = self.page.evaluate(
-                """() => { const b = [...document.querySelectorAll('form button')]
-                    .find(e => /^(Instant|Medium|High)/.test((e.textContent||'').trim()));
-                    return b ? b.textContent.trim() : ''; }""")
+                JS_CHON_CHE_DO_2)
             if not sau.startswith(ten):
                 self.logger.warning("ĐỔI CHẾ ĐỘ THẤT BẠI — vẫn đang %r, cần %r. "
                                     "Lô nhiều ảnh sẽ ra MỘT ảnh ghép lưới.", sau, ten)
@@ -361,13 +370,7 @@ class ChatGPTSession:
         """src ảnh của trợ lý theo ĐÚNG THỨ TỰ hiển thị, đã bỏ trùng."""
         try:
             return self.page.evaluate(
-                """() => { const out = [], seen = new Set();
-                    document.querySelectorAll("[data-turn='assistant'] img,"
-                        + "[data-message-author-role='assistant'] img").forEach(i => {
-                        const s = i.currentSrc || i.src || '';
-                        if (s && !s.startsWith('blob:') && !seen.has(s)) { seen.add(s); out.push(s); }
-                    });
-                    return out; }""") or []
+                JS_ANH_DANG_CO) or []
         except Exception:
             return []
 
@@ -401,23 +404,7 @@ class ChatGPTSession:
         """
         try:
             return self.page.evaluate(
-                """() => { const out = [], seen = new Set();
-                    const uSel = "[data-turn='user'],[data-message-author-role='user']";
-                    document.querySelectorAll('img').forEach(i => {
-                        const s = i.currentSrc || i.src || '';
-                        if (!s.includes('/backend-api/estuary/content')) return;
-                        if (i.closest(uSel)) return;
-                        const alt = (i.alt || '').trim();
-                        const nut = i.closest('button[aria-label^="Open image "]');
-                        // ChatGPT hiện đổi alt sau khi hoàn tất từ
-                        // `Generated image` thành `Generated image: <tựa tự sinh>`.
-                        // So khớp tuyệt đối làm bộ đếm rơi từ đủ N xuống còn 1
-                        // (chỉ node blur có alt rỗng), khiến job chờ vô hạn.
-                        if ((alt && !alt.toLowerCase().startsWith('generated image')) || nut) return;
-                        let k = s;
-                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
-                        if (!seen.has(k)) { seen.add(k); out.push([k, s]); } });
-                    return out; }""") or []
+                JS_DANH_SACH_ID) or []
         except Exception:
             return []
 
@@ -425,17 +412,7 @@ class ChatGPTSession:
         """ID estuary của ảnh REF do user/code đính vào lượt gửi hiện có."""
         try:
             return self.page.evaluate(
-                """() => { const out = [], seen = new Set();
-                    document.querySelectorAll('img').forEach(i => {
-                        const s = i.currentSrc || i.src || '';
-                        if (!s.includes('/backend-api/estuary/content')) return;
-                        const alt = (i.alt || '').trim();
-                        const nut = i.closest('button[aria-label^="Open image "]');
-                        if ((!alt || alt.toLowerCase().startsWith('generated image')) && !nut) return;
-                        let k = s;
-                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
-                        if (!seen.has(k)) { seen.add(k); out.push(k); } });
-                    return out; }""") or []
+                JS_DANH_SACH_REF_ID) or []
         except Exception:
             return []
 
@@ -447,10 +424,7 @@ class ChatGPTSession:
         """
         try:
             return int(self.page.evaluate(
-                """() => Math.max(-1, ...[...document.querySelectorAll(
-                    '[data-turn="assistant"][data-testid^="conversation-turn-"]'
-                )].map(e => Number((e.getAttribute('data-testid') || '')
-                    .match(/conversation-turn-(\\d+)/)?.[1] || -1)))""") or -1)
+                JS_MOC_TURN_TRO_LY) or -1)
         except Exception:
             return -1
 
@@ -463,60 +437,7 @@ class ChatGPTSession:
         """
         try:
             return self.page.evaluate(
-                """async ({moc, quet}) => {
-                    const nghi = ms => new Promise(r => setTimeout(r, ms));
-                    const out = [];
-                    const turns = [...document.querySelectorAll(
-                        '[data-turn="assistant"][data-testid^="conversation-turn-"]'
-                    )].map(t => {
-                        const m = (t.getAttribute('data-testid') || '')
-                            .match(/conversation-turn-(\\d+)/);
-                        return [m ? Number(m[1]) : -1, t];
-                    }).filter(([n]) => n > moc).sort((a, b) => a[0] - b[0]);
-                    const gom = (n, t, seen) => t.querySelectorAll('img').forEach(i => {
-                        const s = i.currentSrc || i.src || '';
-                        if (!s.includes('/backend-api/estuary/content')) return;
-                        const alt = (i.alt || '').trim().toLowerCase();
-                        if (alt && !alt.startsWith('generated image')) return;
-                        let k = s;
-                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
-                        if (!seen.has(k)) { seen.add(k); out.push([n, k, s]); }
-                    });
-                    for (const [n, t] of turns) {
-                        const seen = new Set();
-                        const cs = [...t.querySelectorAll('div')].filter(c => {
-                            const st = getComputedStyle(c);
-                            return /auto|scroll/.test(st.overflowY || '')
-                                && c.querySelector('[class*="group/imagegen-image"]');
-                        });
-                        if (!quet || !cs.length) {
-                            // Trong lúc poll chỉ cần đếm. Ảnh preview lớn và
-                            // thumbnail trùng ID nên Set sẽ khử trùng.
-                            gom(n, t, seen);
-                            continue;
-                        }
-                        for (const c of cs) {
-                            const cu = c.scrollTop;
-                            const buoc = Math.max(48, (c.clientHeight || 120) - 8);
-                            for (let y = 0; y <= c.scrollHeight; y += buoc) {
-                                c.scrollTop = y; await nghi(100);
-                            }
-                            c.scrollTop = cu;
-                            // THỨ TỰ CHỈ lấy từ dãy button thumbnail. Ảnh lớn
-                            // là thumbnail ĐANG CHỌN, không phải output số 1;
-                            // đặt nó lên đầu từng làm 01↔02 và 07↔08.
-                            c.querySelectorAll('button').forEach(b => {
-                                const i = b.querySelector('img');
-                                const s = i ? (i.currentSrc || i.src || '') : '';
-                                if (!s.includes('/backend-api/estuary/content')) return;
-                                let k = s;
-                                try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
-                                if (!seen.has(k)) { seen.add(k); out.push([n, k, s]); }
-                            });
-                        }
-                    }
-                    return out;
-                }""", {"moc": moc, "quet": quet_thumbnail}) or []
+                JS_ANH_SAU_MOC_TURN, {"moc": moc, "quet": quet_thumbnail}) or []
         except Exception:
             return []
 
@@ -590,52 +511,7 @@ class ChatGPTSession:
         """
         try:
             return self.page.evaluate(
-                """async () => {
-                    const nghi = ms => new Promise(r => setTimeout(r, ms));
-                    const out = [], seen = new Set();
-                    const uSel = "[data-turn='user'],[data-message-author-role='user']";
-                    const gom = () => document.querySelectorAll('img').forEach(i => {
-                        const s = i.currentSrc || i.src || '';
-                        if (!s.includes('/backend-api/estuary/content')) return;
-                        if (i.closest(uSel)) return;
-                        const alt = (i.alt || '').trim();
-                        const nut = i.closest('button[aria-label^="Open image "]');
-                        if ((alt && alt.toLowerCase() !== 'generated image') || nut) return;
-                        let k = s;
-                        try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
-                        if (!seen.has(k)) { seen.add(k); out.push([k, s]); }
-                    });
-                    // Carousel ảnh chỉ mount khoảng 2 thumbnail một lúc. Cuộn
-                    // riêng từng cột thumbnail; nếu không một lượt đủ 6 trên UI
-                    // có thể chỉ còn 2 ID trong DOM và board báo sai 2/6.
-                    const quetCarousel = async () => {
-                        const cs = [...document.querySelectorAll('div')].filter(c => {
-                            const st = getComputedStyle(c);
-                            return /auto|scroll/.test(st.overflowY || '')
-                                && c.querySelector('[class*="group/imagegen-image"]');
-                        });
-                        for (const c of cs) {
-                            const cu = c.scrollTop;
-                            const buoc = Math.max(48, (c.clientHeight || 120) - 8);
-                            for (let y = 0; y <= c.scrollHeight; y += buoc) {
-                                c.scrollTop = y; await nghi(140); gom();
-                            }
-                            c.scrollTop = cu;
-                        }
-                    };
-                    // tìm khung cuộn thật của thread, không phải window
-                    let el = document.scrollingElement || document.documentElement;
-                    for (const c of document.querySelectorAll('main div')) {
-                        if (c.scrollHeight > c.clientHeight + 200) { el = c; break; }
-                    }
-                    const h = el.scrollHeight, buoc = Math.max(400, el.clientHeight - 100);
-                    for (let y = 0; y < h; y += buoc) {
-                        el.scrollTop = y; await nghi(160); gom(); await quetCarousel();
-                    }
-                    el.scrollTop = el.scrollHeight;   // trả về đáy như cũ
-                    await nghi(180); gom(); await quetCarousel();
-                    return out;
-                }""") or []
+                JS_QUET_CUON) or []
         except Exception:
             return []
 
@@ -645,8 +521,7 @@ class ChatGPTSession:
         nên đếm tuyệt đối là báo chặn oan."""
         try:
             return self.page.evaluate(
-                """() => ((document.body.innerText || '')
-                    .match(/guardrail|violate our|something went wrong/gi) || []).length""") or 0
+                JS_DEM_TU_CHOI) or 0
         except Exception:
             return 0
 
@@ -661,15 +536,7 @@ class ChatGPTSession:
         """
         try:
             return self.page.evaluate(
-                """() => { const out = {};
-                    document.querySelectorAll(
-                        '[data-message-author-role="assistant"][data-message-id]'
-                    ).forEach(e => {
-                        const id = e.getAttribute('data-message-id') || '';
-                        const text = (e.innerText || e.textContent || '').trim();
-                        if (id) out[id] = text;
-                    });
-                    return out; }""") or {}
+                JS_TIN_NHAN_TEXT_TRO_LY) or {}
         except Exception:
             return {}
 
@@ -703,12 +570,7 @@ class ChatGPTSession:
         trạng thì đọc log là biết ngay ô nào bị ẩn."""
         try:
             ds = self.page.evaluate(
-                """() => [...document.querySelectorAll('#prompt-textarea')].map(e => {
-                    const r = e.getBoundingClientRect();
-                    return {hidden: e.getAttribute('aria-hidden'),
-                            w: Math.round(r.width), h: Math.round(r.height),
-                            disabled: e.getAttribute('contenteditable') === 'false'};
-                })""") or []
+                JS_TRANG_THAI_O_SOAN) or []
             if not ds:
                 return "KHÔNG có ô soạn nào trên trang"
             return f"{len(ds)} ô soạn: " + " · ".join(
@@ -732,11 +594,7 @@ class ChatGPTSession:
         for i in range(max(1, lan)):
             try:
                 b64 = self.page.evaluate(
-                    """async u => { const r = await fetch(u); if (!r.ok) return null;
-                        const b = await r.blob();
-                        return await new Promise(res => { const f = new FileReader();
-                            f.onload = () => res(String(f.result).split(',')[1]);
-                            f.readAsDataURL(b); }); }""", src)
+                    JS_TAI_VE, src)
                 if b64:
                     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
                     with open(out_path, "wb") as f:
@@ -1225,10 +1083,7 @@ class ChatGPTSession:
             """Tên file đã đính XONG, đọc từ nhãn nút gỡ file. [] = không đọc được."""
             try:
                 return page.evaluate(
-                    r"""() => [...document.querySelectorAll('button[aria-label]')]
-                        .map(e => ((e.getAttribute('aria-label') || '')
-                             .match(/([^\s:\\/]+\.(?:png|jpe?g|webp))\s*$/i) || [])[1])
-                        .filter(Boolean)""") or []
+                    JS_TEN_DA_LEN) or []
             except Exception:
                 return []
 
@@ -1485,19 +1340,7 @@ class ChatGPTSession:
         # cách 1: vẽ ra canvas trong DOM rồi lấy base64 (chống lỗi CORS/backend-api 422)
         try:
             b64 = self.page.evaluate(
-                """(u) => {
-                    const imgs = Array.from(document.querySelectorAll(
-                        "[data-turn='assistant'] img, [data-message-author-role='assistant'] img"
-                    ));
-                    const img = imgs.find(i => (i.currentSrc || i.src || '') === u);
-                    if (!img || !img.complete || !img.naturalWidth) return null;
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0);
-                    return canvas.toDataURL('image/png').split(',')[1];
-                }""", src)
+                JS_DOWNLOAD, src)
             if b64:
                 import base64
                 os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -1511,15 +1354,7 @@ class ChatGPTSession:
         # cách 2: fetch trực tiếp trong page
         try:
             b64 = self.page.evaluate(
-                """async (u) => {
-                    const r = await fetch(u, {credentials: 'include'});
-                    const b = await r.blob();
-                    return await new Promise(res => {
-                        const fr = new FileReader();
-                        fr.onloadend = () => res(fr.result.split(',')[1]);
-                        fr.readAsDataURL(b);
-                    });
-                }""", src)
+                JS_DOWNLOAD_2, src)
             if b64:
                 import base64
                 with open(out_path, "wb") as f:

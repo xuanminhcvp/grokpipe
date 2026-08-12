@@ -189,6 +189,13 @@ class Board:
         self._write(data)
 
     def _write(self, data: dict) -> None:
+        # TỰ LẤY KHOÁ Ở ĐÂY, không trông vào bên gọi. Có 10 chỗ gọi write và 3
+        # chỗ quên bọc `with BOARD_LOCK` — mà chỉ cần một chỗ quên là hỏng cả
+        # file kịch bản. Khoá là RLock nên chỗ nào đã cầm rồi vẫn vào được.
+        with BOARD_LOCK:
+            self._write_ruot(data)
+
+    def _write_ruot(self, data: dict) -> None:
         clean = json.loads(json.dumps(data))
         clean.pop("mtime", None)
         for sc in clean.get("scenes", []):
@@ -203,10 +210,25 @@ class Board:
             for sh in sc.get("shots", []):
                 sh.pop("video", None)
                 sh.pop("vversions", None)
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(clean, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, self.path)
+        # FILE TẠM RIÊNG CHO TỪNG LUỒNG. Bản cũ dùng chung đúng một tên
+        # `<path>.tmp`, nên hai thợ ghi cùng lúc là: A mở tmp ghi được nửa, B mở
+        # CHÍNH file đó (truncate) ghi từ đầu, A ghi nốt phần đuôi của mình vào
+        # sau → tmp thành "JSON của B + đuôi thừa của A". `os.replace` xong thì
+        # sf-board.json mang đúng hình đó, và mọi lần đọc sau đều chết với
+        # "Extra data: line … column …". Càng nhiều thợ càng dễ dính.
+        tmp = f"{self.path}.{os.getpid()}.{threading.get_ident()}.tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(clean, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())     # chốt xuống đĩa trước khi tráo tên
+            os.replace(tmp, self.path)
+        finally:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
 
     # ---- ảnh
     def _img_url(self, folder: str, stem: str) -> str | None:
@@ -503,6 +525,56 @@ def _wipe_profile(profile: str) -> tuple[str, str]:
 CHROME_GEN = {"n": 0}
 
 
+# Bấm nút dừng ngay trên trang. Bám data-testid trước, aria-label chỉ để dự
+# phòng — và phải loại nút đọc chính tả/giọng nói, chúng cũng mang chữ "stop".
+_JS_BAM_STOP = """() => {
+  const hien = [...document.querySelectorAll('button')]
+    .filter(e => e.getBoundingClientRect().width > 0);
+  const nhan = e => (e.getAttribute('aria-label') || '');
+  const n = hien.find(e => e.getAttribute('data-testid') === 'stop-button')
+    || hien.find(e => /stop|dừng/i.test(nhan(e))
+                 && !/dictation|voice|đọc|nói/i.test(nhan(e)));
+  if (!n) return 0;
+  n.click();
+  return 1;
+}"""
+
+
+def _bam_stop_tren_tab(port: int) -> int:
+    """Bấm 'Stop answering' trên mọi tab ChatGPT/Grok của một cửa sổ Chrome.
+
+    ĐÓNG CHROME KHÔNG DỪNG ĐƯỢC ĐOẠN CHAT. Việc sinh ảnh chạy ở phía máy chủ
+    OpenAI, không phải trong trình duyệt: giết cửa sổ chỉ làm mình hết nhìn thấy,
+    còn lượt đó vẫn vẽ tiếp, vẫn tính vào hạn mức, và mở lại Chrome là thấy nó
+    vẫn đang chạy. Muốn cắt thật thì phải bấm đúng cái nút dừng — chính là nút
+    Submit đã đổi hình lúc đang sinh.
+
+    Mở kết nối CDP RIÊNG cho luồng HTTP này, không dùng ké _TL của thợ: thợ đang
+    nằm trong vòng chờ và có phiên riêng, hai luồng chung một page thì cái này
+    giẫm lên cái kia."""
+    from playwright.sync_api import sync_playwright
+    pw = sync_playwright().start()
+    try:
+        b = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{port}", timeout=15000)
+        n = 0
+        for ctx in b.contexts:
+            for p in list(ctx.pages):
+                url = p.url or ""
+                if "chatgpt.com" not in url and "grok.com" not in url:
+                    continue
+                try:
+                    n += int(p.evaluate(_JS_BAM_STOP) or 0)
+                except Exception as e:
+                    _LOG.warning("không bấm được nút dừng trên %s: %s", url[:50], e)
+        b.close()
+        return n
+    finally:
+        try:
+            pw.stop()
+        except Exception:
+            pass
+
+
 def _kill_chrome(port: int):
     """Đóng cửa sổ Chrome của tài khoản này.
 
@@ -613,60 +685,25 @@ def _release_tl():
     except Exception:
         pass
     _TL.pw = None
+    _TL.browser = None
     _TL.ctx = None
     _TL.sess = None
     _TL.gsess = None
 
 # ---------------------------------------------------------------- generation
-JOBS: dict[str, dict] = {}          # id -> {"state": running|done|error, "msg": str}
-# Hai hàng đợi tách biệt: ảnh chạy trên tài khoản ChatGPT, video trên tài khoản Grok.
-# TRẦN ẢNH TRONG MỘT TIN NHẮN — GIỮ Ở 6, đã thử 8 rồi bỏ (2026-08-07).
-# Cơ chế "tải về trước, phân loại sau" đã gỡ được cái giá cũ của lô to (lệch một
-# ảnh là mất NGUYÊN lô), nhưng còn một cái giá nó không gỡ được: lô càng to, một
-# lượt lỗi càng kéo theo nhiều SF phải soi và gắn tay. Sáu ảnh chỉnh nhanh hơn
-# tám. Đừng nâng lại chỉ vì "giờ an toàn rồi".
-TOI_DA_ANH_MOT_LO = 6
+# CƠ KHÍ HÀNG ĐỢI Ở hangdoi.py (tách 2026-08-12) — hàng đợi, thứ tự ưu tiên,
+# trạng thái job, cờ huỷ, khoá địa điểm. Ở đó không có Playwright nên viết được
+# phép thử mà không cần dựng board lẫn Chrome. Import thẳng tên vào đây: dict/
+# set/Queue là đối tượng dùng chung nên mọi điểm gọi cũ vẫn trỏ đúng một chỗ.
+from hangdoi import (                                          # noqa: E402
+    IMG_QUEUE, VID_QUEUE, JOBS, DA_HUY, HUY_LOCK, DUNG_RIENG,
+    CHO_RIENG, CR_LOCK as _CR_LOCK, _HOAN,
+    TRAN_MAY_TU_GOM, xep as _xep, lay as _lay, y_trong_hang as _y_trong_hang,
+    vet_hang, dat_job as _dat_job, bi_huy as _bi_huy, uu_tien as _uu_tien,
+    thu_tu_shot, dung_gen, tang_dung_gen, bo_co_huy,
+)
+import hangdoi                                                 # noqa: E402
 
-# ---- ƯU TIÊN THEO SF ID -------------------------------------------------
-# Hàng đợi FIFO thuần thì thứ tự chạy phụ thuộc thời điểm xếp vào — hai lô cùng
-# một địa điểm ra ở hai vòng auto khác nhau sẽ chạy theo giờ vào, không theo id.
-# Đã thấy: S2-08..13 xếp SAU S2-14..17 nên chạy sau, dù id nhỏ hơn.
-# Đổi sang PriorityQueue, khoá ưu tiên = SF id NHỎ NHẤT trong ident:
-#   · SF-M-…  và REF_…  → 0 (làm trước hết, vì SF con lấy master làm bối cảnh)
-#   · SF-S<a>-<b> / V-S<a>-<b> → a*1000 + b (S1 trước S2; trong scene, id nhỏ trước)
-#   · còn lại → 999999 (rơi xuống đáy)
-# Tiebreaker là seq đơn điệu → cùng ưu tiên thì giữ FIFO, và hai item ngang ưu
-# tiên không phải so tuple con (tránh phụ thuộc thứ tự trường bên trong).
-_HANG_SEQ = itertools.count()
-
-
-def _uu_tien(ident: str) -> int:
-    """SF id số nhỏ nhất trong ident. Nhỏ hơn = làm trước."""
-    ids = ident[3:].split(",") if ident.startswith("LO:") else [ident]
-
-    def _n(sf: str) -> int:
-        sf = sf.strip()
-        if sf.startswith("SF-M-") or sf.startswith("REF_"):
-            return 0
-        m = re.match(r"(?:SF|V)-S(\d+)-(\d+)", sf)
-        if m:
-            return int(m.group(1)) * 1000 + int(m.group(2))
-        return 999999
-    return min((_n(x) for x in ids), default=999999)
-
-
-def _xep(Q, item: tuple) -> None:
-    """Xếp một việc vào PriorityQueue theo ưu tiên."""
-    Q.put((_uu_tien(item[1]), next(_HANG_SEQ), item))
-
-
-def _lay(Q, **kw):
-    """Nhấc item ra khỏi PriorityQueue, gỡ bỏ khoá ưu tiên."""
-    return Q.get(**kw)[2]
-
-
-IMG_QUEUE: "queue.PriorityQueue" = queue.PriorityQueue()
-VID_QUEUE: "queue.PriorityQueue" = queue.PriorityQueue()
 BOARD_LOCK = threading.RLock()      # nhiều thợ cùng ghi sf-board.json
 _LOG = logging.getLogger("sfboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
@@ -796,7 +833,12 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                                for x in _tv):
                         JOBS.pop(ident, None)
                 else:
-                    _generate(ident, manual=manual)
+                    # Ident lẻ (không có tiền tố LO:) vẫn phải đi ĐÚNG đường tin
+                    # nhắn, để còn gửi `luatchung`. Đường `_generate` cũ không
+                    # gửi luật chung nên ảnh mất neo look — hỏng câm. Không còn
+                    # chỗ nào xếp ident lẻ nữa, nhưng bịt luôn để sau này có
+                    # xếp nhầm thì cũng ra ảnh đúng.
+                    _generate_lo([ident], tay=manual)
             else:
                 _gen_video(ident)
         except Exception as e:
@@ -831,58 +873,6 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
         if stop:
             _LOG.warning("Thợ %s (%s) dừng.", endpoint, kind)
             return
-
-
-_HOAN: dict[str, int] = {}        # lô bị hoãn (chờ khoá địa điểm) -> số lần
-_MASTER_LOCKS: dict[str, threading.Lock] = {}   # mỗi địa điểm một khoá lô
-_ML_LOCK = threading.Lock()
-CHO_RIENG: dict[int, list[str]] = {}   # port -> idents GIAO ĐÍCH DANH cho thợ đó
-_CR_LOCK = threading.Lock()
-DA_HUY: set[str] = set()          # ident user đã huỷ, thợ phải bỏ qua
-HUY_LOCK = threading.Lock()
-
-# Số THẾ HỆ, tăng mỗi lần user bấm "Dừng tất cả".
-#
-# Vì sao cần, dù đã có DA_HUY: DA_HUY chỉ được soi lúc thợ NHẤC việc ra khỏi hàng,
-# và nó là chốt dùng một lần (soi xong là xoá). Thợ đang nằm giữa chừng trong
-# generate_lo thì không cắt được; khi nó chạy xong và thấy lô thiếu ảnh, đường thử
-# lại TỰ ĐẨY lô vào hàng đợi — bước đó không kiểm cờ huỷ nào cả. Kết quả: bấm dừng,
-# hàng đợi sạch, nhưng vài phút sau đúng lô đó chạy lại như chưa hề bị dừng.
-# Thợ chụp lại số này lúc bắt đầu, và chỉ được tự xếp hàng nếu số chưa đổi.
-DUNG_GEN = 0
-
-# SF id user bấm DỪNG RIÊNG (nút ■ trên từng việc trong ngăn kéo hàng đợi).
-# Thợ đang chạy soi tập này ở mỗi nhịp poll rồi tự thoát — nhờ vậy dừng được MỘT
-# việc mà không phải đóng Chrome, tức không giết oan các việc khác cùng tài khoản.
-#
-# ĐÁNH CỜ THEO SF ID, KHÔNG THEO IDENT LÔ: _dat_job() rải trạng thái cho từng SF
-# thành viên và KHÔNG giữ khoá "LO:a,b,c" trong JOBS, nên tra ident trong JOBS là
-# tra vào chỗ trống — bản đầu viết theo ident nên bấm dừng không ăn gì.
-DUNG_RIENG: set[str] = set()
-
-
-def _bi_huy(ident: str) -> bool:
-    """Việc này đã bị huỷ chưa? Kiểm NGAY TRƯỚC khi bắt tay làm.
-
-    Chỉ vứt hàng đợi là không đủ: thợ nhấc việc ra khỏi hàng trong vòng 2 giây,
-    nên phần lớn cú bấm Huỷ sẽ trượt nếu không có chốt này."""
-    with HUY_LOCK:
-        if ident in DA_HUY:
-            DA_HUY.discard(ident)
-            return True
-    return False
-
-
-def _dat_job(ident: str, st: dict) -> None:
-    """Ghi trạng thái job. Với ident lô ("LO:a,b,c") thì RẢI cho TỪNG SF thành viên.
-
-    Không rải thì lô lỗi xong các SF vẫn kẹt ở 'running' vĩnh viễn — giao diện
-    quay vòng mà chẳng có gì đang chạy."""
-    JOBS[ident] = st
-    if ident.startswith("LO:"):
-        for i in ident[3:].split(","):
-            if i:
-                JOBS[i] = dict(st)
 
 
 def _enqueue(kind: str, ident: str, copies: int = 1, manual: bool = False):
@@ -941,6 +931,91 @@ def _batch_tick(ident: str, ok: bool) -> bool:
 # Chrome KHÔNG BAO GIỜ tự đóng. Trước đây có luồng ngủ-khi-rảnh đóng hết cửa sổ
 # sau 10 phút không việc; user bỏ hẳn vì đang dùng dở mà Chrome tự tắt rất phiền.
 # Muốn đóng thì tắt tài khoản trên board (/api/acct?op=toggle).
+
+
+def _gac_hang_doi():
+    """Bắt việc mang nhãn 'chờ' mà KHÔNG còn ai nhặt, rồi xếp lại vào hàng.
+
+    Vì sao cần: giao diện đọc JOBS, mà JOBS chỉ là DẤU VẾT ĐÃ GHI, không phải
+    hàng đợi thật. Hai thứ này lệch nhau được — đã đo tận tay một lần: giao diện
+    báo 22 việc 'chờ' trong khi hàng đợi RAM chỉ còn 3 mục. Việc rơi khỏi hàng
+    (thợ chết đúng nhịp xếp lại, 'Dừng tất cả' vét hàng trong lúc một lô đang nằm
+    giữa vòng chờ khoá địa điểm) thì nhãn 'chờ' nằm lại vĩnh viễn: board im như
+    thóc, user nhìn thấy hàng dài việc chờ mà không gì chạy, bấm dừng-chạy lại
+    cũng vô ích vì lô mới lại kẹt sau đúng cái nhãn ma đó.
+
+    Chỉ xếp lại, KHÔNG đánh lỗi: việc user đã bấm thì phải chạy được, đừng bắt
+    họ bấm lại. Có trần 3 lần cho mỗi ident để một lô hỏng thật không quay vòng
+    mãi mãi."""
+    cuu: dict[str, int] = {}
+    gen_truoc = dung_gen()
+    while True:
+        time.sleep(30)
+        try:
+            # "DỪNG TẤT CẢ" PHẢI THẮNG NGƯỜI GÁC. Người gác sinh ra để cứu việc
+            # rơi khỏi hàng, nhưng sau cú bấm dừng thì việc rơi khỏi hàng là
+            # ĐÚNG Ý USER — cứu nó lên là board tự chạy lại sau khi đã tắt, đúng
+            # thứ khó chịu nhất: giao diện nói đã dừng, máy vẫn vẽ.
+            if dung_gen() != gen_truoc:
+                gen_truoc = dung_gen()
+                cuu.clear()
+                continue
+            trong_hang = _y_trong_hang(IMG_QUEUE) | _y_trong_hang(VID_QUEUE)
+            with _CR_LOCK:
+                for ds in CHO_RIENG.values():
+                    trong_hang.update(ds)
+            # Lô đang chạy dở phủ bóng lên chính các SF thành viên của nó: chúng
+            # mang nhãn 'chờ' một cách hợp lệ, không phải mồ côi.
+            dang_chay = set()
+            for k, v in list(JOBS.items()):
+                if v.get("state") == "running":
+                    dang_chay.add(k)
+                    if k.startswith("LO:"):
+                        dang_chay.update(x for x in k[3:].split(",") if x)
+            for k in trong_hang:
+                if k.startswith("LO:"):
+                    dang_chay.update(x for x in k[3:].split(",") if x)
+
+            mo_coi = [k for k, v in list(JOBS.items())
+                      if v.get("state") == "queued"
+                      and k not in trong_hang and k not in dang_chay]
+            # Việc user đã huỷ thì để yên — DA_HUY là ý user, không phải sự cố.
+            with HUY_LOCK:
+                da_huy = set(DA_HUY)
+            mo_coi = [k for k in mo_coi if k not in da_huy]
+
+            # GOM LẠI THÀNH LÔ THEO ĐỊA ĐIỂM RỒI MỚI XẾP.
+            # Xếp từng SF lẻ là hỏng: mỗi ảnh thành một lô một ảnh, tức mỗi ảnh
+            # một lượt chat riêng — mất hết cái lợi của việc gom lô (ảnh cùng lô
+            # vẽ một lượt nên đồng bộ nhất) và đốt gấp mấy lần hạn mức.
+            can_xep = sorted(k for k in mo_coi if k.startswith("LO:"))
+            trong_lo = {x for k in can_xep for x in k[3:].split(",") if x}
+            le = [k for k in mo_coi if not k.startswith("LO:") and k not in trong_lo]
+            if le:
+                _dl = BOARD.read()
+                theo_nhom: dict[str, list] = {}
+                for k in le:
+                    theo_nhom.setdefault(_nhom_cua(k, _dl) or "", []).append(k)
+                for xs in theo_nhom.values():
+                    xs.sort(key=_uu_tien)
+                    for i in range(0, len(xs), TRAN_MAY_TU_GOM):
+                        can_xep.append("LO:" + ",".join(xs[i:i + TRAN_MAY_TU_GOM]))
+
+            for k in can_xep:
+                if cuu.get(k, 0) >= 3:
+                    for x in k[3:].split(","):
+                        if x:
+                            JOBS[x] = {"state": "error",
+                                       "msg": "rơi khỏi hàng đợi 3 lần — bấm chạy lại"}
+                    continue
+                cuu[k] = cuu.get(k, 0) + 1
+                _xep(IMG_QUEUE, ("img", k, 0, False))
+                _LOG.warning("việc %s mang nhãn 'chờ' mà không còn trong hàng đợi "
+                             "— đã xếp lại (lần %d)", k, cuu[k])
+        except Exception as e:
+            # Không nuốt im: người gác mà chết lặng thì bệnh nó phải chữa quay lại
+            # y như cũ, lần sau lại mất cả buổi để lần ra.
+            _LOG.warning("người gác hàng đợi vấp: %s", e)
 
 
 def _supervisor():
@@ -1075,11 +1150,11 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
             nhom.setdefault(_nhom_cua(i, _data), []).append(i)
         for m, xs in nhom.items():
             xs.sort(key=_uu_tien)
-            for k in range(0, len(xs), TOI_DA_ANH_MOT_LO):
-                lo = xs[k:k + TOI_DA_ANH_MOT_LO]
+            for k in range(0, len(xs), TRAN_MAY_TU_GOM):
+                lo = xs[k:k + TRAN_MAY_TU_GOM]
                 for i in lo:
                     JOBS[i] = {"state": "queued",
-                               "msg": f"chờ lô {len(lo)} ảnh · {_ten_gon(m, _data)}"}
+                               "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m, _data)}"}
                 _xep(IMG_QUEUE, ("img", "LO:" + ",".join(lo), 0, False))
                 _LOG.info("[auto %s] xếp lô %d ảnh · %s", sc["id"], len(lo), m)
 
@@ -1227,6 +1302,7 @@ def _bo_hub():
         except Exception as e:
             _LOG.warning("không dừng gọn được Playwright cũ: %s", e)
     _TL.pw = None
+    _TL.browser = None
     _TL.ctx = None
     _TL.sess = None
     _TL.gsess = None
@@ -1236,7 +1312,16 @@ def _hub():
     ctx = getattr(_TL, "ctx", None)
     if ctx is not None:
         try:
-            ctx.pages  # chạm vào để biết context còn sống
+            # ⚠ `ctx.pages` KHÔNG chứng minh được context còn sống: nó đọc bộ nhớ
+            # đệm trong tiến trình nên context đã chết vẫn trả về list (rỗng) mà
+            # không ném. Chrome debug đóng/mở lại là board ôm context zombie, rồi
+            # ngã tận trong `new_page()` với "Target page, context or browser has
+            # been closed" — và người dùng nhận thông báo sai địa chỉ "chưa đăng
+            # nhập". `is_connected()` mới thật sự hỏi tới Chrome.
+            br = getattr(_TL, "browser", None)
+            if br is not None and not br.is_connected():
+                raise RuntimeError("Chrome debug đã ngắt kết nối")
+            ctx.pages
             return ctx
         except Exception:
             # Context chết → PHẢI dừng hẳn Playwright cũ trước khi start cái mới.
@@ -1253,6 +1338,7 @@ def _hub():
     _TL.pw = sync_playwright().start()
     try:
         browser = _TL.pw.chromium.connect_over_cdp(_TL.endpoint)
+        _TL.browser = browser  # giữ lại để lần sau còn hỏi được is_connected()
         _TL.ctx = browser.contexts[0] if browser.contexts else browser.new_context()
     except Exception as e:
         # Trả luồng về trạng thái sạch rồi mới ném, để lần bấm sau còn báo đúng
@@ -1272,10 +1358,15 @@ def _session():
         return s
     _TL.sess = None
     from grokpipe.executors.image_chatgpt import ChatGPTSession
+    # slot = chỗ ngồi của thợ này. Mỗi slot một TAB riêng trong cùng cửa sổ
+    # Chrome, nhờ vậy một tài khoản chạy được nhiều việc song song mà hai luồng
+    # không giẫm lên ô soạn của nhau (Grok đã làm vậy từ trước).
     s = ChatGPTSession(user_data_dir=os.path.expanduser("~/.grokpipe-chrome"),
-                       logger=_LOG, headless=False, cdp_endpoint=None, shared_ctx=_hub())
+                       logger=_LOG, headless=False, cdp_endpoint=None,
+                       shared_ctx=_hub(), slot=getattr(_TL, "slot", 0))
     if not s.start():
-        raise RuntimeError(f"Không nối được ChatGPT ở {_TL.endpoint}. "
+        vi = getattr(s, "loi_cuoi", "") or "không rõ lý do — xem log board"
+        raise RuntimeError(f"Không nối được ChatGPT ở {_TL.endpoint} ({vi}). "
                            "Mở Chrome debug và đăng nhập rồi thử lại.")
     _TL.sess = s
     return s
@@ -1503,6 +1594,22 @@ def _master_cua(sf_id: str, data: dict | None = None) -> str | None:
     return f["id"] if f else None
 
 
+def _lan_dia_diem(nhom: dict, data: dict) -> str:
+    """Các SF được tích có thuộc NHIỀU địa điểm không? Trả lời dạng câu lỗi, '' = ổn.
+
+    Chỉ đếm nhóm CÓ `luatchung` (địa điểm thật). Nhân vật và đạo cụ không mang
+    luật chung nên tích mấy nhóm cũng không đá nhau."""
+    dd = {m: xs for m, xs in nhom.items()
+          if m and _la_the_dia_diem(BOARD.get_sf(m) or {"id": m})}
+    if len(dd) < 2:
+        return ""
+    mo = " · ".join(f"{_ten_gon(m, data)}: {', '.join(sorted(xs))}"
+                    for m, xs in list(dd.items())[:4])
+    return (f"Đang tích lẫn {len(dd)} địa điểm — {mo}. "
+            "Mỗi lần chỉ tích các ảnh CÙNG MỘT địa điểm: một tin nhắn chỉ mang "
+            "được một khối luật chung (nội thất · bảng màu · ánh sáng · trục).")
+
+
 def _cong_master(master: str | None, data: dict | None = None) -> str:
     """CỔNG CHẶN: SF con của một địa điểm chỉ được chạy khi THẺ ĐỊA ĐIỂM ĐÃ CÓ
     ẢNH (picked). Trả '' nếu được đi tiếp, ngược lại trả lý do.
@@ -1589,115 +1696,6 @@ def _ten_nhom(khoa: str, tat: dict | None = None) -> tuple[str, str]:
     return "📍", nhan
 
 
-def _chat_cua_master(master: str) -> dict:
-    """{url, port} của đoạn chat gắn với NHÓM này. Rỗng = chưa có chat.
-
-    Nhóm ĐỊA ĐIỂM lưu chat ngay trên THẺ ĐỊA ĐIỂM. Nhóm NHÂN VẬT và ĐẠO CỤ
-    không có thẻ nào để bám nên lưu ở gốc file, mục 'chats'."""
-    d = BOARD.read()
-    if not _khoa_la_the(master):
-        return dict((d.get("chats") or {}).get(master) or {})
-    for s in d.get("scenes", []):
-        for f in s.get("sfs", []):
-            if f["id"] == master:
-                return dict(f.get("chat") or {})
-    return {}
-
-
-def _luu_chat(master: str, url: str, port: int, refs: set | None = None) -> None:
-    """Ghi chat_url vào master.
-
-    PHẢI lưu: mở chatgpt.com là ra chat TRẮNG, không phải chat cũ. Mà ChatGPT có
-    bộ nhớ xuyên chat nên chat trắng vẫn trả lời trôi chảy — hỏng kiểu đó hoàn
-    toàn im lặng, mỗi ảnh một chat trắng mà nhìn vẫn như đang chạy đúng."""
-    if not url or "/c/" not in url:
-        return
-    ban = {"url": url, "port": port, "refs": sorted(refs or set())}
-    with BOARD_LOCK:
-        d = BOARD.read()
-        if not _khoa_la_the(master):                     # nhóm nhân vật / đạo cụ
-            d.setdefault("chats", {})[master] = ban
-            BOARD.write(d)
-            return
-        for s in d.get("scenes", []):
-            for f in s.get("sfs", []):
-                if f["id"] == master:
-                    f["chat"] = ban
-                    BOARD.write(d)
-                    return
-
-
-def _lo_id_thap_hon_dang_cho(master: str, sf_ids: list[str], data: dict) -> str:
-    """Trả ID nhỏ nhất đang chờ/chạy trước lô hiện tại trong cùng nhóm.
-
-    PriorityQueue không đủ khi nhiều worker đã đồng thời nhấc nhiều lô khỏi hàng;
-    trạng thái JOBS là phần còn nhìn thấy được để giữ thứ tự tại cửa lấy khoá.
-    """
-    cua_minh = set(sf_ids)
-    uu_tien_hien_tai = min((_uu_tien(i) for i in sf_ids), default=999999)
-    dang_chan: list[str] = []
-    for scene in data.get("scenes", []):
-        for sf in scene.get("sfs", []):
-            sf_id = sf.get("id") or ""
-            if not sf_id or sf_id in cua_minh or _uu_tien(sf_id) >= uu_tien_hien_tai:
-                continue
-            if JOBS.get(sf_id, {}).get("state") not in ("queued", "running"):
-                continue
-            if _nhom_cua(sf_id, data) == master:
-                dang_chan.append(sf_id)
-    return min(dang_chan, key=_uu_tien) if dang_chan else ""
-
-
-# ======================================================================= CHỜ PHÂN LOẠI
-# TẢI VỀ TRƯỚC, PHÂN LOẠI SAU.
-#
-# Mọi ảnh của một lượt ChatGPT đều được tải xuống `cho-phan-loai/turn-NNNN/`
-# theo đúng thứ tự hiển thị (`01.png`, `02.png`, …) TRƯỚC khi board quyết định
-# ảnh nào của SF nào. Chỉ khi số ảnh khớp đúng số prompt VÀ lượt không trả kèm
-# chữ thì board mới tự ghép — nhưng ghép rồi VẪN GIỮ thư mục lượt, xem
-# `PL_GIU_TOI_DA` bên dưới.
-#
-# Vì sao đổi: bộ dò DOM của ChatGPT hỏng lại sau mỗi lần họ đổi giao diện, và
-# bản cũ phản ứng bằng cách VỨT cả lượt ảnh đã vẽ xong rồi gửi lại từ đầu — mất
-# lượt tạo ảnh (thứ có trần theo ngày) chỉ vì một phép đếm sai. Tải về trước thì
-# giao diện có đổi kiểu gì, ảnh vẫn nằm trên đĩa: hỏng nặng nhất cũng chỉ còn là
-# việc gắn tay, không còn là mất ảnh.
-#
-# Ba luật của khối này:
-#   1. KHÔNG BAO GIỜ vứt ảnh đã tải, kể cả lượt trả kèm chữ hay thừa ảnh.
-#   2. Lệch tới PL_LECH_TOI_DA ảnh thì coi LƯỢT ĐÃ XONG — không gửi lại, không
-#      đốt thêm lượt. User gắn tay trong bảng "Chờ phân loại".
-#   3. Số lượt ĐƠN ĐIỆU, không bao giờ dùng lại — nó là thứ user đọc trong log
-#      để lần ngược một ảnh về đúng lượt đã sinh ra nó.
-#   4. LƯỢT CÒN ẢNH CHƯA GẮN KHÔNG BAO GIỜ BỊ DỌN. Mức giữ chỉ chạm những lượt
-#      đã gắn hết — thứ duy nhất chắc chắn còn bản trong `versions/`.
-PL_LECH_TOI_DA = 2
-
-# HỘP CHỜ LUÔN TỒN TẠI, KỂ CẢ KHI LƯỢT ĐÃ GHÉP ĐÚNG (đổi 2026-08-07).
-# Trước đây ghép đủ số là xoá thư mục lượt ngay, nên lượt "chuẩn" biến mất khỏi
-# hộp chờ và muốn dịch một ảnh sang thẻ khác thì chỉ còn cách vẽ lại. Giờ giữ
-# lại: ảnh nằm nguyên trên đĩa, thanh chờ hiện đủ với dấu "→ đã gắn <SF>", kéo
-# thả sang thẻ khác được bất cứ lúc nào.
-#
-# Đổi lại là dung lượng: mỗi lượt giữ thêm một bản của chính những ảnh đã có
-# trong `versions/`. Nên chặn bằng mức giữ — chỉ dọn lượt ĐÃ GẮN HẾT, cũ nhất
-# trước, và ảnh của lượt đó vẫn còn nguyên trong `versions/` nên không mất gì.
-# Muốn giữ nhiều/ít hơn thì sửa đúng con số này.
-PL_GIU_TOI_DA = 40
-
-PL_LOCK = threading.RLock()
-
-# DÁN MÃ SF VÀO GÓC ẢNH — bật thì ChatGPT in mã (vd `SF-S7-03`) ở góc dưới-trái
-# của chính ảnh đó. Đây là cách DUY NHẤT nhận ra ảnh nào của thẻ nào khi một lượt
-# trả về lệch số ảnh: lúc ấy thứ tự — thứ duy nhất ta có để ghép — chính là thứ
-# vừa hỏng. Mã in trong ảnh là bằng chứng ảnh tự mang theo.
-#
-# ⚠ Nhãn NẰM TRONG ẢNH nên nó theo start frame vào video. Bật lúc dựng nháp, TẮT
-# trước khi render bản cuối. Lưu ở HOME chứ không trong project: đây là thói quen
-# làm việc của user, không phải thuộc tính của một bộ phim.
-MA_PATH = os.path.expanduser("~/.grokpipe-dan-ma.json")
-
-
 def _dan_ma_doc() -> bool:
     return False
 
@@ -1712,6 +1710,21 @@ def _dan_ma_ghi(on: bool) -> None:
 
 def _pl_ten(turn: int) -> str:
     return f"turn-{turn:04d}"
+
+
+# Lệch bao nhiêu ảnh thì VẪN GIỮ nguyên lượt cho user bấm chọn tay, thay vì đốt
+# thêm một lượt để mua lại thứ đã có trong tay.
+PL_LECH_TOI_DA = 2
+
+# Giữ bao nhiêu lượt trong hộp chờ. Chỉ dọn lượt ĐÃ GẮN HẾT, cũ nhất trước —
+# ảnh của lượt đó vẫn còn nguyên trong `versions/` nên không mất gì.
+PL_GIU_TOI_DA = 40
+
+PL_LOCK = threading.RLock()
+
+# Bật/tắt in mã SF lên ảnh. Lưu ở HOME chứ không trong project: đây là thói quen
+# làm việc của user, không phải thuộc tính của một bộ phim.
+MA_PATH = os.path.expanduser("~/.grokpipe-dan-ma.json")
 
 
 def _pl_duong(turn: int) -> str:
@@ -2023,52 +2036,28 @@ def _ht_lui(n: int = 1) -> tuple[int, list[str]]:
 
 
 def _generate_lo(sf_ids: list[str], tay: bool = False):
-    """Tạo NHIỀU ảnh trong MỘT lượt của MỘT đoạn chat (cùng địa điểm).
+    """Gửi các SF ĐƯỢC TÍCH trong MỘT tin nhắn, vào MỘT đoạn chat mới.
 
-    Dùng khi user tích chọn vài SF rồi bấm 'Tạo lại đã chọn'. Board gom theo địa
-    điểm trước khi xếp hàng, nên hàm này luôn nhận đúng một nhóm cùng chat."""
-    # Không tin thứ tự checkbox/request: chính thứ tự này quyết định cả cách chia
-    # lô lẫn thứ tự ghép ảnh ChatGPT trả về. Luôn chuẩn hoá theo ID ngay tại cửa
-    # cuối để mọi đường gọi (auto, tạo tay, retry, chạy lẻ) cùng một hành vi.
+    Đơn giản hoá 2026-08-12 theo yêu cầu user: bỏ hết tầng "board tự gom lô theo
+    địa điểm rồi tự nhớ đoạn chat". Trước đây tầng đó kéo theo khoá địa điểm,
+    hàng chờ khoá, giao việc đích danh theo tài khoản giữ chat, cân bằng chat
+    giữa các tài khoản — nhiều luật ngầm, khó lần khi hỏng.
+
+    Giờ: TÍCH GÌ GỬI NẤY. User tự chọn các thẻ muốn vẽ cùng nhau (thường là cùng
+    một địa điểm), board gửi đúng chừng ấy trong một tin nhắn của một chat trắng,
+    kèm luật chung và đủ ref. Chat không lưu lại, nên lần sau lại chat trắng.
+
+    Đánh đổi đã biết và chấp nhận: mỗi lần chạy phải đính lại ref (tốn lượt đính
+    tệp hơn), và ảnh lần này KHÔNG đồng bộ với ảnh đã vẽ lần trước ở cùng địa
+    điểm — chỉ những thẻ tích CHUNG MỘT LẦN mới đồng bộ với nhau."""
+    # Không tin thứ tự checkbox/request: chính thứ tự này quyết định thứ tự ghép
+    # ảnh ChatGPT trả về. Luôn chuẩn hoá theo thứ tự shot ngay tại cửa cuối để
+    # mọi đường gọi (auto, tạo tay, retry) cùng một hành vi.
     sf_ids = sorted((i for i in sf_ids if i), key=_uu_tien)
     if not sf_ids:
         return
     data = BOARD.read()
     master = _nhom_cua(sf_ids[0], data) or None
-    _ident = "LO:" + ",".join(sf_ids)
-
-    # MỘT ĐỊA ĐIỂM = MỘT LÔ TẠI MỘT THỜI ĐIỂM — chặn bằng KHOÁ THẬT, không phải
-    # bằng đọc JOBS: hai thợ nhấc hai lô cùng giây thì cả hai đều đọc thấy "chưa
-    # ai chạy" rồi cùng mở chat mới trên hai tài khoản (đã xảy ra 2 lần). Khoá
-    # theo master, giữ suốt từ lúc đọc chat tới lúc chốt chat; lô đến sau không
-    # lấy được khoá thì trả về hàng đợi thử lại.
-    # Lô toàn THẺ ĐỊA ĐIỂM chạy chat trắng, không đụng chat → không cần khoá.
-    if master and not all(_la_the_dia_diem(BOARD.get_sf(i) or {"id": i}) for i in sf_ids):
-        # PriorityQueue chỉ bảo đảm thứ tự NHẤC việc. Khi có nhiều worker, 02–07,
-        # 08–13 và 14–15 có thể bị ba thợ nhấc cùng lúc rồi 14–15 thắng cuộc đua
-        # lấy khoá master. Soi toàn bộ SF đang queued/running trước khi lấy khoá
-        # để lô ID lớn phải nhường lô ID nhỏ của CÙNG nhóm/chat.
-        with _ML_LOCK:
-            khoa = _MASTER_LOCKS.setdefault(master, threading.Lock())
-            _truoc = _lo_id_thap_hon_dang_cho(master, sf_ids, data)
-            _da_khoa = not _truoc and khoa.acquire(blocking=False)
-        if not _da_khoa:
-            _n = _HOAN.get(_ident, 0)
-            if _n < 240:                      # 240 × 5s = 20 phút, đủ cho lô trước
-                _HOAN[_ident] = _n + 1
-                _dat_job(_ident, {"state": "queued",
-                                  "msg": (f"chờ {_truoc} chạy trước"
-                                          if _truoc else
-                                          f"chờ lô trước của {_ten_gon(master)} xong")})
-                time.sleep(5)
-                _xep(IMG_QUEUE, ("img", _ident, 0, tay))
-                return
-            raise RuntimeError(f"chờ lô trước của {master} quá lâu — chạy lại tay")
-        _HOAN.pop(_ident, None)
-        try:
-            return _generate_lo_ruot(sf_ids, data, master, tay)
-        finally:
-            khoa.release()
     return _generate_lo_ruot(sf_ids, data, master, tay)
 
 
@@ -2129,76 +2118,23 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
             _LOG.info("chặn lô %d ảnh: %s", len(sf_ids), _ly)
             return
 
-    chat = _chat_cua_master(master) if (master and not chi_anh_goc) else {}
-
-    # MỘT ĐỊA ĐIỂM = MỘT CHAT = MỘT TÀI KHOẢN. Chat sống trong profile Chrome của
-    # đúng tài khoản đã mở nó; tài khoản khác mở URL đó thì ChatGPT báo
-    # "Something went wrong", mà vì là 'chat cũ' nên board cũng không gửi lại
-    # luatchung và không đính lại ref — hỏng câm. Gặp lô lạc tài khoản thì trả về
-    # hàng đợi cho đúng thợ nhặt; chỉ khi tài khoản đó đã tắt mới mở chat mới.
+    # LUÔN CHAT TRẮNG. Board không còn nhớ đoạn chat của địa điểm nữa (bỏ
+    # 2026-08-12): mỗi lần chạy là một chat mới, gửi lại luật chung và đính lại
+    # đủ ref. Nhờ vậy không còn "chat này chỉ mở được ở tài khoản kia", nên cũng
+    # không cần giao việc đích danh, không cần cân bằng chat giữa các tài khoản,
+    # và bất kỳ tài khoản nào rảnh cũng chạy được bất kỳ việc nào.
     _ident = "LO:" + ",".join(sf_ids)
-    _port_nay = int((getattr(_TL, "endpoint", "") or ":0").rsplit(":", 1)[1] or 0)
-    _port_chat = int(chat.get("port") or 0)
-    if chat.get("url") and _port_chat and _port_chat != _port_nay:
-        # GIAO ĐÍCH DANH cho thợ giữ chat, không thả về hàng chung: hàng chung là
-        # trò xổ số — hai thợ sai chuyền nhau nhặt-thả, thợ đúng đói vĩnh viễn.
-        # Tài khoản giữ chat đang NGHỈ CÓ HẸN (trần đính tệp của ChatGPT) vẫn là
-        # tài khoản đúng — giữ việc trong hàng riêng của nó, tới giờ thợ sống lại
-        # là chạy tiếp. Đừng rơi xuống nhánh "đang TẮT" ở dưới: nhánh đó báo lỗi
-        # và bắt user chạy tay, trong khi chỉ cần chờ.
-        _nghi = _dang_nghi(f"http://localhost:{_port_chat}")
-        if _nghi or _endpoint_alive(f"http://127.0.0.1:{_port_chat}"):
-            with _CR_LOCK:
-                o = CHO_RIENG.setdefault(_port_chat, [])
-                if _ident not in o:
-                    o.append(_ident)
-                    o.sort(key=_uu_tien)     # id nhỏ chạy trước trong hàng riêng
-            _dat_job(_ident, {"state": "queued",
-                              "msg": f"đã giao cho tài khoản giữ chat (cổng {_port_chat})"
-                                     + (f" · đang nghỉ tới "
-                                        f"{time.strftime('%H:%M', time.localtime(_nghi))}, "
-                                        f"tự chạy lại" if _nghi else "")})
-            return
-        # Tài khoản giữ chat CÒN TRONG DANH SÁCH nhưng Chrome chưa mở (vd vừa
-        # khởi động lại máy) → DỪNG và bảo user bật nó, TUYỆT ĐỐI không lẳng
-        # lặng mở chat mới: chat mới là mất trí nhớ bối cảnh của cả địa điểm.
-        # Chỉ khi tài khoản đã bị XOÁ hẳn khỏi danh sách mới đành mở chat mới.
-        with ACC_LOCK:
-            _con = any(a["port"] == _port_chat for a in ACCOUNTS)
-        if _con:
-            _HOAN.pop(_ident, None)
-            _acc_id = next((a["id"] for a in ACCOUNTS if a["port"] == _port_chat), "?")
-            _dat_job(_ident, {
-                "state": "error",
-                "msg": f"chat của {_ten_gon(master)} nằm ở tài khoản {_acc_id} "
-                       f"(cổng {_port_chat}) đang TẮT. Mở nó ở ⚙ Tài khoản rồi chạy lại "
-                       f"— đừng chạy bằng tài khoản khác kẻo mất trí nhớ bối cảnh."})
-            raise RuntimeError(f"{master}: tài khoản giữ chat (cổng {_port_chat}) đang tắt")
-        _LOG.warning("[%s] tài khoản giữ chat (cổng %s) không dùng được — mở chat MỚI ở cổng %s",
-                     master, _port_chat, _port_nay)
-        chat = {}
     _HOAN.pop(_ident, None)
 
     # REF THƯỜNG chỉ cần gửi một lần trong chat, nhưng MỖI NHÂN VẬT phải gửi lại
     # theo CẶP: PORTRAIT neo khuôn mặt + FULL neo đúng trang phục. Chỉ gửi portrait
     # làm model tự bịa áo (ca S5: Maya từ áo vàng HOME thành áo nâu dù mặt đúng).
-    # Bối cảnh và đạo cụ vẫn tận dụng bộ nhớ chat để tránh upload quá nhiều.
-    da_gui = set(chat.get("refs") or [])
-    def _loai_neo_nhan_vat(path: str) -> str:
-        stem = os.path.splitext(os.path.basename(path))[0]
-        if stem.endswith("_PORTRAIT"):
-            return "portrait"
-        if stem.endswith("_FULL"):
-            return "full"
-        return ""
-    neo_lap = [x for x in attach if _loai_neo_nhan_vat(x)] if chat.get("url") else []
-    can_dinh = ([x for x in attach
-                 if _loai_neo_nhan_vat(x) or os.path.basename(x) not in da_gui]
-                if chat.get("url") else attach)
-    so_portrait = sum(_loai_neo_nhan_vat(x) == "portrait" for x in neo_lap)
-    so_full = sum(_loai_neo_nhan_vat(x) == "full" for x in neo_lap)
+    # CHAT TRẮNG THÌ ĐÍNH ĐỦ REF, không lọc gì. Trước đây board lọc bớt ref
+    # "đã gửi rồi trong chat này" để đỡ upload; giờ không còn chat cũ nên phép
+    # lọc đó vô nghĩa — và thiếu ref là model tự bịa mặt/trang phục, hỏng câm.
+    can_dinh = list(attach)
 
-    # Khối luật chung của địa điểm, nếu master có. Chỉ gửi khi MỞ CHAT MỚI.
+    # Luật chung của địa điểm, gửi kèm mỗi lần vì lần nào cũng là chat mới.
     luat_chung = ""
     if master:
         m = BOARD.get_sf(master) or {}
@@ -2206,15 +2142,11 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
 
     for i, _ in viec:
         JOBS[i] = {"state": "running",
-                   "msg": f"lô {len(viec)} ảnh{_acct_label()}"
-                          f" · {'chat cũ' if chat.get('url') else 'mở chat mới'}"
-                          + (f" · đính {len(can_dinh)} ref"
-                             + (f" ({so_portrait} mặt + {so_full} trang phục)"
-                                if neo_lap else "")
-                             if chat.get('url') and can_dinh else "")}
-    _gen0 = DUNG_GEN          # chụp thế hệ TRƯỚC khi đi vào lượt chạy dài
+                   "msg": f"{len(viec)} ảnh{_acct_label()} · chat mới"
+                          + (f" · đính {len(can_dinh)} ref" if can_dinh else "")}
+    _gen0 = dung_gen()        # chụp thế hệ TRƯỚC khi đi vào lượt chạy dài
     sess = _session()
-    srcs, url, ghi = sess.generate_lo(viec, can_dinh, chat_url=chat.get("url", ""),
+    srcs, url, ghi = sess.generate_lo(viec, can_dinh, chat_url="",
                                       # KHÔNG dán mã lên ảnh REF. Ảnh REF được
                                       # đính vào MỌI chat khác làm neo mặt và
                                       # trang phục — chữ nằm trong ảnh neo là
@@ -2227,8 +2159,7 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
                                       nen_dung=lambda: any(i in DUNG_RIENG for i, _ in viec))
 
     port = int((getattr(_TL, "endpoint", "") or ":0").rsplit(":", 1)[1] or 0)
-    if master and url and not chi_anh_goc:
-        _luu_chat(master, url, port, da_gui | {os.path.basename(x) for x in can_dinh})
+    # KHÔNG lưu chat_url nữa (bỏ 2026-08-12): lần sau lại chat trắng.
 
     # TẢI HẾT VỀ TRƯỚC KHI PHÁN. Kể cả lượt thiếu, thừa, hay trả kèm chữ — ảnh
     # đã sinh là lượt đã tiêu, không được vứt vì một phép đếm.
@@ -2278,7 +2209,7 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
         # USER ĐÃ BẤM DỪNG trong lúc lượt này đang chạy → KHÔNG được tự xếp hàng lại.
         # Không có chốt này thì cú "Dừng tất cả" bị vô hiệu một cách im lặng: lô hỏng
         # quay lại hàng đợi rồi vẽ đè lên ảnh đang có.
-        if DUNG_GEN != _gen0:
+        if dung_gen() != _gen0:
             for i, _ in viec:
                 JOBS[i] = {"state": "error", "msg": "đã dừng — không thử lại"}
             _LOG.info("lô %d ảnh xong sau khi user bấm dừng — bỏ, không xếp hàng lại", len(viec))
@@ -2296,7 +2227,7 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
             for i, _ in viec:
                 JOBS[i] = {"state": "queued",
                            "msg": f"ChatGPT chặn/thiếu ảnh ({n_ve}/{len(viec)}) "
-                                  f"— gửi lại cả lô, lần {_n + 1}/3{_con}"}
+                                  f"— gửi lại cả tin, lần {_n + 1}/3{_con}"}
             time.sleep(15)
             _xep(IMG_QUEUE, ("img", _ident, 0, tay))
             return
@@ -2305,7 +2236,7 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
             _LOG.warning("lô %d ảnh trượt 3 lần liền — tách chạy lẻ để cô lập prompt bị chặn",
                          len(viec))
             for i, _ in viec:
-                JOBS[i] = {"state": "queued", "msg": "cả lô trượt 3 lần → chạy lẻ tìm prompt bị chặn"}
+                JOBS[i] = {"state": "queued", "msg": "trượt 3 lần → chạy lẻ từng ảnh để tìm prompt bị chặn"}
                 _xep(IMG_QUEUE, ("img", "LO:" + i, 0, tay))
             return
         i = viec[0][0]
@@ -2363,81 +2294,159 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
     _pl_don_bot()
 
 
-def _generate(sf_id: str, manual: bool = False):
-    """Chạy trong một luồng thợ. Lỗi hết lượt / cửa sổ chết được ném lên cho
-    worker phân loại và chuyển việc sang tài khoản khác."""
-    sf = BOARD.get_sf(sf_id)
-    if not sf:
-        raise RuntimeError("Không tìm thấy SF")
-    prompt = (sf.get("prompt") or "").strip()
-    if not prompt:
-        raise RuntimeError("SF chưa có prompt")
+# Giao diện nằm trong ui/: board.html (khung) · board.css · board.js.
+# ĐỌC LẠI TỪ ĐĨA MỖI LẦN, không nạp sẵn lúc import: sửa giao diện xong chỉ cần
+# F5, khỏi restart board — mà restart giữa chừng thì mất hàng đợi.
+_UI_DIR = os.path.join(_HERE, "ui")
 
-    attach, missing, ref_ids = _sf_attachments(sf)
-    if missing:
-        raise RuntimeError("Thiếu ảnh tham chiếu: " + ", ".join(missing))
 
-    in_batch = sf_id in BATCH
-    ok, out = False, None
-    for attempt in range(4):        # 3 lần mở lại phiên nếu tab crash / bị đóng
-        if not in_batch:            # đang chạy theo lô thì để _batch_tick lo thông báo
-            JOBS[sf_id] = {
-                "state": "running",
-                "msg": f"đang tạo…{_acct_label()} ({len(attach)} ảnh ref: {', '.join(ref_ids)})",
-            }
+def _doc_ui(ten: str) -> str:
+    # Chốt tên file trong danh sách trắng: đường dẫn từ URL mà ghép thẳng vào
+    # os.path.join là mở cửa cho ../../ đọc trộm file ngoài thư mục ui/.
+    if ten not in ("board.html", "board.css", "board.js"):
+        raise ValueError(f"file giao diện lạ: {ten}")
+    with open(os.path.join(_UI_DIR, ten), encoding="utf-8") as f:
+        return f.read()
+
+
+
+# ═══ BỘ CHỌN DỰ ÁN (ghép từ bản hook auto) ═══════════════════════════════
+def _project_kind(proj_dir: str, data: dict | None = None) -> str:
+    """'hook' hay 'phim'. Ưu tiên field kind trong sf-board.json, sau đó là tên thư mục."""
+    if data and data.get("kind") in ("hook", "phim"):
+        return data["kind"]
+    return "hook" if os.path.basename(proj_dir).upper().startswith("PIPELINE-HOOK-") else "phim"
+
+
+def _reg_path() -> str:
+    return os.path.join(PROJECTS_ROOT, ".sfboard-running.json")
+
+
+def _port_alive(port: int) -> bool:
+    import socket
+    with socket.socket() as s:
+        s.settimeout(0.4)
+        return s.connect_ex(("127.0.0.1", int(port))) == 0
+
+
+def _reg_read(prune: bool = True) -> dict:
+    """{ten_du_an: {port, cdp, pid}} — bỏ luôn những mục có cổng đã chết."""
+    try:
+        with open(_reg_path(), encoding="utf-8") as f:
+            reg = json.load(f)
+    except Exception:
+        return {}
+    if not prune:
+        return reg
+    # Giữ mục của CHÍNH tiến trình này kể cả khi cổng chưa kịp lắng nghe — nếu không,
+    # lần quét đầu (chạy trước serve_forever) sẽ tự xoá mất đăng ký của mình.
+    me = os.getpid()
+    live = {k: v for k, v in reg.items()
+            if v.get("pid") == me or _port_alive(v.get("port", 0))}
+    if len(live) != len(reg):
+        _reg_save(live)
+    return live
+
+
+def _reg_save(reg: dict) -> None:
+    try:
+        with open(_reg_path(), "w", encoding="utf-8") as f:
+            json.dump(reg, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        _LOG.warning("không ghi được sổ đăng ký: %s", e)
+
+
+def _reg_register(name: str, port: int) -> None:
+    reg = _reg_read()
+    reg[name] = {"port": port, "cdp": CDP_ENDPOINTS, "pid": os.getpid()}
+    _reg_save(reg)
+
+
+def _reg_unregister(name: str) -> None:
+    reg = _reg_read(prune=False)
+    if reg.pop(name, None) is not None:
+        _reg_save(reg)
+
+
+def _free_port(start: int = 8777) -> int:
+    for p in range(start, start + 40):
+        if not _port_alive(p):
+            return p
+    raise RuntimeError("không còn cổng trống trong khoảng 8777-8816")
+
+
+def _open_project(name: str) -> tuple[bool, str, int]:
+    """Trả về cổng phục vụ dự án này; chưa có tiến trình nào thì bật một cái mới."""
+    if os.path.basename(name) != name or not name.endswith(".project"):
+        return False, "tên dự án không hợp lệ", 0
+    d = os.path.join(PROJECTS_ROOT, name)
+    if not os.path.isfile(os.path.join(d, "sf-board.json")):
+        return False, f"không thấy sf-board.json trong {name}", 0
+
+    reg = _reg_read()
+    if name in reg:
+        return True, "", int(reg[name]["port"])
+
+    port = _free_port()
+    # Quy ước chia tài khoản Chrome: mỗi board SỞ HỮU endpoint đầu tiên trong danh sách
+    # của nó, những cái sau chỉ là dự phòng khi hết lượt. Board mới vì thế nhận trước
+    # các endpoint chưa ai sở hữu, rồi mới xếp phần dùng chung xuống cuối.
+    owned = {v["cdp"][0] for v in reg.values() if v.get("cdp")}
+    free = ([ep for ep in CDP_ENDPOINTS if ep not in owned]
+            + [ep for ep in CDP_ENDPOINTS if ep in owned])
+    if not free:
+        free = list(CDP_ENDPOINTS)
+    if free[0] in owned:
+        _LOG.warning("Hết tài khoản Chrome riêng — %s sẽ dùng chung %s với board khác",
+                     name, free[0])
+    cmd = [sys.executable, "-u", os.path.abspath(__file__), d,
+           "--port", str(port), "--cdp", ",".join(free), "--no-open"]
+    log = open(os.path.join(PROJECTS_ROOT, f".sfboard-{port}.log"), "ab", buffering=0)
+    subprocess.Popen(cmd, cwd=PROJECTS_ROOT, stdout=log, stderr=log,
+                     start_new_session=True)
+    for _ in range(60):
+        if _port_alive(port):
+            _LOG.info("Đã bật board cho %s ở cổng %d (cdp: %s)", name, port, ", ".join(free))
+            return True, "", port
+        time.sleep(0.25)
+    return False, f"bật được tiến trình nhưng cổng {port} không lên", 0
+
+
+def _scan_projects() -> list[dict]:
+    """Mọi thư mục *.project trong PROJECTS_ROOT, kèm vài số đếm để hiện trên UI."""
+    out = []
+    if not PROJECTS_ROOT or not os.path.isdir(PROJECTS_ROOT):
+        return out
+    reg = _reg_read()
+    for name in sorted(os.listdir(PROJECTS_ROOT)):
+        d = os.path.join(PROJECTS_ROOT, name)
+        board_path = os.path.join(d, "sf-board.json")
+        if not name.endswith(".project") or not os.path.isfile(board_path):
+            continue
+        data, sfs, shots = {}, 0, 0
         try:
-            sess = _session()
-            with BOARD_LOCK:
-                # giữ chỗ file ngay, để các bản chạy song song không đè tên nhau
-                out = BOARD.next_version_path(sf_id, reserve=True)
-            ok = sess.generate(prompt, attach, out)
-            if ok and os.path.exists(out) and os.path.getsize(out) > 1024:
-                _dem_cong()
-                break
-            raise RuntimeError("ChatGPT không trả về ảnh (thử lại hoặc kiểm tra tab ChatGPT)")
-        except Exception as e:
-            _drop_reserved(out); out = None
-            if attempt < 3 and _is_dead_session_error(e) and _endpoint_alive(_TL.endpoint):
-                _release_tl()
-                time.sleep(4 + 4 * attempt)   # cho Chrome kịp thu hồi bộ nhớ
-                if not in_batch:
-                    JOBS[sf_id] = {"state": "running",
-                                   "msg": f"tab chết → mở lại phiên (lần {attempt + 2})…"}
-                continue
-            if _batch_tick(sf_id, ok=False):
-                return              # lô tự tổng kết, không ném lỗi ra worker
-            raise
-    if not ok or not out or not os.path.exists(out):
-        if _batch_tick(sf_id, ok=False):
-            return
-        raise RuntimeError("ChatGPT không trả về ảnh (thử lại hoặc kiểm tra tab ChatGPT)")
-    with BOARD_LOCK:
-        # TÔN TRỌNG LỰA CHỌN CỦA USER: nếu user đã bấm chọn một bản (picked)
-        # hoặc đã DUYỆT SF này, bản render mới chỉ nằm trong versions/ để
-        # user tự so — TUYỆT ĐỐI không ghi đè ảnh chính.
-        sf_now = BOARD.get_sf(sf_id) or {}
-        # Khoá chỉ chặn render TỰ ĐỘNG (auto-run, guard, lô nền) đè lên bản user
-        # đã chọn. User tự bấm "Tạo ảnh" là chủ động muốn bản mới → phải đè,
-        # nếu không thì nhìn như "tạo xong mà không tải về".
-        # ĐÃ DUYỆT = chốt tuyệt đối, kể cả user tự bấm "Tạo lại" (muốn thay thì
-        # bỏ duyệt trước). Chỉ "picked" mới nhường cho cú bấm tay.
-        user_locked = (sf_now.get("status") == "approved") or (
-            (not manual) and bool(sf_now.get("picked")))
-        if user_locked and BOARD.find_file(sf_id):
-            if sf_now.get("status") == "approved":
-                _LOG.info("%s ĐÃ DUYỆT — giữ nguyên bản chốt, bản mới ở versions/%s",
-                          sf_id, os.path.basename(out))
-                JOBS[sf_id] = {"state": "done",
-                               "msg": "xong — đã duyệt nên giữ bản cũ, bản mới ở dãy bản"}
-        elif not (in_batch and BOARD.find_file(sf_id)):
-            BOARD.set_current(sf_id, out)
-            _mark_picked(sf_id, "picked", os.path.basename(out))
-    if _batch_tick(sf_id, ok=True):
-        return
-    JOBS[sf_id] = {"state": "done", "msg": "xong"}
+            with open(board_path, encoding="utf-8") as f:
+                data = json.load(f)
+            for sc in data.get("scenes", []):
+                sfs += len(sc.get("sfs", []))
+                shots += len(sc.get("shots", []))
+        except Exception:
+            pass
+        assets = os.path.join(d, "assets")
+        imgs = len([x for x in os.listdir(assets)
+                    if os.path.splitext(x)[1].lower() in IMAGE_EXT]) if os.path.isdir(assets) else 0
+        out.append({
+            "name": name,
+            "kind": _project_kind(d, data),
+            "film": data.get("film") or name,
+            "scenes": len(data.get("scenes", [])),
+            "sfs": sfs, "shots": shots, "imgs": imgs,
+            "current": BOARD is not None and os.path.abspath(d) == BOARD.dir,
+            "port": reg.get(name, {}).get("port"),      # None = chưa mở board nào
+        })
+    return out
 
 
-# ---------------------------------------------------------------- http
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -2541,7 +2550,12 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = parse_qs(u.query)
         if u.path == "/":
-            self._send(200, HTML.encode("utf-8"), "text/html; charset=utf-8")
+            self._send(200, _doc_ui("board.html").encode("utf-8"),
+                       "text/html; charset=utf-8")
+        elif u.path in ("/ui/board.css", "/ui/board.js"):
+            ten = u.path.rsplit("/", 1)[1]
+            kieu = ("text/css" if ten.endswith(".css") else "application/javascript")
+            self._send(200, _doc_ui(ten).encode("utf-8"), kieu + "; charset=utf-8")
         elif u.path == "/api/board":
             self._json(BOARD.read())
         elif u.path == "/api/jobs":
@@ -2561,6 +2575,21 @@ class Handler(BaseHTTPRequestHandler):
                         "pl": _pl_dem(), "dan_ma": _dan_ma_doc(),
                         "auto_vid": _auto_vid_doc(),
                         "mtime": int(os.path.getmtime(BOARD.path))})
+        elif u.path == "/api/chan-doan":
+            # HÀNG ĐỢI ĐỨNG IM THÌ SOI Ở ĐÂY. Giao diện chỉ thấy JOBS, mà JOBS là
+            # dấu vết đã ghi chứ không phải hiện trạng: việc có thể mang nhãn
+            # "chờ" trong khi hàng đợi RAM đã rỗng (không ai nhấc nữa).
+            self._json({
+                "hang_doi": {"anh": IMG_QUEUE.qsize(), "video": VID_QUEUE.qsize()},
+                "tho": {f"{p}·{k}·{s}": t.is_alive()
+                        for (p, k, s), t in list(WORKERS.items())},
+                "chet": dict(DEAD),
+                "lo_dang_hoan": dict(_HOAN),
+                "da_huy": sorted(DA_HUY)[:40],
+                "dung_gen": dung_gen(),
+                "job_cho": sum(1 for v in JOBS.values() if v.get("state") == "queued"),
+                "job_chay": sum(1 for v in JOBS.values() if v.get("state") == "running"),
+            })
         elif u.path == "/api/projects":
             self._json({
                 "root": PROJECTS_ROOT,
@@ -2632,20 +2661,26 @@ class Handler(BaseHTTPRequestHandler):
             # nên chạy đường đó là ra ảnh không có bối cảnh, không trục, không
             # luật chữ. Nhiều bản (n>1) vẫn đi đường cũ: mỗi bản một tài khoản
             # khác nhau, mà chat của địa điểm chỉ sống trên đúng một tài khoản.
-            so_ban = int(q.get("n", ["1"])[0] or 1)
-            if so_ban <= 1:
-                JOBS[sf_id] = {"state": "queued", "msg": "chờ lô 1 ảnh"}
+            # MỌI ĐƯỜNG TẠO ẢNH ĐỀU ĐI CHUNG MỘT LỐI — kể cả tạo nhiều bản.
+            # `prompt` của SF con chỉ còn máy quay và khung hình; bối cảnh, bảng
+            # màu, ánh sáng, trục nằm trong `luatchung` gửi ở đầu tin. Đường cũ
+            # (`sess.generate()`) không gửi luatchung nên ảnh mất hết neo look —
+            # hỏng câm, nhìn ảnh vẫn đẹp.
+            # `tay=True` nên KHÔNG bị bộ lọc "đã có ảnh" gạt đi.
+            so_ban = max(1, min(int(q.get("n", ["1"])[0] or 1), 4))
+            JOBS[sf_id] = {"state": "queued",
+                           "msg": "chờ · 1 ảnh" if so_ban == 1
+                                  else f"chờ · {so_ban} bản song song"}
+            bo_co_huy("LO:" + sf_id, sf_id)   # user vừa bấm tạo → thắng cờ huỷ cũ
+            for _ in range(so_ban):
                 _xep(IMG_QUEUE, ("img", "LO:" + sf_id, 0, True))
-            else:
-                _enqueue("img", sf_id, so_ban, manual=True)
-            self._json({"ok": True, "qua_lo": so_ban <= 1})
+            self._json({"ok": True, "qua_lo": True, "so_ban": so_ban})
         elif u.path == "/api/dung-het":
             # DỪNG TẤT CẢ: tắt mọi auto, vét sạch hàng đợi, và ĐÓNG CỬA SỔ CHROME
             # của những tài khoản ảnh đang bận. Đóng Chrome là cách DUY NHẤT cắt
             # được việc đang chạy: thợ đang nằm trong vòng chờ ChatGPT vẽ, không
             # có chỗ nào để nó ngó lại cờ huỷ giữa chừng.
-            global DUNG_GEN
-            DUNG_GEN += 1        # thợ đang chạy dở soi số này, thấy đổi là không thử lại
+            tang_dung_gen()      # thợ đang chạy dở soi số này, thấy đổi là không thử lại
             AUTO.clear()
             bo = 0
             for Q in (IMG_QUEUE, VID_QUEUE):
@@ -2658,20 +2693,41 @@ class Handler(BaseHTTPRequestHandler):
                     pass
             dang = [k for k, v in JOBS.items() if v.get("state") in ("running", "queued")]
             with HUY_LOCK:
+                # CHỈ đánh cờ việc ĐANG chờ/chạy. Bản cũ quét cả `JOBS` lấy mọi
+                # ident "LO:…" — kể cả việc XONG TỪ LÂU — rồi nhét vào DA_HUY,
+                # mà DA_HUY chỉ được dọn khi đúng thợ nhấc đúng ident đó. Hàng
+                # đợi vừa bị vét xong nên chẳng ai nhấc, cờ nằm lại vĩnh viễn.
+                # Ident giờ là danh sách SF user tích, nên lần sau tích lại đúng
+                # nhóm ấy là ident TRÙNG y hệt → job mới bị ghi "đã huỷ" ngay
+                # trong khi user vừa bấm tạo và không có lỗi gì.
                 DA_HUY.update(dang)
-                DA_HUY.update(k for k in JOBS if k.startswith("LO:"))
+                DA_HUY.update(k for k in dang if k.startswith("LO:"))
             for k in dang:
                 JOBS[k] = {"state": "error", "msg": "đã dừng"}
             dong = []
+            da_stop = 0
+            with ACC_LOCK:
+                ports = [a["port"] for a in ACCOUNTS if a.get("enabled")]
+            # BẤM DỪNG LUÔN LUÔN, kể cả khi không đóng Chrome — đây mới là thứ
+            # cắt thật. Lượt đang sinh chạy ở phía máy chủ OpenAI chứ không phải
+            # trong trình duyệt: giết cửa sổ chỉ làm mình hết nhìn thấy, còn nó
+            # vẫn vẽ tiếp và vẫn tính vào hạn mức.
+            for pt in ports:
+                try:
+                    da_stop += _bam_stop_tren_tab(pt)
+                except Exception as e:
+                    _LOG.warning("không nối được %s để bấm dừng: %s", pt, e)
+            if da_stop:
+                _LOG.info("đã bấm dừng trên %d đoạn chat", da_stop)
+            # ĐÓNG CHROME SAU khi đã bấm: đóng trước là mất luôn chỗ để bấm.
             if q.get("dong_chrome", ["1"])[0] == "1":
-                with ACC_LOCK:
-                    ports = [a["port"] for a in ACCOUNTS if a.get("enabled")]
                 for pt in ports:
                     try:
                         _kill_chrome(pt); dong.append(pt)
                     except Exception:
                         pass
-            self._json({"ok": True, "bo": bo, "dung": len(dang), "dong_chrome": dong})
+            self._json({"ok": True, "bo": bo, "dung": len(dang),
+                        "dong_chrome": dong, "da_bam_stop": da_stop})
         elif u.path == "/api/huy":
             # Chỉ vứt việc CHƯA chạy. Việc đang chạy phải để nó xong — cắt giữa
             # chừng là mất cả ảnh đã sinh mà không thu lại được.
@@ -2813,13 +2869,9 @@ class Handler(BaseHTTPRequestHandler):
             out = []
             for m, xs in nhom.items():
                 xs.sort(key=_uu_tien)
-                chat = _chat_cua_master(m) if m else {}
-                lo = []
-                for k in range(0, len(xs), TOI_DA_ANH_MOT_LO):
-                    phan = xs[k:k + TOI_DA_ANH_MOT_LO]
-                    lo.append({"sf": phan,
-                               "ky_tu": sum(len((tat.get(i) or {}).get("prompt") or "")
-                                            for i in phan)})
+                lo = [{"sf": xs,
+                       "ky_tu": sum(len((tat.get(i) or {}).get("prompt") or "")
+                                    for i in xs)}]
                 bieu_tuong, ten = _ten_nhom(m, tat)
                 # Nhóm toàn thẻ địa điểm thì KHÔNG tự gác chính mình.
                 _chi_goc = all(_la_the_dia_diem(tat.get(i) or {"id": i}) for i in xs)
@@ -2831,14 +2883,12 @@ class Handler(BaseHTTPRequestHandler):
                              "dao_cu" if m == "PROP" else "le"),
                     "bieu_tuong": bieu_tuong,
                     "nhan": ten,
-                    "chat_mo": bool(chat.get("url")),
-                    "chat_url": chat.get("url", ""),
                     "da_co": dem_master.get(m, 0),
                     "lo": lo,
                 })
             out.sort(key=lambda x: (x["master"] == "", x["master"]))
             self._json({"ok": True, "nhom": out,
-                        "tran_anh_mot_lo": TOI_DA_ANH_MOT_LO,
+                        "tran_may_tu_gom": TRAN_MAY_TU_GOM,
                         "tran_ky_tu_khuyen": 8000})
         elif u.path == "/api/tao-lo":
             # GOM THEO ĐỊA ĐIỂM rồi mới xếp hàng: mỗi địa điểm là một đoạn chat,
@@ -2853,6 +2903,15 @@ class Handler(BaseHTTPRequestHandler):
                 if JOBS.get(i, {}).get("state") == "running":
                     continue
                 nhom.setdefault(_nhom_cua(i, data), []).append(i)
+            # TÍCH LẪN ĐỊA ĐIỂM → KHÔNG CHO CHẠY (2026-08-12, theo yêu cầu user).
+            # Một tin nhắn chỉ mang được MỘT khối `luatchung`, mà luật chung tả
+            # nguyên bối cảnh. Nhét chung thì ChatGPT không biết luật nào áp cho
+            # ảnh nào — ảnh trong nhà mọc ra bậc thềm.
+            _loi_lan = _lan_dia_diem(nhom, data)
+            if _loi_lan:
+                self._json({"ok": False, "lan": True, "err": _loi_lan}, 409)
+                return
+
             # CHẶN NGAY TẠI CỬA. Thợ cũng chặn (đó mới là chốt thật), nhưng chặn
             # ở đây để user biết LIỀN thay vì thấy cả loạt job đỏ vài giây sau.
             _chan = []
@@ -2877,11 +2936,8 @@ class Handler(BaseHTTPRequestHandler):
                             del sfd["picked"]; ch = True
                 if ch:
                     BOARD.write(data)
-            # CẮT LÔ Ở TOI_DA_ANH_MOT_LO ẢNH. Trần này từng phải để thấp vì lệch
-            # một ảnh là bỏ nguyên lô; nay ảnh luôn được tải về trước nên lô to
-            # chỉ còn phải trả giá bằng thời gian chờ (~180s/ảnh).
-            # ÉP TÀI KHOẢN (tham số tk=<cổng>) — cũng chính là đường THOÁT khỏi
-            # một đoạn chat hỏng.
+            # ÉP TÀI KHOẢN (tham số tk=<cổng>) — chạy việc này trên đúng một
+            # tài khoản do user chỉ định.
             #
             # Chat sống trong profile Chrome của đúng tài khoản đã mở nó, nên
             # KHÔNG thể bê chat cũ sang tài khoản khác. Vì vậy ép tài khoản luôn
@@ -2893,35 +2949,21 @@ class Handler(BaseHTTPRequestHandler):
                 ep = int((q.get("tk", [""])[0] or "0").strip() or 0)
             except ValueError:
                 ep = 0
-            chat_moi = (q.get("moi", [""])[0] or "") in ("1", "true", "yes")
-            if ep or chat_moi:
-                with BOARD_LOCK:
-                    dl = BOARD.read(); doi = False
-                    for m in nhom:
-                        if not m:
-                            continue
-                        if _khoa_la_the(m):
-                            for sc in dl.get("scenes", []):
-                                for sfd in sc.get("sfs", []):
-                                    if sfd.get("id") == m and sfd.pop("chat", None) is not None:
-                                        doi = True
-                        elif (dl.get("chats") or {}).pop(m, None) is not None:
-                            doi = True
-                    if doi:
-                        BOARD.write(dl)
-                        _LOG.info("mở chat mới cho %d nhóm%s", len(nhom),
-                                  f" · ép cổng {ep}" if ep else "")
+            # Cờ `moi=1` đã bỏ 2026-08-12: lần nào cũng là chat trắng.
 
+            # KHÔNG CẮT. Tích bao nhiêu gửi bấy nhiêu, trong ĐÚNG một tin nhắn
+            # (2026-08-12). Cắt hộ nghĩa là user tưởng mình gửi một tin mà thực
+            # ra hai — mà hai tin là hai chat trắng nên ảnh không đồng bộ.
             so_lo = 0
             for m, xs in nhom.items():
                 xs.sort(key=_uu_tien)
-                for k in range(0, len(xs), TOI_DA_ANH_MOT_LO):
-                    lo = xs[k:k + TOI_DA_ANH_MOT_LO]
+                for lo in (xs,):
                     so_lo += 1
                     ident = "LO:" + ",".join(lo)
+                    bo_co_huy(ident, *lo)   # user vừa bấm tạo → thắng cờ huỷ cũ
                     for i in lo:
                         JOBS[i] = {"state": "queued",
-                                   "msg": f"chờ lô {len(lo)} ảnh · {_ten_gon(m)}"
+                                   "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m)}"
                                           + (f" · ép cổng {ep}" if ep else "")}
                     if ep:
                         with _CR_LOCK:           # giao ĐÍCH DANH cho thợ của cổng đó
@@ -3307,150 +3349,6 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False}, 404)
 
 
-# ---------------------------------------------------------------- ui
-# Giao diện board tách sang ui/board.html (2026-08-09) — sfboard.py từ 6.231 còn ~3.400
-# dòng. SỬA GIAO DIỆN THÌ SỬA FILE ĐÓ, không dán HTML/CSS/JS ngược vào đây.
-HTML = open(os.path.join(_HERE, "ui", "board.html"), encoding="utf-8").read()
-
-
-
-# ═══ BỘ CHỌN DỰ ÁN (ghép từ bản hook auto) ═══════════════════════════════
-def _project_kind(proj_dir: str, data: dict | None = None) -> str:
-    """'hook' hay 'phim'. Ưu tiên field kind trong sf-board.json, sau đó là tên thư mục."""
-    if data and data.get("kind") in ("hook", "phim"):
-        return data["kind"]
-    return "hook" if os.path.basename(proj_dir).upper().startswith("PIPELINE-HOOK-") else "phim"
-
-
-def _reg_path() -> str:
-    return os.path.join(PROJECTS_ROOT, ".sfboard-running.json")
-
-
-def _port_alive(port: int) -> bool:
-    import socket
-    with socket.socket() as s:
-        s.settimeout(0.4)
-        return s.connect_ex(("127.0.0.1", int(port))) == 0
-
-
-def _reg_read(prune: bool = True) -> dict:
-    """{ten_du_an: {port, cdp, pid}} — bỏ luôn những mục có cổng đã chết."""
-    try:
-        with open(_reg_path(), encoding="utf-8") as f:
-            reg = json.load(f)
-    except Exception:
-        return {}
-    if not prune:
-        return reg
-    # Giữ mục của CHÍNH tiến trình này kể cả khi cổng chưa kịp lắng nghe — nếu không,
-    # lần quét đầu (chạy trước serve_forever) sẽ tự xoá mất đăng ký của mình.
-    me = os.getpid()
-    live = {k: v for k, v in reg.items()
-            if v.get("pid") == me or _port_alive(v.get("port", 0))}
-    if len(live) != len(reg):
-        _reg_save(live)
-    return live
-
-
-def _reg_save(reg: dict) -> None:
-    try:
-        with open(_reg_path(), "w", encoding="utf-8") as f:
-            json.dump(reg, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        _LOG.warning("không ghi được sổ đăng ký: %s", e)
-
-
-def _reg_register(name: str, port: int) -> None:
-    reg = _reg_read()
-    reg[name] = {"port": port, "cdp": CDP_ENDPOINTS, "pid": os.getpid()}
-    _reg_save(reg)
-
-
-def _reg_unregister(name: str) -> None:
-    reg = _reg_read(prune=False)
-    if reg.pop(name, None) is not None:
-        _reg_save(reg)
-
-
-def _free_port(start: int = 8777) -> int:
-    for p in range(start, start + 40):
-        if not _port_alive(p):
-            return p
-    raise RuntimeError("không còn cổng trống trong khoảng 8777-8816")
-
-
-def _open_project(name: str) -> tuple[bool, str, int]:
-    """Trả về cổng phục vụ dự án này; chưa có tiến trình nào thì bật một cái mới."""
-    if os.path.basename(name) != name or not name.endswith(".project"):
-        return False, "tên dự án không hợp lệ", 0
-    d = os.path.join(PROJECTS_ROOT, name)
-    if not os.path.isfile(os.path.join(d, "sf-board.json")):
-        return False, f"không thấy sf-board.json trong {name}", 0
-
-    reg = _reg_read()
-    if name in reg:
-        return True, "", int(reg[name]["port"])
-
-    port = _free_port()
-    # Quy ước chia tài khoản Chrome: mỗi board SỞ HỮU endpoint đầu tiên trong danh sách
-    # của nó, những cái sau chỉ là dự phòng khi hết lượt. Board mới vì thế nhận trước
-    # các endpoint chưa ai sở hữu, rồi mới xếp phần dùng chung xuống cuối.
-    owned = {v["cdp"][0] for v in reg.values() if v.get("cdp")}
-    free = ([ep for ep in CDP_ENDPOINTS if ep not in owned]
-            + [ep for ep in CDP_ENDPOINTS if ep in owned])
-    if not free:
-        free = list(CDP_ENDPOINTS)
-    if free[0] in owned:
-        _LOG.warning("Hết tài khoản Chrome riêng — %s sẽ dùng chung %s với board khác",
-                     name, free[0])
-    cmd = [sys.executable, "-u", os.path.abspath(__file__), d,
-           "--port", str(port), "--cdp", ",".join(free), "--no-open"]
-    log = open(os.path.join(PROJECTS_ROOT, f".sfboard-{port}.log"), "ab", buffering=0)
-    subprocess.Popen(cmd, cwd=PROJECTS_ROOT, stdout=log, stderr=log,
-                     start_new_session=True)
-    for _ in range(60):
-        if _port_alive(port):
-            _LOG.info("Đã bật board cho %s ở cổng %d (cdp: %s)", name, port, ", ".join(free))
-            return True, "", port
-        time.sleep(0.25)
-    return False, f"bật được tiến trình nhưng cổng {port} không lên", 0
-
-
-def _scan_projects() -> list[dict]:
-    """Mọi thư mục *.project trong PROJECTS_ROOT, kèm vài số đếm để hiện trên UI."""
-    out = []
-    if not PROJECTS_ROOT or not os.path.isdir(PROJECTS_ROOT):
-        return out
-    reg = _reg_read()
-    for name in sorted(os.listdir(PROJECTS_ROOT)):
-        d = os.path.join(PROJECTS_ROOT, name)
-        board_path = os.path.join(d, "sf-board.json")
-        if not name.endswith(".project") or not os.path.isfile(board_path):
-            continue
-        data, sfs, shots = {}, 0, 0
-        try:
-            with open(board_path, encoding="utf-8") as f:
-                data = json.load(f)
-            for sc in data.get("scenes", []):
-                sfs += len(sc.get("sfs", []))
-                shots += len(sc.get("shots", []))
-        except Exception:
-            pass
-        assets = os.path.join(d, "assets")
-        imgs = len([x for x in os.listdir(assets)
-                    if os.path.splitext(x)[1].lower() in IMAGE_EXT]) if os.path.isdir(assets) else 0
-        out.append({
-            "name": name,
-            "kind": _project_kind(d, data),
-            "film": data.get("film") or name,
-            "scenes": len(data.get("scenes", [])),
-            "sfs": sfs, "shots": shots, "imgs": imgs,
-            "current": BOARD is not None and os.path.abspath(d) == BOARD.dir,
-            "port": reg.get(name, {}).get("port"),      # None = chưa mở board nào
-        })
-    return out
-
-
 def main():
     global BOARD, CDP_ENDPOINTS, GROK_ENDPOINTS, PROJECTS_ROOT, SERVE_PORT
     args = [a for a in sys.argv[1:]]
@@ -3475,6 +3373,10 @@ def main():
     if "--root" in args:
         PROJECTS_ROOT = os.path.abspath(args[args.index("--root") + 1])
     BOARD = Board(film)
+    # hangdoi.py không biết Board là gì — nó chỉ cần đọc được shots[] để xếp
+    # đúng thứ tự, và một mốc đổi để biết cache còn dùng được.
+    hangdoi.gan_nguon_board(
+        BOARD.read, lambda: os.path.getmtime(BOARD.path))
     if not PROJECTS_ROOT:
         PROJECTS_ROOT = os.path.dirname(BOARD.dir)
     if "--port" not in args:
@@ -3507,6 +3409,7 @@ def main():
         print(f"  · {a['id']:8s} {_KIND_NAME[a['kind']]:16s} port {a['port']}  [{onoff}, {live}]")
     # Supervisor tự mở/đóng luồng thợ theo trạng thái bật/tắt của từng tài khoản.
     threading.Thread(target=_supervisor, daemon=True).start()
+    threading.Thread(target=_gac_hang_doi, daemon=True).start()
     threading.Thread(target=_auto_runner, daemon=True).start()
     threading.Thread(target=_luu_ban_runner, daemon=True).start()
     try:
