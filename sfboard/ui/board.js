@@ -363,8 +363,14 @@ async function poll() {
   const wasRunning = Object.values(JOBS).some(x => x.state === 'running');
   JOBS = j;
   veHangDoi();          // cập nhật số trên nút + nội dung ngăn kéo mỗi vòng poll
-  // Lượt mới rơi vào diện chờ phân loại → nạp lại dải ảnh. So bằng chuỗi đếm
-  // để không gọi /api/luot mỗi vòng poll khi chẳng có gì đổi.
+  // Lượt mới rơi vào diện chờ phân loại → nạp dải ảnh. CHỈ gọi khi có lượt mà
+  // ta chưa biết, chứ không mỗi vòng poll: /api/luot đọc cả thư mục hộp chờ.
+  // Sổ lỗi: chỉ kéo phần mới khi tổng số bản ghi bên server đã nhích lên.
+  if ((r.loi || 0) > LOI_N) { await napLoi(); veLoi() }
+  const _cho = (r.pl || {}).cho || 0;
+  if (_cho !== PLCHO || [...luotCanXem()].some(t => !LUOT[t])) {
+    PLCHO = _cho; await napLuot(); render();
+  }
   if (r.dan_ma !== undefined && !!r.dan_ma !== MAON) { MAON = !!r.dan_ma; veMa() }
   if (r.auto_vid !== undefined && !!r.auto_vid !== AVON) { AVON = !!r.auto_vid; veAutoVid() }
   HTAC = { ht: (r.pl || {}).ht || 0, ht_cuoi: (r.pl || {}).ht_cuoi || '' };
@@ -380,6 +386,103 @@ async function poll() {
   }
 }
 setInterval(poll, 1500);
+
+// ---------------------------------------------------------------- hộp lỗi
+// Mọi WARNING/ERROR của board và của executor đổ vào đây. Lý do có hộp này:
+// những lỗi cần nhìn nhất (selector chết, ERR_QUIC, tab kẹt trang post) chỉ nằm
+// trong Terminal, mà thẻ trên board chỉ hiện đúng một dòng tóm tắt cụt — không
+// đủ để sửa, và mất sạch khi đóng cửa sổ chạy board.
+let LOI = [], LOI_N = 0, LOI_OPEN = false;
+
+// LỖI JS CỦA CHÍNH GIAO DIỆN cũng vào hộp. Không có hai dòng này thì mọi lỗi
+// script chỉ nằm trong Console của trình duyệt — user không mở, nên "board đứng
+// im, bấm không ăn" biến thành triệu chứng không dấu vết.
+addEventListener('error', e => {
+  LOI.push({
+    n: 0, luc: new Date().toTimeString().slice(0, 8), muc: 'UI', nguon: 'board.js',
+    text: `${e.message} @ ${(e.filename || '').split('/').pop()}:${e.lineno}`
+  });
+  veLoi();
+});
+addEventListener('unhandledrejection', e => {
+  LOI.push({
+    n: 0, luc: new Date().toTimeString().slice(0, 8), muc: 'UI', nguon: 'promise',
+    text: String((e.reason && (e.reason.stack || e.reason.message)) || e.reason).slice(0, 500)
+  });
+  veLoi();
+});
+
+async function napLoi() {
+  try {
+    const r = await (await fetch('/api/loi?tu=' + LOI_N)).json();
+    for (const m of (r.loi || [])) { LOI.push(m); LOI_N = Math.max(LOI_N, m.n) }
+    if (LOI.length > 800) LOI = LOI.slice(-800);
+  } catch (e) { /* board tắt giữa chừng — vòng poll sau thử lại */ }
+}
+
+function toggleLoi() {
+  LOI_OPEN = !LOI_OPEN;
+  $('#loipanel').style.display = LOI_OPEN ? 'block' : 'none';
+  $('#loibtn').classList.toggle('on', LOI_OPEN);
+  if (LOI_OPEN) veLoi();
+}
+
+// BA NGUỒN, gộp làm một danh sách — hộp này phải là chỗ DUY NHẤT cần nhìn:
+//   · log server  (WARNING/ERROR của board và executor, có giờ)
+//   · job đang lỗi (thứ user thấy trên thẻ; nhiều chỗ đặt trạng thái lỗi mà
+//     không kèm log, nên chỉ đọc log server là hụt đúng phần hay hỏng nhất)
+//   · lỗi JS của chính giao diện (xem LOI_UI bên dưới)
+function loiTatCa() {
+  const ra = LOI.slice();
+  // `typeof` chứ không đọc thẳng: hộp lỗi phải chạy được cả khi lỗi JS nổ ra
+  // TRƯỚC lúc board kịp khởi tạo xong — đó đúng là lúc cần nó nhất.
+  for (const [id, j] of Object.entries(typeof JOBS === 'undefined' ? {} : (JOBS || {}))) {
+    if (j.state !== 'error') continue;
+    ra.push({ n: 0, luc: '', muc: 'JOB', nguon: id, text: `${id}: ${j.msg || ''}` });
+  }
+  return ra;
+}
+
+function loiLoc() {
+  const t = (($('#loitim') || {}).value || '').toLowerCase().trim();
+  const nang = (($('#loinang') || {}).checked) || false;
+  return loiTatCa().filter(m => (!nang || m.muc === 'ERROR' || m.muc === 'CRITICAL' || m.muc === 'UI')
+    && (!t || (m.text + ' ' + m.nguon).toLowerCase().includes(t)));
+}
+
+function veLoi() {
+  const tong = loiTatCa().length;
+  const badge = $('#loin');
+  if (badge) { badge.textContent = tong || ''; badge.className = tong ? 'qn on' : 'qn' }
+  if (!LOI_OPEN || !$('#loibody')) return;
+  const ds = loiLoc();
+  $('#loimeta').textContent = `${ds.length}/${tong} dòng`
+    + (LOI.length >= 800 ? ' · chỉ giữ 800 dòng log gần nhất' : '');
+  // Mới nhất LÊN ĐẦU: lỗi vừa xảy ra là lỗi đang cần đọc, đừng bắt cuộn xuống đáy.
+  $('#loibody').innerHTML = ds.length
+    ? ds.slice().reverse().map(m => `<div class="loirow ${m.muc === 'ERROR' || m.muc === 'CRITICAL' ? 'nang' : ''}">
+        <span class="loiluc">${esc(m.luc)}</span>
+        <span class="loimuc">${esc(m.muc)}</span>
+        <span class="loitext">${esc(m.text)}</span></div>`).join('')
+    : '<div class="hint" style="padding:10px">Chưa có lỗi nào. Sạch.</div>';
+}
+
+async function loiCopy() {
+  const ds = loiLoc();
+  const txt = ds.map(m => `${m.luc} ${m.muc} [${m.nguon}] ${m.text}`).join('\n');
+  try {
+    await navigator.clipboard.writeText(txt);
+    const b = $('#loicopy'); const cu = b.textContent;
+    b.textContent = `✓ đã chép ${ds.length} dòng`;
+    setTimeout(() => b.textContent = cu, 1800);
+  } catch (e) { bao('Không chép được vào clipboard:\n' + e) }
+}
+
+async function loiXoa() {
+  if (!await hoi('Dọn sổ lỗi trên board?\n\nChỉ xoá danh sách đang xem — log trong Terminal vẫn còn.')) return;
+  await fetch('/api/loi-xoa', { method: 'POST' });
+  LOI = []; veLoi();
+}
 
 // ---------------------------------------------------------------- accounts
 let ACCT_OPEN = false, ACCT_TIMER = null;
@@ -831,6 +934,10 @@ function render() {
       ports.forEach(pf => {
         const ch = who(pf.id), kids = byChar[ch] || [];
         delete byChar[ch];
+        // Thẻ trang phục nào đang có ảnh treo trong hộp chờ thì MỞ NHÓM RA.
+        // Dải ảnh chờ vẽ trên thẻ con, mà thẻ con mặc định bị ẩn — để nguyên thì
+        // ảnh vẫn vô hình đúng như lúc chưa có dải.
+        if (kids.some(k => coAnhCho(k.id))) WROPEN[ch] = true;
         const d = card(sc, pf);
         if (kids.length) {
           const strip = document.createElement('div');
@@ -1617,6 +1724,66 @@ async function loChay() {
   }
 }
 
+// ---------------------------------------------------------------- hộp chờ
+// Lượt LỆCH (ChatGPT trả 9 ảnh cho 10 prompt) không được ghép tự động — ảnh đã
+// tải về nằm trong cho-phan-loai/turn-XXXX/. Dải này là ĐƯỜNG RA DUY NHẤT của
+// chúng: hiện ngay trên thẻ đang báo lỗi, bấm một cái là ảnh vào thẻ.
+// Thiếu nó thì thông báo "bấm chọn ngay trên thẻ" chỉ vào chỗ không tồn tại và
+// cả lượt đã tiêu tiền nằm chết trên đĩa.
+let LUOT = {};              // {turn: meta}
+let LUOT_DANG_TAI = false;
+let PLCHO = -1;             // số ảnh treo lần poll trước; -1 = chưa nạp lần nào
+
+function coAnhCho(id) {     // thẻ này có ảnh nào đang treo trong hộp chờ không
+  for (const lo of Object.values(LUOT))
+    for (const a of (lo.anh || []))
+      if (!a.gan && a.du_kien === id) return true;
+  return false;
+}
+
+function luotCanXem() {     // số lượt mà các thẻ đang lỗi nhắc tới
+  const ra = new Set();
+  for (const j of Object.values(JOBS)) {
+    if (j.state !== 'error') continue;
+    const m = /lượt (\d+)/.exec(j.msg || '');
+    if (m) ra.add(+m[1]);
+  }
+  return ra;
+}
+
+async function napLuot() {
+  if (LUOT_DANG_TAI) return;
+  LUOT_DANG_TAI = true;
+  try {
+    const r = await (await fetch('/api/luot')).json();
+    LUOT = {};
+    for (const m of (r.luot || [])) LUOT[m.turn] = m;
+  } catch (e) { /* board tắt giữa chừng — vòng poll sau thử lại */ }
+  finally { LUOT_DANG_TAI = false }
+}
+
+// HAI ĐƯỜNG TÌM, không phải một. Bám mỗi JOBS thì restart board là mất sạch:
+// JOBS sống trong RAM, còn ảnh treo thì nằm trên đĩa hàng tuần. Đường thứ hai
+// đọc `du_kien` — ô thứ k của lượt LẼ RA là SF thứ k — nên thẻ vẫn tự tìm thấy
+// ảnh của nó sau khi board khởi động lại.
+function luotStrip(f, job) {
+  const ra = [];
+  const m = job.state === 'error' ? /lượt (\d+)/.exec(job.msg || '') : null;
+  for (const lo of Object.values(LUOT)) {
+    for (const a of (lo.anh || [])) {
+      if (a.gan) continue;
+      if ((m && +m[1] === lo.turn) || a.du_kien === f.id) ra.push([lo, a]);
+    }
+  }
+  if (!ra.length) return '';
+  const turns = [...new Set(ra.map(([lo]) => lo.turn))].join(' · ');
+  return `<div class="plstrip"><span class="pllab">🗂 lượt ${turns} — ${ra.length} ảnh
+    đã tải về nhưng chưa gắn. Bấm ảnh để đưa vào <b>${esc(f.id)}</b>:</span>
+    ${ra.map(([lo, a]) => `<img src="${a.url}?w=200" loading="lazy" decoding="async"
+      title="ảnh #${String(a.o).padStart(2, '0')} của lượt ${lo.turn}${a.du_kien ? ' · dự kiến ' + a.du_kien : ''} — bấm để gắn vào ${f.id}"
+      data-pl="${lo.turn}:${a.o}">`).join('')}</div>`;
+}
+
 function card(sc, f) {
   const _bu = bgUsers(sc), _rank = sfRank(f, _bu), _otag = sfOrderTag(f, _bu);
   const _bg = (f.refs || {}).bg;
@@ -1667,6 +1834,7 @@ function card(sc, f) {
    <span class="x" data-a="donex" title="Xong việc này rồi — xoá dòng báo để ghi yêu cầu mới">✕ dọn</span></div>`: ''}
    </div>
    ${job.state === 'error' ? `<div class="err">⚠ ${esc(job.msg)}</div>` : ''}
+   ${luotStrip(f, job)}
    <div class="acts">
  <button class="sm pri" data-a="gen" ${running ? 'disabled' : ''}>${f.image ? 'Tạo lại' : 'Tạo ảnh'}</button>
  <button class="sm ok-b" data-a="approved">✓</button>
@@ -1729,6 +1897,15 @@ function card(sc, f) {
   d.querySelectorAll('[data-v]').forEach(el => el.onclick = async e => {
     e.stopPropagation();
     await fetch(`/api/pick-version?sf=${encodeURIComponent(f.id)}&file=${encodeURIComponent(el.dataset.v)}`, { method: 'POST' });
+    await load();
+  });
+  d.querySelectorAll('[data-pl]').forEach(el => el.onclick = async e => {
+    e.stopPropagation();
+    const [t, o] = el.dataset.pl.split(':');
+    const r = await (await fetch(`/api/gan-anh?sf=${encodeURIComponent(f.id)}&turn=${t}&o=${o}`,
+      { method: 'POST' })).json();
+    if (!r.ok) { bao(r.err || 'Không gắn được'); return }
+    await napLuot();
     await load();
   });
   d.querySelectorAll('[data-vdel]').forEach(el => el.onclick = async e => {

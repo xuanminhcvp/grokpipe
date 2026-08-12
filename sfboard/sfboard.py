@@ -22,6 +22,7 @@ Chỉ dùng thư viện chuẩn (Playwright chỉ cần khi bấm Tạo ảnh).
 from __future__ import annotations
 
 import atexit
+import collections
 import datetime
 import subprocess
 import itertools
@@ -473,6 +474,12 @@ _LOW_RAM_FLAGS = [
     # máy 16GB nên chạy ít cửa sổ cùng lúc.
     "--js-flags=--max-old-space-size=1024",
     "--disable-backgrounding-occluded-windows=false",
+    # TẮT QUIC/HTTP3 (2026-08-12). grok.com phục vụ qua QUIC, và một phiên QUIC
+    # hỏng giữa chừng thì Chrome KHÔNG tự lùi về TCP: mọi lần điều hướng sau đó
+    # chết ngay với ERR_QUIC_PROTOCOL_ERROR, kể cả khi mạng vẫn tốt và trang mở
+    # bình thường ở Chrome khác. Đúng ca "chạy được mấy video rồi lỗi liên tục,
+    # xong không vào nổi grok.com". Chạy trên TCP chậm hơn không đáng kể.
+    "--disable-quic",
 ]
 
 
@@ -707,6 +714,45 @@ import hangdoi                                                 # noqa: E402
 BOARD_LOCK = threading.RLock()      # nhiều thợ cùng ghi sf-board.json
 _LOG = logging.getLogger("sfboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
+
+
+# ---- SỔ LỖI CHO GIAO DIỆN ------------------------------------------------
+# Mọi WARNING/ERROR chảy vào đây, để hộp 🐞 trên board đọc được mà không phải
+# mở Terminal. Trước đây log chỉ ra stdout: user đóng cửa sổ chạy board là mất
+# sạch dấu vết, mà đúng những lỗi cần nhìn (selector chết, ERR_QUIC, tab kẹt)
+# lại chỉ nằm ở đó — job trên board chỉ hiện một dòng tóm tắt cụt.
+LOI_SO: collections.deque = collections.deque(maxlen=800)
+LOI_LOCK = threading.Lock()
+_LOI_STT = [0]
+
+
+class _ThuLoi(logging.Handler):
+    """Gom cảnh báo/lỗi vào LOI_SO. Không bao giờ được ném lỗi ra ngoài — một
+    handler hỏng làm hỏng luôn lời gọi log ở giữa vòng render."""
+
+    def emit(self, rec: logging.LogRecord) -> None:
+        try:
+            with LOI_LOCK:
+                _LOI_STT[0] += 1
+                LOI_SO.append({
+                    "n": _LOI_STT[0],
+                    "luc": time.strftime("%H:%M:%S", time.localtime(rec.created)),
+                    "muc": rec.levelname,
+                    "nguon": rec.name,
+                    "text": rec.getMessage()[:2000],
+                })
+        except Exception:
+            pass
+
+
+_thu = _ThuLoi()
+_thu.setLevel(logging.WARNING)
+logging.getLogger().addHandler(_thu)          # bắt cả log của executor grokpipe
+
+# Mọi việc chuyển sang trạng thái LỖI đều chảy vào sổ, kể cả những nhánh không
+# tự gọi log — xem `_Jobs` trong hangdoi.py.
+JOBS.__class__.khi_loi = staticmethod(
+    lambda ident, msg: _LOG.warning("việc %s LỖI: %s", ident, msg[:500]))
 
 # Mỗi luồng thợ giữ Playwright + phiên RIÊNG của nó (sync_playwright không dùng chung
 # được giữa các luồng, nhưng mỗi luồng có một instance riêng thì hoàn toàn hợp lệ).
@@ -1722,6 +1768,9 @@ PL_GIU_TOI_DA = 40
 
 PL_LOCK = threading.RLock()
 
+# Cache đếm ảnh đang treo trong hộp chờ — xem `_pl_cho_dem()`.
+_PL_DEM = {"luc": 0.0, "cho": 0}
+
 # Bật/tắt in mã SF lên ảnh. Lưu ở HOME chứ không trong project: đây là thói quen
 # làm việc của user, không phải thuộc tính của một bộ phim.
 MA_PATH = os.path.expanduser("~/.grokpipe-dan-ma.json")
@@ -1763,6 +1812,9 @@ def _pl_meta(turn: int) -> dict:
 
 
 def _pl_ghi_meta(meta: dict) -> None:
+    # Mọi thay đổi của hộp chờ đều đi qua đây → hạ cache đếm ngay, để dải ảnh
+    # trên thẻ hiện đúng ở vòng poll kế tiếp thay vì đợi hết 5 giây.
+    _PL_DEM["luc"] = 0.0
     d = _pl_duong(int(meta["turn"]))
     os.makedirs(d, exist_ok=True)
     tmp = os.path.join(d, "meta.json.tmp")
@@ -1838,15 +1890,41 @@ def _pl_ds() -> list[dict]:
     return out
 
 
-def _pl_dem() -> dict:
-    """{số lần gắn còn lùi được} — nút ↩ trên giao diện bật/tắt theo con số này.
+def _pl_cho_dem() -> int:
+    """Số ảnh còn treo trong hộp chờ (chưa gắn vào thẻ nào).
 
-    Trước 2026-08-09 hàm còn trả số lượt và số ảnh chưa gắn cho dải phân loại;
-    dải đó đã bỏ nên chỉ còn phần hoàn tác (dùng chung cho tráo/chuyển ảnh)."""
+    Giao diện dùng con số này làm tín hiệu "có gì đó đổi, nạp lại dải" — nên nó
+    chạy mỗi vòng poll (1,5 giây). Đọc meta của mấy chục lượt với nhịp đó là phí,
+    vì vậy cache 5 giây: chậm nhất 5 giây dải mới hiện, đủ nhanh với thao tác tay.
+    """
+    now = time.time()
+    if now - _PL_DEM["luc"] < 5:
+        return _PL_DEM["cho"]
+    n = 0
+    try:
+        for ten in os.listdir(BOARD.pl):
+            if not re.match(r"^turn-\d+$", ten):
+                continue
+            meta = _pl_meta(int(ten.split("-")[1]))
+            for a in meta.get("anh", []):
+                if not a.get("gan") and os.path.isfile(os.path.join(BOARD.pl, ten, a.get("ten") or "")):
+                    n += 1
+    except OSError:
+        return _PL_DEM["cho"]
+    _PL_DEM.update(luc=now, cho=n)
+    return n
+
+
+def _pl_dem() -> dict:
+    """{số lần gắn còn lùi được · số ảnh đang treo trong hộp chờ}.
+
+    `cho` là tín hiệu cho dải ẢNH CHỜ trên thẻ: giao diện chỉ gọi `/api/luot`
+    khi con số này đổi, chứ không mỗi vòng poll."""
     with HT_LOCK:
         ht = len(HOAN_TAC)
         cuoi = dict(HOAN_TAC[-1]) if HOAN_TAC else {}
-    return {"ht": ht, "ht_cuoi": f"{cuoi.get('sf','')} · {cuoi.get('luc','')}" if cuoi else ""}
+    return {"ht": ht, "cho": _pl_cho_dem(),
+            "ht_cuoi": f"{cuoi.get('sf','')} · {cuoi.get('luc','')}" if cuoi else ""}
 
 
 def _pl_tai_ve(sess, srcs: list[str], viec: list[tuple[str, str]],
@@ -1953,8 +2031,55 @@ def _ban_dang_dung(sf_id: str) -> tuple[str, bool]:
     return os.path.basename(giu), True
 
 
-# _pl_gan() (gắn TAY ảnh của lượt vào SF) đã bỏ 2026-08-09 cùng dải phân loại.
-# Việc ghép TỰ ĐỘNG khi tạo ảnh theo lô vẫn giữ nguyên trong _pl_tai_ve().
+# ---- GẮN TAY ẢNH TỪ HỘP CHỜ ----------------------------------------------
+# DỰNG LẠI 2026-08-12. Bỏ hàm này 2026-08-09 cùng dải phân loại để lại một lỗ
+# câm: nhánh LƯỢT LỆCH vẫn báo "N ảnh ĐÃ TẢI VỀ, bấm chọn ngay trên thẻ" trong
+# khi KHÔNG CÒN đường nào đưa ảnh từ hộp chờ lên thẻ — không route ảnh, không
+# API liệt kê, không nút. Ảnh có thật trên đĩa mà user không thấy gì, nên đọc ra
+# thành "board không tải được ảnh nào". Lượt lệch là ca thường gặp (guardrail
+# chặn một ảnh giữa lô), nên lỗ này nuốt cả lượt đã tiêu tiền.
+def _pl_gan(sf_id: str, turn: int, o: int) -> tuple[bool, str]:
+    """Gắn ảnh thứ `o` của lượt `turn` vào thẻ `sf_id`. Trả (ok, lý do hỏng).
+
+    Đi đúng đường của ghép tự động: thêm một bản vào `versions/` rồi đặt làm ảnh
+    chính — KHÔNG đụng ảnh gốc trong hộp chờ, nên gắn nhầm thì lùi được bằng ↩.
+    """
+    meta = _pl_meta(turn)
+    if not meta:
+        return False, f"không thấy lượt {turn} trong hộp chờ"
+    anh = next((a for a in meta.get("anh", []) if int(a.get("o") or 0) == o), None)
+    if not anh:
+        return False, f"lượt {turn} không có ảnh #{o:02d}"
+    src = os.path.join(_pl_duong(turn), anh.get("ten") or "")
+    if not os.path.isfile(src):
+        return False, "ảnh này đã bị xoá khỏi hộp chờ"
+    if BOARD.get_sf(sf_id) is None:
+        return False, f"không có thẻ {sf_id}"
+    # ẢNH ĐÃ DUYỆT LÀ BẢN USER ĐÃ CHỐT — không thay, kể cả khi user bấm nhầm.
+    if (BOARD.get_sf(sf_id) or {}).get("status") == "approved" and BOARD.find_file(sf_id):
+        return False, f"{sf_id} ĐÃ DUYỆT — bỏ duyệt trước nếu thật sự muốn thay"
+    cu, tu_tao = _ban_dang_dung(sf_id)
+    with BOARD_LOCK:
+        out = BOARD.next_version_path(sf_id, reserve=True)
+    try:
+        shutil.copy2(src, out)
+    except OSError as e:
+        _drop_reserved(out)
+        return False, f"chép vào versions/ lỗi: {str(e)[:100]}"
+    BOARD.turn_log_ghi(os.path.basename(out),
+                       {"turn": turn, "o": o, "port": meta.get("port") or 0,
+                        "at": meta.get("at") or ""})
+    with BOARD_LOCK:
+        BOARD.set_current(sf_id, out)
+        _mark_picked(sf_id, "picked", os.path.basename(out))
+    _ht_ghi({"sf": sf_id, "moi": os.path.basename(out), "cu": cu,
+             "cu_tu_tao": tu_tao, "turn": turn, "ten": anh.get("ten") or "",
+             "luc": time.strftime("%H:%M:%S")})
+    anh["gan"] = sf_id
+    _pl_ghi_meta(meta)
+    JOBS[sf_id] = {"state": "done", "msg": f"gắn tay (lượt {turn} #{o:02d})"}
+    _LOG.info("gắn tay ảnh #%02d của lượt %d vào %s", o, turn, sf_id)
+    return True, ""
 
 
 def _ht_lui(n: int = 1) -> tuple[int, list[str]]:
@@ -2500,6 +2625,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(200, data, ctype)
 
+    def _serve_pl(self, path, q=None):
+        """Ảnh trong hộp chờ: /pl/turn-0097/03.png
+
+        Không dùng được `_serve_img` vì nó cắt `basename` (một tầng), còn hộp chờ
+        có thư mục lượt. Đường dẫn dựng lại TỪNG MẢNH theo khuôn, không nối chuỗi
+        thô: `/pl/../../` là đường đọc trộm cả đĩa.
+        """
+        m = re.match(r"^/pl/(turn-\d{1,6})/([0-9A-Za-z._-]{1,40})$", path)
+        if not m:
+            self._send(404, b"not found", "text/plain")
+            return
+        self._serve_img(os.path.join(BOARD.pl, m.group(1)), m.group(2), q)
+
     def _serve_video(self, folder, name, q=None):
         """Phát video có hỗ trợ Range để tua được; ?dl=1 thì ép tải về kèm tên file."""
         p = os.path.join(folder, unquote(os.path.basename(name)))
@@ -2573,6 +2711,9 @@ class Handler(BaseHTTPRequestHandler):
                 _nh[k] = {"khoa": kh, "bieu_tuong": bt, "nhan": ten}
             self._json({"jobs": JOBS, "auto": _auto_status(), "nhom": _nh,
                         "pl": _pl_dem(), "dan_ma": _dan_ma_doc(),
+                        # tổng số bản ghi lỗi từ lúc board chạy — giao diện so
+                        # con số này để biết khi nào phải kéo phần mới về
+                        "loi": _LOI_STT[0],
                         "auto_vid": _auto_vid_doc(),
                         "mtime": int(os.path.getmtime(BOARD.path))})
         elif u.path == "/api/chan-doan":
@@ -2601,6 +2742,23 @@ class Handler(BaseHTTPRequestHandler):
             })
         elif u.path == "/api/accounts":
             self._json({"accounts": _accounts_status()})
+        elif u.path == "/api/loi":
+            # Sổ lỗi cho hộp 🐞. `tu` = số thứ tự bản ghi giao diện đã có, để mỗi
+            # vòng poll chỉ tải phần MỚI thay vì cả 800 dòng.
+            try:
+                tu = int(q.get("tu", ["0"])[0] or 0)
+            except ValueError:
+                tu = 0
+            with LOI_LOCK:
+                ds = [m for m in LOI_SO if m["n"] > tu]
+                tong = _LOI_STT[0]
+            self._json({"loi": ds, "tong": tong})
+        elif u.path == "/api/luot":
+            # Hộp chờ. Giao diện chỉ gọi khi có việc lỗi mang số lượt, nên cứ trả
+            # đủ — lượt đã gắn hết vẫn có ích để kéo ảnh sang thẻ khác.
+            self._json({"luot": _pl_ds()})
+        elif u.path.startswith("/pl/"):
+            self._serve_pl(u.path, q)
         elif u.path.startswith("/assets/"):
             # PHẢI truyền q: '?w=' (bản thu nhỏ) và '?dl=1' (tải về đúng tên)
             # đều đọc từ đây. Thiếu nó thì mọi thumbnail lặng lẽ trả ảnh gốc
@@ -2981,6 +3139,23 @@ class Handler(BaseHTTPRequestHandler):
             _dan_ma_ghi(on)
             _LOG.info("dán mã SF vào ảnh: %s", "BẬT" if on else "TẮT")
             self._json({"ok": True, "on": on})
+        elif u.path == "/api/loi-xoa":
+            with LOI_LOCK:
+                so = len(LOI_SO)
+                LOI_SO.clear()
+            self._json({"ok": True, "so": so})
+        elif u.path == "/api/gan-anh":
+            # Gắn TAY một ảnh của hộp chờ vào thẻ. Đây là đường ra của lượt lệch:
+            # ảnh đã tải về rồi, chỉ còn chỉ đúng nó thuộc thẻ nào.
+            try:
+                _t = int(q.get("turn", ["0"])[0] or 0)
+                _o = int(q.get("o", ["0"])[0] or 0)
+            except ValueError:
+                self._json({"ok": False, "err": "turn/o phải là số"}, 400); return
+            _sf = q.get("sf", [""])[0]
+            ok, err = _pl_gan(_sf, _t, _o) if (_sf and _t and _o) else \
+                (False, "thiếu sf/turn/o")
+            self._json({"ok": ok, "err": err}, 200 if ok else 409)
         elif u.path == "/api/gan-lui":
             # HOÀN TÁC lần gắn gần nhất (hoặc n lần). Đây là lý do gắn tay không
             # đáng sợ: bấm nhầm thì lùi được, kể cả khi thẻ vốn chưa có ảnh.

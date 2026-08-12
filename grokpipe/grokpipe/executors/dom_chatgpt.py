@@ -56,6 +56,25 @@ _JS_O_SOAN = """(() => {
 })()"""
 
 
+# Nhận ra ảnh REF (ảnh mình đính lên) bằng DẤU HIỆU KHÔNG THEO NGÔN NGỮ.
+#
+# Bản cũ lọc bằng `alt === 'Generated image'` và `aria-label^="Open image "`.
+# Trên Chrome để giao diện tiếng Việt, ChatGPT dịch cả hai chuỗi đó, nên phép
+# lọc quét sạch MỌI ảnh output: quét ra 0 ảnh, job chờ tới hết giờ rồi trả 0/N
+# trong khi ảnh hiện đủ trên màn hình. Cùng lúc `JS_DANH_SACH_REF_ID` (logic
+# ngược) lại xếp chính ảnh vừa vẽ vào diện REF.
+# Thứ không dịch được là TÊN FILE: ref luôn mang tên file ở `alt` hoặc ở
+# `aria-label` của nút mở ảnh; output thì không bao giờ.
+_JS_LA_REF = r"""
+    const laRef = i => {
+        const alt = (i.alt || '').trim();
+        if (/\.(png|jpe?g|webp)$/i.test(alt)) return true;
+        const n = i.closest('button[aria-label]');
+        return !!(n && /\.(png|jpe?g|webp)/i.test(n.getAttribute('aria-label') || ''));
+    };
+"""
+
+
 JS_CHON_CHE_DO = """() => { const b = [...document.querySelectorAll('form button')]
                     .find(e => /^(Instant|Medium|High)/.test((e.textContent||'').trim()));
                     return b ? b.textContent.trim() : ''; }"""
@@ -96,37 +115,29 @@ JS_ANH_DANG_CO = """() => { const out = [], seen = new Set();
                     });
                     return out; }"""
 
-JS_DANH_SACH_ID = """() => { const out = [], seen = new Set();
+JS_DANH_SACH_ID = """() => { const out = [], seen = new Set();""" + _JS_LA_REF + """
                     const uSel = "[data-turn='user'],[data-message-author-role='user']";
                     document.querySelectorAll('img').forEach(i => {
                         const s = i.currentSrc || i.src || '';
                         if (!s.includes('/backend-api/estuary/content')) return;
                         if (i.closest(uSel)) return;
-                        const alt = (i.alt || '').trim();
-                        const nut = i.closest('button[aria-label^="Open image "]');
-                        // ChatGPT hiện đổi alt sau khi hoàn tất từ
-                        // `Generated image` thành `Generated image: <tựa tự sinh>`.
-                        // So khớp tuyệt đối làm bộ đếm rơi từ đủ N xuống còn 1
-                        // (chỉ node blur có alt rỗng), khiến job chờ vô hạn.
-                        if ((alt && !alt.toLowerCase().startsWith('generated image')) || nut) return;
+                        if (laRef(i)) return;
                         let k = s;
                         try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
                         if (!seen.has(k)) { seen.add(k); out.push([k, s]); } });
                     return out; }"""
 
-JS_DANH_SACH_REF_ID = """() => { const out = [], seen = new Set();
+JS_DANH_SACH_REF_ID = """() => { const out = [], seen = new Set();""" + _JS_LA_REF + """
                     document.querySelectorAll('img').forEach(i => {
                         const s = i.currentSrc || i.src || '';
                         if (!s.includes('/backend-api/estuary/content')) return;
-                        const alt = (i.alt || '').trim();
-                        const nut = i.closest('button[aria-label^="Open image "]');
-                        if ((!alt || alt.toLowerCase().startsWith('generated image')) && !nut) return;
+                        if (!laRef(i)) return;
                         let k = s;
                         try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
                         if (!seen.has(k)) { seen.add(k); out.push(k); } });
                     return out; }"""
 
-JS_ANH_SAU_MOC_TURN = r"""async ({moc, quet}) => {
+JS_ANH_SAU_MOC_TURN = r"""async ({moc, quet}) => {""" + _JS_LA_REF + r"""
                     const nghi = ms => new Promise(r => setTimeout(r, ms));
                     const out = [];
                     const turns = [...document.querySelectorAll(
@@ -139,8 +150,7 @@ JS_ANH_SAU_MOC_TURN = r"""async ({moc, quet}) => {
                     const gom = (n, t, seen) => t.querySelectorAll('img').forEach(i => {
                         const s = i.currentSrc || i.src || '';
                         if (!s.includes('/backend-api/estuary/content')) return;
-                        const alt = (i.alt || '').trim().toLowerCase();
-                        if (alt && !alt.startsWith('generated image')) return;
+                        if (laRef(i)) return;
                         let k = s;
                         try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
                         if (!seen.has(k)) { seen.add(k); out.push([n, k, s]); }
@@ -181,7 +191,7 @@ JS_ANH_SAU_MOC_TURN = r"""async ({moc, quet}) => {
                     return out;
                 }"""
 
-JS_QUET_CUON = """async () => {
+JS_QUET_CUON = """async () => {""" + _JS_LA_REF + """
                     const nghi = ms => new Promise(r => setTimeout(r, ms));
                     const out = [], seen = new Set();
                     const uSel = "[data-turn='user'],[data-message-author-role='user']";
@@ -189,9 +199,7 @@ JS_QUET_CUON = """async () => {
                         const s = i.currentSrc || i.src || '';
                         if (!s.includes('/backend-api/estuary/content')) return;
                         if (i.closest(uSel)) return;
-                        const alt = (i.alt || '').trim();
-                        const nut = i.closest('button[aria-label^="Open image "]');
-                        if ((alt && alt.toLowerCase() !== 'generated image') || nut) return;
+                        if (laRef(i)) return;
                         let k = s;
                         try { k = new URL(s).searchParams.get('id') || s; } catch (e) {}
                         if (!seen.has(k)) { seen.add(k); out.push([k, s]); }

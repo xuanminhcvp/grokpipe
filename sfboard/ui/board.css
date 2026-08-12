@@ -2082,7 +2082,108 @@ button.auto-b.on {
   color: var(--bad)
 }
 
-/* CSS của dải LƯỢT CHỜ PHÂN LOẠI đã bỏ 2026-08-09 cùng tính năng đó. */
+/* HỘP LỖI 🐞 — mọi cảnh báo/lỗi của board và executor, đọc ngay trên board
+   thay vì phải mở Terminal. */
+#loipanel {
+  margin: 8px 0;
+  border: 1px solid var(--line, #ddd);
+  border-radius: 10px;
+  background: var(--card, #fff);
+  overflow: hidden
+}
+
+.loihead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, #ddd);
+  background: #fef2f2;
+  flex-wrap: wrap
+}
+
+.loihead input[type=text],
+#loitim {
+  padding: 3px 8px;
+  border: 1px solid var(--line, #ddd);
+  border-radius: 6px;
+  font-size: 12px;
+  min-width: 170px
+}
+
+#loibody {
+  max-height: 360px;
+  overflow: auto;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace
+}
+
+.loirow {
+  display: flex;
+  gap: 8px;
+  padding: 3px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  align-items: baseline
+}
+
+.loirow.nang {
+  background: #fff1f2
+}
+
+.loiluc {
+  color: var(--tx2);
+  flex: 0 0 58px
+}
+
+.loimuc {
+  flex: 0 0 62px;
+  color: #b45309;
+  font-weight: 600
+}
+
+.loirow.nang .loimuc {
+  color: var(--bad, #dc2626)
+}
+
+/* Chữ lỗi phải XUỐNG DÒNG chứ không cắt cụt: mấy dòng dài nhất — danh sách nút
+   đang hiện, URL trang kẹt — chính là phần cần đọc để sửa. */
+.loitext {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word
+}
+
+/* Dải ẢNH CHỜ trên thẻ đang báo lỗi — dựng lại 2026-08-12. Bỏ dải này
+   2026-08-09 làm ảnh của lượt lệch không còn đường nào lên thẻ, dù thông báo
+   vẫn bảo user "bấm chọn ngay trên thẻ". */
+.plstrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 5px 7px;
+  background: #fffbeb;
+  border-top: 1px solid #fde68a
+}
+
+.plstrip .pllab {
+  flex: 0 0 100%;
+  font-size: 11px;
+  color: #92400e
+}
+
+.plstrip img {
+  width: 62px;
+  height: 62px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #fcd34d;
+  cursor: pointer
+}
+
+.plstrip img:hover {
+  border-color: var(--acc);
+  transform: scale(1.06)
+}
 /* Nhãn lượt `T12·#02` từng vẽ đè lên góc dưới-trái thumbnail. BỎ 2026-08-07:
    ChatGPT giờ in thẳng mã SF vào đúng góc đó trong ảnh, hai nhãn chồng lên nhau.
    Số lượt vẫn tra được ở tooltip từng bản trong dãy "bản:" và trong dòng trạng

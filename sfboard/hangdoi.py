@@ -33,7 +33,31 @@ _HANG_SEQ = itertools.count()
 # ĐÂY LÀ DẤU VẾT ĐÃ GHI, KHÔNG PHẢI HÀNG ĐỢI. Hai thứ lệch nhau được: việc rơi
 # khỏi hàng vẫn để lại nhãn 'chờ' nằm đó vĩnh viễn. Muốn biết hàng đợi thật thì
 # gọi `y_trong_hang()`, đừng đọc JOBS.
-JOBS: dict[str, dict] = {}
+class _Jobs(dict):
+    """dict trạng thái việc — GỌI MÓC mỗi khi một việc chuyển sang lỗi.
+
+    Trạng thái lỗi được đặt ở hơn hai chục nhánh rải khắp `sfboard.py`, phần lớn
+    KHÔNG kèm log. Hộp 🐞 trên board và log Terminal vì thế thiếu đúng thứ hay
+    hỏng nhất, còn thẻ trên board chỉ hiện một dòng cụt. Chặn ở đây là chặn một
+    lần cho tất cả, khỏi phải nhớ log ở từng nhánh mới thêm sau này.
+
+    Móc chỉ bắn khi NỘI DUNG lỗi đổi — vòng gác đặt lại cùng một trạng thái mỗi
+    vài giây, ghi hết thì sổ lỗi ngập một dòng lặp.
+    """
+
+    khi_loi = None          # sfboard.py gắn hàm log vào đây lúc khởi động
+
+    def __setitem__(self, k, v):
+        try:
+            if (self.khi_loi and isinstance(v, dict) and v.get("state") == "error"
+                    and (self.get(k) or {}).get("msg") != v.get("msg")):
+                self.khi_loi(k, str(v.get("msg") or ""))
+        except Exception:
+            pass                # móc hỏng KHÔNG được làm hỏng việc đặt trạng thái
+        super().__setitem__(k, v)
+
+
+JOBS: dict[str, dict] = _Jobs()
 
 DA_HUY: set[str] = set()          # ident user đã huỷ, thợ phải bỏ qua
 HUY_LOCK = threading.Lock()

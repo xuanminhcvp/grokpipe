@@ -23,6 +23,12 @@ import time
 from ..models import Task
 from ..state import Store
 from . import common as C
+from .dom_grok import (
+    DAU_TRANG_POST, JS_CHAN_DOAN, JS_CHU_TRONG_O_SOAN, JS_CLICK_LUOT_MOI,
+    JS_CLICK_RADIO, JS_CLICK_TEXT, JS_CO_MODE_VIDEO, JS_CO_NUT_GUI,
+    JS_DAT_TEN_TAB, JS_DONG_DAU_VIDEO_CU, JS_HET_CREDIT, JS_NUT_DANG_CO,
+    JS_VIDEO_THAT, SELECTORS, URL_IMAGINE, loi_mang,
+)
 
 try:
     from playwright.sync_api import sync_playwright  # type: ignore
@@ -42,7 +48,7 @@ _TAG = "gpslot"
 class GrokSession:
     """Phiên grok.com/imagine qua CDP, giữ xuyên suốt pipeline."""
 
-    URL = "https://grok.com/imagine"
+    URL = URL_IMAGINE
 
     def __init__(self, cdp_endpoint: str | None, logger, gen_timeout: float = 600.0,
                  resolution: str = "720p", shared_ctx=None, slot: int = 0):
@@ -86,7 +92,10 @@ class GrokSession:
             self.logger.info("Grok session sẵn sàng.")
             return True
         except Exception as e:
-            self.logger.warning(f"Không nối được Grok qua CDP ({e}) — chạy thủ công.")
+            ma = loi_mang(e)
+            self.logger.warning(
+                "Không nối được Grok qua CDP (%s)%s — chạy thủ công.", str(e)[:120],
+                f" · LỖI MẠNG {ma}: chữa ở tầng Chrome/mạng, không phải selector" if ma else "")
             self.close()
             return False
 
@@ -111,11 +120,11 @@ class GrokSession:
         if self.slot == 0:
             for pg in mo:
                 if "grok.com" in (pg.url or "") and not ten(pg).startswith(_TAG):
-                    pg.evaluate("n => { window.name = n }", tag)
+                    pg.evaluate(JS_DAT_TEN_TAB, tag)
                     return pg
         pg = self._ctx.new_page()
         pg.goto(self.URL, wait_until="domcontentloaded")
-        pg.evaluate("n => { window.name = n }", tag)
+        pg.evaluate(JS_DAT_TEN_TAB, tag)
         return pg
 
     def _ensure_ready(self) -> bool:
@@ -125,7 +134,7 @@ class GrokSession:
                 title = (self.page.title() or "").lower()
                 if "just a moment" in title:
                     raise RuntimeError("cloudflare")
-                self.page.wait_for_selector("[contenteditable='true']", timeout=12000)
+                self.page.wait_for_selector(SELECTORS["composer"], timeout=12000)
                 return True
             except Exception:
                 print("\n  >>> Trong cửa sổ Chrome: hãy tự qua 'Verify you are human'"
@@ -162,30 +171,12 @@ class GrokSession:
     # ------------------------------------------------------------------
     def _jclick(self, label: str) -> bool:
         """Click button theo text CHÍNH XÁC bằng JS (dùng cho nút có text)."""
-        r = self.page.evaluate(
-            """(lab) => {
-              const cands=[...document.querySelectorAll('button')].filter(b=>{
-                const t=(b.textContent||'').trim();
-                return b.getBoundingClientRect().width>0 && t===lab;});
-              if(!cands.length) return false;
-              cands[0].click(); return true;
-            }""", label)
-        return bool(r)
+        return bool(self.page.evaluate(JS_CLICK_TEXT, label))
 
     def _click_radio(self, name: str) -> bool:
         """Click nút role=radio theo aria-label HOẶC text (mode Video/Image là icon
         chỉ có aria-label; 480p/720p/6s/10s có text)."""
-        r = self.page.evaluate(
-            """(name) => {
-              const els=[...document.querySelectorAll('[role=radio],button')].filter(e=>{
-                if (e.getBoundingClientRect().width===0) return false;
-                const a=(e.getAttribute('aria-label')||'').trim();
-                const t=(e.textContent||'').trim();
-                return a===name || t===name;});
-              if(!els.length) return false;
-              els[0].click(); return true;
-            }""", name)
-        return bool(r)
+        return bool(self.page.evaluate(JS_CLICK_RADIO, name))
 
     def _cho_radio(self, name: str, giay: float = 20) -> bool:
         """Chờ nút xuất hiện rồi mới bấm. Grok là SPA: sau goto, hàng nút mất vài
@@ -200,36 +191,93 @@ class GrokSession:
     def _nut_dang_co(self) -> str:
         """Liệt kê nút đang hiện — để thông báo lỗi nói được MÀN HÌNH ĐANG Ở ĐÂU."""
         try:
-            r = self.page.evaluate(
-                """() => [...document.querySelectorAll('[role=radio],button')]
-                     .filter(e => e.getBoundingClientRect().width > 0)
-                     .map(e => (e.getAttribute('aria-label')||'').trim()
-                               || (e.textContent||'').trim())
-                     .filter(t => t && t.length < 24).slice(0, 18)""")
-            return ", ".join(r)
-        except Exception:
-            return "(không đọc được)"
+            return ", ".join(self.page.evaluate(JS_NUT_DANG_CO))
+        except Exception as e:
+            # Đọc không được cũng phải nói VÌ SAO. "(không đọc được)" trơ trọi là
+            # đúng thứ làm mọi báo lỗi bên dưới thành vô dụng: tab crash, trang
+            # trắng, hay CDP đứt đều ra chung một câu.
+            return f"(không đọc được: {str(e)[:60]})"
+
+    def _chan_doan(self) -> str:
+        """Một dòng mô tả ĐẦY ĐỦ hiện trạng tab — đính vào MỌI lỗi của executor.
+
+        Có URL · ngôn ngữ giao diện · ô soạn · nút gửi · mode Video · nút mở lượt
+        mới · số video · danh sách nút. Đủ để phân biệt ba ca trông giống hệt
+        nhau trong log cũ: kẹt trang post · Grok đổi giao diện · tab chết.
+        """
+        try:
+            d = self.page.evaluate(JS_CHAN_DOAN)
+        except Exception as e:
+            return f"không đọc được hiện trạng ({str(e)[:70]})"
+        return (f"URL {str(d.get('url'))[:70]} · lang={d.get('lang') or '?'} · "
+                f"ô soạn {d.get('o_soan')} · nút gửi {d.get('nut_gui')} · "
+                f"mode Video {'CÓ' if d.get('co_mode_video') else 'KHÔNG'} · "
+                f"lượt mới {d.get('co_luot_moi') or 'không có'} · "
+                f"{d.get('so_video')} video | nút: {', '.join(d.get('nut') or [])[:140]}")
 
     def _ve_trang_imagine(self) -> bool:
         """Đưa tab về ĐÚNG trang /imagine. Trang post KHÔNG có nút mode 'Video'
-        (nó chỉ có 'Make video'), nên đứng nhầm trang là hỏng cả job."""
+        (nó chỉ có 'Make video'), nên đứng nhầm trang là hỏng cả job.
+
+        HAI ĐƯỜNG VỀ, thử lần lượt — bản cũ chỉ có đường thứ nhất nên tab kẹt ở
+        trang post của video TRƯỚC là chết cả job, đúng triệu chứng "chạy được
+        vài video rồi lỗi liên tục":
+          1. `goto` — nhanh, nhưng Grok là SPA và hay khôi phục phiên cũ, kéo tab
+             ngược về /imagine/post/ ngay sau khi tải xong.
+          2. BẤM NÚT 'New Generation' — đi đúng luồng của chính giao diện, nên
+             không bị khôi phục đè. Đây là đường thoát thật khi (1) trượt.
+
+        Lỗi MẠNG được tách riêng: ERR_QUIC_PROTOCOL_ERROR và họ hàng không phải
+        chuyện selector, thử lại bao nhiêu lần cũng vô ích nếu không chữa đúng
+        chỗ — nên nó được nêu đích danh trong log kèm cách chữa.
+        """
+        ma_mang = ""
         for lan in range(3):
             try:
                 self.page.goto(self.URL, wait_until="domcontentloaded")
             except Exception as e:
-                self.logger.warning("Grok: goto lần %d hỏng (%s)", lan + 1, str(e)[:70])
+                ma = loi_mang(e)
+                if ma:
+                    ma_mang = ma
+                    self.logger.warning(
+                        "Grok: LỖI MẠNG %s ở lượt %d/3 — Chrome không với tới "
+                        "grok.com. Đây KHÔNG phải lỗi giao diện: chữa bằng cách mở "
+                        "lại Chrome debug (board thêm cờ --disable-quic từ "
+                        "2026-08-12), hoặc kiểm mạng/VPN.", ma, lan + 1)
+                else:
+                    self.logger.warning("Grok: goto lần %d hỏng (%s)", lan + 1, str(e)[:70])
             for _ in range(24):                      # chờ tối đa ~12s cho SPA dựng
                 time.sleep(0.5)
                 try:
-                    if "/imagine/post/" in (self.page.url or ""):
-                        break                        # SPA nhảy lại post → goto lại
-                    if self.page.evaluate(
-                        """() => [...document.querySelectorAll('[role=radio]')]
-                             .some(e => (e.getAttribute('aria-label')||'') === 'Video'
-                                        && e.getBoundingClientRect().width > 0)"""):
+                    if DAU_TRANG_POST in (self.page.url or ""):
+                        break                        # SPA nhảy lại post → thử đường 2
+                    if self.page.evaluate(JS_CO_MODE_VIDEO):
                         return True
                 except Exception:
                     pass
+            # ĐƯỜNG 2 — bấm nút mở lượt mới ngay trên trang post đang kẹt.
+            try:
+                ten = self.page.evaluate(JS_CLICK_LUOT_MOI)
+            except Exception as e:
+                ten = ""
+                self.logger.warning("Grok: không bấm được nút mở lượt mới (%s)",
+                                    str(e)[:70])
+            if ten:
+                self.logger.info("Grok: kẹt ở trang post → bấm '%s' (lượt %d/3)",
+                                 ten, lan + 1)
+                for _ in range(20):                  # ~10s cho SPA dựng lại
+                    time.sleep(0.5)
+                    try:
+                        if self.page.evaluate(JS_CO_MODE_VIDEO):
+                            return True
+                    except Exception:
+                        pass
+            self.logger.warning("Grok: chưa về được trang soạn (lượt %d/3) — %s",
+                                lan + 1, self._chan_doan())
+        if ma_mang:
+            self.logger.warning(
+                "Grok: bỏ cuộc sau 3 lượt, nguyên nhân gốc là LỖI MẠNG %s "
+                "(không phải selector).", ma_mang)
         return False
 
     def _bam_submit(self, giay: float = 15) -> bool:
@@ -287,9 +335,7 @@ class GrokSession:
 
     def _out_of_credits(self) -> bool:
         try:
-            return self.page.evaluate(
-                """() => [...document.querySelectorAll('[aria-label]')]
-                     .some(e => /100% credits used/i.test(e.getAttribute('aria-label')||''))""")
+            return bool(self.page.evaluate(JS_HET_CREDIT))
         except Exception:
             return False
 
@@ -298,15 +344,9 @@ class GrokSession:
     # Không lọc thì hai chuyện xảy ra cùng lúc: (1) log báo "Grok trả về 2-3
     # clip" trong khi thật ra chỉ có một, (2) `new[-1]` bốc trúng thumbnail của
     # video CŨ và board tải nhầm bản — sai kiểu đó hoàn toàn im lặng.
-    _JS_VIDEO_THAT = """() => [...document.querySelectorAll('video')]
-         .map(v => ({src: v.currentSrc || v.src || '',
-                     dur: v.duration || 0,
-                     w: v.getBoundingClientRect().width,
-                     cu: v.dataset.gpCu === '1'}))
-         .filter(v => v.src.startsWith('http') && v.w >= 200)"""
 
     def _video_srcs(self) -> list[str]:
-        return [v["src"] for v in self.page.evaluate(self._JS_VIDEO_THAT)]
+        return [v["src"] for v in self.page.evaluate(JS_VIDEO_THAT)]
 
     # ------------------------------------------------------------------
     def generate(self, prompt: str, image_path: str, out_path: str,
@@ -333,8 +373,8 @@ class GrokSession:
         for lan in range(3):
             if not self._ve_trang_imagine():
                 raise C.ExecutorError(
-                    "Không về được trang grok.com/imagine (tab đang ở: "
-                    f"{(page.url or '')[:70]}). Nút đang thấy: {self._nut_dang_co()}")
+                    "Không về được trang grok.com/imagine sau 3 lượt (goto lẫn nút "
+                    f"'New Generation' đều không đưa tab về trang soạn). {self._chan_doan()}")
             self._dismiss_popups()
 
             if not self._cho_radio("Video", 15):
@@ -343,10 +383,10 @@ class GrokSession:
             self._cho_radio(self.resolution, 8)
             self._cho_radio(dur_label, 8)
 
-            page.locator("input[type=file]").first.set_input_files(image_path)
+            page.locator(SELECTORS["file_input"]).first.set_input_files(image_path)
             time.sleep(4)
 
-            if "/imagine/post/" in (page.url or ""):
+            if DAU_TRANG_POST in (page.url or ""):
                 # Tab bị đẩy sang trang post giữa chừng — làm lại từ đầu, đừng cố chữa
                 self.logger.warning("Grok: tab trôi sang trang post sau khi upload "
                                     "(lượt %d/3), làm lại", lan + 1)
@@ -358,7 +398,7 @@ class GrokSession:
             # nguyên prompt của lượt trước (thấy trên UI 2026-08-09) — gõ chồng
             # lên là prompt mới dính đuôi prompt cũ, model đọc ra một thứ lai.
             try:
-                page.locator("[contenteditable='true']").last.click()
+                page.locator(SELECTORS["composer"]).last.click()
                 page.keyboard.press("Meta+A")
                 page.keyboard.press("Backspace")
                 time.sleep(0.3)
@@ -369,9 +409,7 @@ class GrokSession:
             # Trang post không có nút này — trước đây code cứ thế gõ rồi bấm vào
             # hư không, hết 15s timeout, job treo tới lúc hết giờ render. Kiểm ở
             # đây thì còn nằm trong vòng lặp, làm lại sạch từ đầu được.
-            if "/imagine/post/" in (page.url or "") or not page.evaluate(
-                    """() => !![...document.querySelectorAll('button[type=submit]')]
-                         .find(e => e.getBoundingClientRect().width > 0)"""):
+            if DAU_TRANG_POST in (page.url or "") or not page.evaluate(JS_CO_NUT_GUI):
                 self.logger.warning(
                     "Grok: chưa về đúng trang soạn (lượt %d/3) — URL %s · nút: %s",
                     lan + 1, (page.url or "")[:55], self._nut_dang_co()[:90])
@@ -381,8 +419,7 @@ class GrokSession:
         if not xong:
             raise C.ExecutorError(
                 "Không về được trang soạn có nút gửi sau 3 lượt (tab hay kẹt lại "
-                "trang kết quả của video trước). "
-                f"Nút đang thấy: {self._nut_dang_co()} | URL: {(page.url or '')[:60]}")
+                f"trang kết quả của video trước). {self._chan_doan()}")
 
         # hết credit -> fail nhanh, không chờ 10 phút vô ích
         if self._out_of_credits():
@@ -401,14 +438,12 @@ class GrokSession:
         # nạp của lượt TRƯỚC" với "clip của lượt NÀY": so theo src thì cái rỗng
         # lọt lưới, so theo URL post thì hụt vì Grok render tại chỗ không đổi URL.
         try:
-            page.evaluate(
-                """() => document.querySelectorAll('video')
-                     .forEach(v => v.dataset.gpCu = '1')""")
+            page.evaluate(JS_DONG_DAU_VIDEO_CU)
         except Exception as e:
             self.logger.warning("Grok: không đóng dấu được video cũ (%s)", str(e)[:70])
 
         # prompt + submit
-        ed = page.locator("[contenteditable='true']").last
+        ed = page.locator(SELECTORS["composer"]).last
         ed.click()
         page.keyboard.insert_text(prompt)
         time.sleep(0.5)
@@ -416,21 +451,17 @@ class GrokSession:
         # dựng lại thì insert_text rơi vào hư không, submit đi tay không và
         # Grok tự bịa nội dung — hỏng câm, không lỗi nào nổ ra.
         try:
-            trong_o = page.evaluate(
-                """() => {const b=document.querySelector("[contenteditable='true']");
-                          return b ? (b.innerText||'').trim().length : -1}""")
+            trong_o = page.evaluate(JS_CHU_TRONG_O_SOAN)
             if trong_o < min(40, len(prompt)):
                 raise C.ExecutorError(
                     f"Prompt không vào được ô soạn (ô đang có {trong_o} ký tự, "
-                    f"prompt {len(prompt)}). URL: {(page.url or '')[:60]}")
+                    f"prompt {len(prompt)}). {self._chan_doan()}")
         except C.ExecutorError:
             raise
         except Exception:
             pass
         if not self._bam_submit(15):
-            raise C.ExecutorError(
-                "Không bấm được nút gửi. Nút đang thấy: "
-                f"{self._nut_dang_co()} | URL: {(page.url or '')[:60]}")
+            raise C.ExecutorError(f"Không bấm được nút gửi. {self._chan_doan()}")
         self.logger.info("Grok: đã submit, chờ render...")
 
         # ⛔ ĐỪNG BẮT TRANG PHẢI NHẢY SANG POST MỚI. Đã thử 2026-08-09 và HỎNG:
@@ -444,7 +475,7 @@ class GrokSession:
         while time.time() < deadline:
             time.sleep(5)
             try:
-                infos = page.evaluate(self._JS_VIDEO_THAT)
+                infos = page.evaluate(JS_VIDEO_THAT)
                 new = [v for v in infos
                        if not v["cu"] and v["src"] and v["src"] not in before
                        and v["dur"] and v["dur"] >= 3]
@@ -462,8 +493,7 @@ class GrokSession:
                 pass
         if not vid_src:
             raise C.ExecutorError(
-                f"Hết {int(self.gen_timeout)}s chờ Grok render. "
-                f"URL: {(page.url or '')[:60]} | Nút đang thấy: {self._nut_dang_co()[:90]}")
+                f"Hết {int(self.gen_timeout)}s chờ Grok render. {self._chan_doan()}")
         self.logger.info(f"Grok: video xong ({vid_src[:70]}...), đang tải")
 
         data = self._tai_ve(vid_src)

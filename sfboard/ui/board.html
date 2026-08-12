@@ -96,6 +96,9 @@
         Mã SF</button>
       <button onclick="toggleQueue()" id="qbtn"
         title="Xem mọi việc đang chạy và đang chờ, xếp theo đoạn chat. Nút dừng nằm trong đây.">▤ Hàng đợi</button>
+      <button onclick="toggleLoi()" id="loibtn"
+        title="Mọi cảnh báo và lỗi của board — selector chết, lỗi mạng, tab kẹt, job hỏng. Copy cả hộp để gửi đi nhờ sửa.">🐞
+        Lỗi <i id="loin"></i></button>
       <span class="hint" id="runstatus" style="color:var(--acc)"></span>
       <div id="lobar">
         <b><span id="lonum">0</span> ảnh đã chọn</b>
@@ -114,6 +117,22 @@
           trong cửa sổ</span>
       </div>
       <div id="acctrows" style="display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <!-- HỘP LỖI. Nằm trong luồng trang chứ không phải cửa sổ nổi: lỗi thường
+         phải đọc song song với thẻ đang hỏng, hộp nổi che mất thẻ. -->
+    <div id="loipanel" style="display:none">
+      <div class="loihead">
+        <b>🐞 Lỗi &amp; cảnh báo</b>
+        <span class="hint" id="loimeta"></span>
+        <span style="flex:1"></span>
+        <label class="hint" title="Chỉ hiện dòng ERROR, giấu WARNING"><input type="checkbox"
+            id="loinang" onchange="veLoi()"> chỉ lỗi nặng</label>
+        <input id="loitim" placeholder="lọc chữ… (grok, quic, selector)" oninput="veLoi()">
+        <button onclick="loiCopy()" id="loicopy" title="Chép toàn bộ (đã lọc) vào clipboard">⧉ Copy</button>
+        <button onclick="loiXoa()" class="bad-b" title="Dọn sổ lỗi trên board">🗑 Dọn</button>
+        <button onclick="toggleLoi()" title="Đóng hộp">✕</button>
+      </div>
+      <div id="loibody"></div>
     </div>
     <div id="root"></div>
   </main>
