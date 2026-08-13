@@ -349,15 +349,22 @@ function veHangDoi() {
              title="Dọn dòng lỗi này khỏi danh sách — không đụng ảnh hay prompt"
              onclick="xoaLoi('${esc(id)}')">✕</button>`);
       const g = (QNHOM || {})[id] || {};
+      // TÁCH NHÃN TÀI KHOẢN RA THÀNH CHIP RIÊNG. Board dán "[gpt-4 :9225]" vào
+      // đầu mọi thông báo lỗi, nhưng nằm lẫn trong câu dài thì phải đọc mới thấy
+      // — mà câu hỏi đầu tiên khi nhìn danh sách lỗi luôn là "cửa sổ nào".
+      const _mtk = /^\[([^\]]+)\]\s*/.exec(j.msg || '');
+      const _tk = _mtk ? _mtk[1] : '';
+      const _msg = _mtk ? (j.msg || '').slice(_mtk[0].length) : (j.msg || '');
       h += `<div class="qi" title="${esc(j.msg || '')}">`
         + `<input type="checkbox" data-qt="${esc(id)}" ${QTICK.has(id) ? 'checked' : ''}
         onclick="qTick('${esc(id)}',this.checked)" style="flex:none;margin:0">`
         + `<span class="d" style="background:${MAU[tt]}"></span>`
         + `<span class="n">${esc(id)}${g.bieu_tuong ? ` <span class="hint">${esc(g.bieu_tuong)} ${esc(g.nhan || '')}</span>` : ''}</span>`
+        + (tt === 'error' && _tk ? `<span class="qtk" title="Cửa sổ Chrome đã chạy việc này">${esc(_tk)}</span>` : '')
         + `<span class="t">${tt === 'running' ? (giay ? giay + 's' : '…') : 'lỗi'}</span>`
         + nut + `</div>`;
-      if (tt === 'error' && j.msg)
-        h += `<div class="hint" style="font-size:11px;margin:-2px 0 4px 14px;color:#b45309">${esc(j.msg.slice(0, 150))}</div>`;
+      if (tt === 'error' && _msg)
+        h += `<div class="hint" style="font-size:11px;margin:-2px 0 4px 14px;color:#b45309">${esc(_msg.slice(0, 150))}</div>`;
     }
     h += '</div>';
   }
@@ -621,7 +628,7 @@ function toggleAccts() {
 async function datSoTK(n) {
   const r = await (await fetch('/api/so-tk?n=' + encodeURIComponent(n), { method: 'POST' })).json();
   const o = $('#sotk'); if (o) o.value = r.so;
-  $('#runstatus').textContent = `giữ ${r.so} tài khoản ChatGPT chạy cùng lúc`;
+  $('#runstatus').textContent = `trần ${r.so} tài khoản ChatGPT chạy cùng lúc`;
   setTimeout(() => $('#runstatus').textContent = '', 5000);
   pollAccts();
 }
@@ -1019,7 +1026,7 @@ function render() {
   <span style="flex:1"></span>
   <span class="sfdens ${nsf && coanh === nsf ? 'ok' : ''}"
     title="${coanh}/${nsf} SF của scene này đã có ảnh">${coanh}/${nsf}</span>
-  ${sc.id !== 'REF' ? autoBtn(sc) : ''}
+  ${autoBtn(sc)}
   ${nutTask(sc, list)}
   <button class="sm" onclick="tickScene('${sc.id}')"
     title="Tích mọi thẻ đang hiện của scene này để 'Tạo lại theo lô'">☑ Chọn hết</button>
@@ -1202,7 +1209,8 @@ async function chayHetPhim() {
   if (!await hoi(`Chạy hết ${n} ảnh còn thiếu của ${thieu.length} scene?\n\n`
     + `Board tự chia task ≤10 ảnh cùng địa điểm rồi đẩy lần lượt vào hàng chờ,\n`
     + `lỗi thì tự bắn lại, xong scene nào tự tắt scene đó.\n\n`
-    + `Thẻ đã có ảnh và scene REF được bỏ qua.`, { dong: 'Chạy hết phim' })) return;
+    + `Thẻ đã có ảnh và scene REF được bỏ qua — REF có nút "▶ Chạy hết" riêng.`,
+    { dong: 'Chạy hết phim' })) return;
   const r = await (await fetch('/api/auto?op=onall', { method: 'POST' })).json();
   AUTO = r.auto || {}; render();
   $('#runstatus').textContent = `đã bật auto cho ${r.so} scene: ${(r.scenes || []).join(', ')}`;
@@ -1849,20 +1857,34 @@ async function huyHang() {
 // từng thẻ rồi đếm nhẩm; phần dư dồn vào task cuối.
 const TASK_CO = 10;
 
+// KHOÁ NHÓM của một thẻ — phải khớp cách BOARD gom lô, nếu không nút T hứa một
+// đằng mà board chạy một nẻo (bấm T1 "10 ảnh" rồi board xé thành 5 tin nhắn).
+//   · scene thường → theo địa điểm (refs.bg)
+//   · REF_PROP_…   → đạo cụ, một nhóm
+//   · REF_<TÊN>_…  → theo NHÂN VẬT: chân dung và mọi bộ trang phục của cùng một
+//     người phải vẽ chung một chat, nếu không khuôn mặt trôi dần qua từng bộ.
+function khoaNhom(f) {
+  const id = f.id || '';
+  if (id.startsWith('REF_PROP_')) return 'PROP';
+  const m = /^REF_([A-Z0-9]+)_/.exec(id);
+  if (m) return 'NV:' + m[1];
+  return (f.refs || {}).bg || '';
+}
+
 // Hai luật khi chia:
 //   1. CHỈ THẺ CHƯA CÓ ẢNH. Nút này để TẠO, mà thẻ đã có ảnh thì board bỏ qua
 //      khi chạy — chia theo tổng số thì "T1 (10)" thực chất gửi 3 ảnh.
-//   2. MỘT TASK = MỘT ĐỊA ĐIỂM. Một tin nhắn chỉ mang được một khối `luatchung`,
-//      nên lô lẫn hai địa điểm bị board CHẶN THẲNG. Đã đo trên phim này: S12 có
-//      2 địa điểm, S15 có 2 — chia thuần theo thứ tự là hai scene đó bấm phát
-//      nào chặn phát ấy.
+//   2. MỘT TASK = MỘT NHÓM (địa điểm, hoặc nhân vật với thẻ REF). Một tin nhắn
+//      chỉ mang được một khối `luatchung`, nên lô lẫn hai địa điểm bị board CHẶN
+//      THẲNG. Đã đo trên phim này: S12 có 2 địa điểm, S15 có 2 — chia thuần theo
+//      thứ tự là hai scene đó bấm phát nào chặn phát ấy.
 function taskCua(list) {
   const con = list.filter(f => !f.image);
   const theoBg = new Map();
   for (const f of con) {
-    const bg = (f.refs || {}).bg || '';
-    if (!theoBg.has(bg)) theoBg.set(bg, []);
-    theoBg.get(bg).push(f);
+    const k = khoaNhom(f);
+    if (!theoBg.has(k)) theoBg.set(k, []);
+    theoBg.get(k).push(f);
   }
   // CẮT ĐÚNG 10, DƯ BAO NHIÊU THÀNH TASK CUỐI. Không dồn phần dư ngược lên:
   // đã thử và sai — 14 thẻ dồn thành MỘT task 14 ảnh, phá đúng cái trần 10 sinh

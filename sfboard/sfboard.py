@@ -478,14 +478,15 @@ def _pool(kind: str) -> list[str]:
         pool = [_ep(a) for a in ACCOUNTS if a["kind"] == kind and a["enabled"]]
         if kind == "vid" and not pool:
             # Dự phòng: mở grok.com ngay trong cửa sổ ChatGPT. Chỉ chạy được nếu
-            # profile đó CŨNG đã đăng nhập grok.com — nên phải kêu to, đừng lặng
-            # lẽ đẩy việc video sang Chrome ChatGPT rồi để user tự đoán.
+            # profile đó CŨNG đã đăng nhập grok.com.
+            #
+            # KHÔNG CẢNH BÁO Ở ĐÂY (user chốt 2026-08-13). Hàm này được gọi mỗi
+            # vòng thợ và mỗi lần đếm tài khoản, nên một dòng warning ở đây là
+            # vài chục dòng mỗi phút — ngập hộp 🐞 và che mất lỗi thật. Tắt Grok
+            # là chuyện bình thường: user bật khi nào cần dựng video.
+            # Việc video chạy nhờ mà không nối được Grok vẫn báo lỗi rõ ràng ở
+            # đúng job đó ("Không nối được Grok"), nên không có gì bị giấu.
             pool = [_ep(a) for a in ACCOUNTS if a["kind"] == "img" and a["enabled"]]
-            if pool:
-                _LOG.warning(
-                    "KHÔNG có tài khoản Grok nào đang BẬT — việc tạo video sẽ chạy nhờ trong "
-                    "cửa sổ Chrome ChatGPT (%s). Muốn dùng đúng Chrome Grok thì vào mục Tài "
-                    "khoản trên board và BẬT tài khoản grok.", ", ".join(pool))
         return pool
 
 
@@ -940,6 +941,37 @@ logging.getLogger().addHandler(_thu)          # bắt cả log của executor gr
 JOBS.__class__.khi_loi = staticmethod(
     lambda ident, msg: _LOG.warning("việc %s LỖI: %s", ident, msg[:500]))
 
+
+def _nhan_tk() -> str:
+    """'gpt-4 :9225' của luồng thợ đang chạy — rỗng nếu không ở trong luồng thợ."""
+    ep = getattr(_TL, "endpoint", "") or ""
+    if not ep:
+        return ""
+    try:
+        port = int(ep.rsplit(":", 1)[1])
+    except Exception:
+        return ""
+    with ACC_LOCK:
+        a = next((x for x in ACCOUNTS if x["port"] == port), None)
+    return f"{a['id']} :{port}" if a else f":{port}"
+
+
+def _dan_nhan_tk(msg: str) -> str:
+    """Gắn '[gpt-4 :9225]' vào đầu thông báo lỗi.
+
+    Bốn cửa sổ Chrome đều cùng URL chatgpt.com, nên lỗi kiểu "Page crashed" hay
+    "ô soạn aria-hidden" không chỉ ra nổi cửa sổ nào cần chữa. Nhãn này trả lời
+    đúng câu đó. Bỏ qua khi lỗi đến từ luồng HTTP (không thuộc tài khoản nào) và
+    khi nhãn đã có sẵn — tránh dán chồng lúc việc bị đặt lỗi nhiều lần.
+    """
+    nhan = _nhan_tk()
+    if not nhan or msg.startswith("["):
+        return msg
+    return f"[{nhan}] {msg}"
+
+
+JOBS.__class__.dan_nhan = staticmethod(_dan_nhan_tk)
+
 # Mỗi luồng thợ giữ Playwright + phiên RIÊNG của nó (sync_playwright không dùng chung
 # được giữa các luồng, nhưng mỗi luồng có một instance riêng thì hoàn toàn hợp lệ).
 _TL = threading.local()
@@ -987,8 +1019,11 @@ def _mark_dead(endpoint: str, reason: str, kind: str = "img", den: float = 0.0):
             if a:
                 _save_accounts()
             _LOG.info("đóng cửa sổ Chrome và tắt %s trong lúc nghỉ — trả RAM cho máy; "
-                      "hết giờ nghỉ nó nằm chờ làm dự bị, chỉ bật lại khi cần bù người",
-                      endpoint)
+                      "hết giờ nghỉ nó nằm chờ làm dự bị", endpoint)
+            # Bù MỘT tài khoản khác để việc còn chảy. Chỉ ở đây, không phải vòng
+            # định kỳ — user tắt tay thì board không được tự ý thế chỗ.
+            if kind == "img":
+                _bu_tai_khoan_bi_chan(tru=endpoint)
         except Exception as e:
             _LOG.warning("không đóng được Chrome của %s: %s", endpoint, str(e)[:60])
 
@@ -1037,44 +1072,68 @@ def _so_tk_ghi(n: int) -> int:
     return n
 
 
-def _giu_du_tai_khoan() -> None:
-    """Bật/tắt tài khoản ảnh để số ĐANG CHẠY ĐƯỢC khớp con số user đặt.
+def _tk_dang_chay() -> list:
+    """Tài khoản ảnh ĐANG CHẠY ĐƯỢC = đang bật và không bị chặn."""
+    with ACC_LOCK:
+        return [a for a in ACCOUNTS
+                if a["kind"] == "img" and a["enabled"] and not DEAD.get(_ep(a))]
 
-    "Chạy được" = đang bật VÀ không bị chặn. Tài khoản đang nghỉ chờ hết hạn mức
-    KHÔNG tính, vì nó không nhận được việc nào.
+
+def _giu_du_tai_khoan() -> None:
+    """Giữ số tài khoản ảnh KHÔNG VƯỢT trần user đặt. Chỉ tắt bớt, không bật thêm.
+
+    Con số là TRẦN, không phải mức phải đạt (user chốt 2026-08-13): chạy 1–2 tài
+    khoản cũng được, miễn đừng quá trần. Vì vậy vòng này TUYỆT ĐỐI không tự bật
+    thêm — user tắt tay một cửa sổ là có lý do (để dành, chưa đăng nhập, biết nó
+    sắp hết lượt), board đi bật cái khác thế vào là cãi lại ý user.
+
+    Ngoại lệ duy nhất nằm ở chỗ khác: tài khoản bị CHATGPT CHẶN thì board bù một
+    cái để việc còn chảy — xem `_bu_tai_khoan_bi_chan()`.
     """
     muon = _so_tk_doc()
-    with ACC_LOCK:
-        accs = [a for a in ACCOUNTS if a["kind"] == "img"]
-        song = [a for a in accs if a["enabled"] and not DEAD.get(_ep(a))]
-        # Ứng viên để bật thêm: đang tắt và KHÔNG đang trong giờ nghỉ.
-        # ƯU TIÊN CÁI DO CHÍNH BOARD TẮT. User tắt một tài khoản là có lý do
-        # (chưa đăng nhập, để dành, biết nó sắp hết lượt) — board đi bật lại đúng
-        # cái đó là cãi lại ý user. Cái board tự tắt vì thừa thì bật lại thoải mái.
-        du_bi = sorted((a for a in accs if not a["enabled"] and not DEAD.get(_ep(a))),
-                       key=lambda a: 0 if a.get("auto_off") else 1)
-    if len(song) < muon and du_bi:
-        for a in du_bi[:muon - len(song)]:
-            with ACC_LOCK:
-                a["enabled"] = True
-            a.pop("auto_off", None)
-            with _DEAD_LOCK:
-                DEAD.pop(_ep(a), None)
-                DEAD_DEN.pop(_ep(a), None)
-            if not _endpoint_alive(_ep(a)):
-                _launch_chrome(a)
-            _LOG.info("giữ đủ %d tài khoản: BẬT thêm %s (:%s)", muon, a["id"], a["port"])
-        _save_accounts()
-    elif len(song) > muon:
-        # Tắt từ CUỐI danh sách lên: tài khoản đầu thường là cái user dùng lâu
-        # nhất và đã đăng nhập chắc chắn.
-        for a in list(reversed(song))[:len(song) - muon]:
-            with ACC_LOCK:
-                a["enabled"] = False
+    song = _tk_dang_chay()
+    if len(song) <= muon:
+        return
+    # Tắt từ CUỐI danh sách lên: tài khoản đầu thường là cái user dùng lâu nhất
+    # và đã đăng nhập chắc chắn.
+    for a in list(reversed(song))[:len(song) - muon]:
+        with ACC_LOCK:
+            a["enabled"] = False
             a["auto_off"] = True
-            _kill_chrome(a["port"])
-            _LOG.info("giữ đủ %d tài khoản: TẮT bớt %s (:%s)", muon, a["id"], a["port"])
-        _save_accounts()
+        _kill_chrome(a["port"])
+        _LOG.info("vượt trần %d tài khoản: TẮT bớt %s (:%s)", muon, a["id"], a["port"])
+    _save_accounts()
+
+
+def _bu_tai_khoan_bi_chan(tru: str = "") -> None:
+    """Một tài khoản vừa bị ChatGPT chặn → bật MỘT tài khoản khác thế chỗ.
+
+    Chỉ gọi từ nhánh xử lý hết hạn mức, KHÔNG gọi định kỳ. Đây là khác biệt then
+    chốt với việc user tự tắt: chặn là chuyện board gây ra và board phải lo, còn
+    user tắt là ý user và phải được tôn trọng.
+
+    Chỉ bù khi chưa chạm trần, và ưu tiên tài khoản do chính board tắt trước đó.
+    """
+    muon = _so_tk_doc()
+    if len(_tk_dang_chay()) >= muon:
+        return
+    with ACC_LOCK:
+        du_bi = sorted((a for a in ACCOUNTS
+                        if a["kind"] == "img" and not a["enabled"]
+                        and not DEAD.get(_ep(a)) and _ep(a) != tru),
+                       key=lambda a: 0 if a.get("auto_off") else 1)
+    if not du_bi:
+        _LOG.info("không còn tài khoản dự bị nào để bù — chạy tiếp với %d tài khoản",
+                  len(_tk_dang_chay()))
+        return
+    a = du_bi[0]
+    with ACC_LOCK:
+        a["enabled"] = True
+        a.pop("auto_off", None)
+    if not _endpoint_alive(_ep(a)):
+        _launch_chrome(a)
+    _save_accounts()
+    _LOG.info("bù cho tài khoản vừa bị chặn: BẬT %s (:%s)", a["id"], a["port"])
 
 
 def _mo_chrome_du_phong(kind: str, tru: str = "") -> int:
@@ -1513,13 +1572,27 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     #    ẢNH GỐC TRƯỚC: SF con đính master làm refs.bg, master chưa có ảnh thì cả
     #    lô dừng vì "thiếu ref". Nên vòng này chỉ xếp master còn thiếu; SF con bám
     #    nó đợi vòng sau, lúc master đã có ảnh.
-    thieu_bg = {(f.get("refs") or {}).get("bg") for f in sfs}
-    thieu_bg = sorted(b for b in thieu_bg if b and not BOARD.find_file(b))
+    # CHẶN THEO MỌI REF, KHÔNG CHỈ `bg`.
+    #
+    # Bản cũ chỉ xét thẻ địa điểm. Đủ cho scene thường, nhưng KHÔNG đủ cho scene
+    # REF: thẻ trang phục `REF_X_..._FULL` trỏ `chars: [REF_X_PORTRAIT]`, mà
+    # portrait chưa có ảnh thì cả lô dừng vì "thiếu ref". Xét cả `chars` thì
+    # portrait tự động chạy trước, trang phục đợi vòng sau — đúng thứ tự phải có.
+    def _ref_cua(f: dict) -> list:
+        r = f.get("refs") or {}
+        return [x for x in ([r.get("bg")] + list(r.get("chars") or [])) if x]
+
+    thieu_bg = sorted({x for f in sfs for x in _ref_cua(f) if not BOARD.find_file(x)})
     san_sang = [f["id"] for f in sfs
                 if not BOARD.find_file(f["id"])
-                and not ((f.get("refs") or {}).get("bg") in thieu_bg)]
+                and not any(x in thieu_bg for x in _ref_cua(f))]
     miss_img = [f["id"] for f in sfs if not BOARD.find_file(f["id"])]
-    xep = [i for i in (thieu_bg + san_sang)
+    # KHỬ TRÙNG, GIỮ THỨ TỰ. Một thẻ vừa là "ref mà thẻ khác đang đợi" vừa là
+    # "sẵn sàng chạy" — chân dung REF là ca điển hình: nó nằm trong `thieu_bg`
+    # (mấy thẻ trang phục đợi nó) và cũng nằm trong `san_sang` (bản thân nó
+    # không đợi ai). Không khử thì lô có hai lần cùng một SF, xin ChatGPT 2 ảnh
+    # cho 1 thẻ và board đếm lệch ngay từ đầu.
+    xep = [i for i in dict.fromkeys(thieu_bg + san_sang)
            if JOBS.get(i, {}).get("state") not in ("running", "queued")
            and _auto_allow(st, i, cyc, ghi=False)]
     if xep:
@@ -3763,6 +3836,11 @@ class Handler(BaseHTTPRequestHandler):
                 # "Chạy hết". Không đụng REF: thẻ nhân vật và đạo cụ là bản neo,
                 # user tự chọn tự duyệt từng cái, không giao cho máy quét.
                 # Scene đã đủ ảnh bị bỏ qua để auto khỏi tự tắt ngay vòng đầu.
+                # KHÔNG GỒM REF (user chốt 2026-08-13). Thẻ nhân vật, đạo cụ
+                # và thẻ địa điểm là BẢN NEO của cả phim: sai một cái là mọi
+                # scene bám vào nó sai theo, nên chúng phải được nhìn và duyệt
+                # từng cái. REF có nút "▶ Chạy hết" riêng ở header của nó cho ai
+                # muốn chạy hàng loạt.
                 _d = BOARD.read()
                 _mo = []
                 for sc in _d.get("scenes", []):

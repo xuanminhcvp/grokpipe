@@ -93,7 +93,7 @@
   <main>
     <div class="toolbar">
       <button onclick="chayHetPhim()" id="allbtn"
-        title="Bật 'Chạy hết' cho MỌI scene còn thiếu ảnh (bỏ qua REF và bỏ qua thẻ đã có ảnh).&#10;Board tự chia task 10 ảnh cùng địa điểm rồi đẩy lần lượt vào hàng chờ.">▶▶
+        title="Bật 'Chạy hết' cho mọi scene còn thiếu ảnh — KHÔNG gồm REF (REF có nút Chạy hết riêng).&#10;Board tự chia task ≤10 ảnh cùng địa điểm rồi đẩy lần lượt vào hàng chờ.">▶▶
         Chạy hết phim</button>
       <button onclick="toggleAutoVid()" id="avbtn"
         title="Vòng quét tự động có được phép xếp việc TẠO VIDEO hay không. Tắt = auto chỉ lo ảnh SF.&#10;Không liên quan nút 'Tạo video' bấm tay — bấm tay lúc nào cũng chạy.">🎞
@@ -117,7 +117,7 @@
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <b>Tài khoản Chrome</b>
         <label style="display:flex;align-items:center;gap:5px;font-size:12.5px"
-          title="Số tài khoản ChatGPT chạy ĐỒNG THỜI. Board tự bật/tắt để luôn giữ đúng con số này.&#10;Một tài khoản bị chặn hạn mức sẽ vào chế độ nghỉ và KHÔNG tính — board bật tài khoản khác thay chỗ, tới giờ hết chặn thì nó quay lại và cái thừa bị tắt bớt.&#10;Khác 'tab': tab là nhiều việc trong CÙNG một tài khoản, chung một hạn mức.">chạy cùng lúc
+          title="TRẦN số tài khoản ChatGPT chạy đồng thời — chạy ít hơn cũng được, board chỉ tắt bớt khi VƯỢT.&#10;Bạn tắt tay một tài khoản thì board KHÔNG tự bật cái khác thế vào; cần thì tự bật.&#10;Ngoại lệ: tài khoản bị ChatGPT chặn hạn mức sẽ được bù một cái khác để việc còn chảy.&#10;Khác 'tab': tab là nhiều việc trong CÙNG một tài khoản, chung một hạn mức.">tối đa
           <input type="number" min="1" max="12" id="sotk" style="width:48px"
             onchange="datSoTK(this.value)"> tài khoản</label>
         <button onclick="acctAdd('img')">+ ChatGPT</button>

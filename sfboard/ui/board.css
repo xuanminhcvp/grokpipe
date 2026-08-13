@@ -2415,3 +2415,16 @@ button.auto-b.on {
 .sw input:checked+i::after {
   left: 17px
 }
+
+/* Chip tài khoản trên dòng lỗi trong ngăn kéo Hàng đợi: bốn cửa sổ Chrome đều
+   cùng URL chatgpt.com, nên câu hỏi đầu tiên luôn là "cửa sổ nào". */
+#qbody .qi .qtk {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--tagbg);
+  color: var(--tagtx);
+  white-space: nowrap
+}

@@ -46,12 +46,23 @@ class _Jobs(dict):
     """
 
     khi_loi = None          # sfboard.py gắn hàm log vào đây lúc khởi động
+    dan_nhan = None         # …và hàm dán nhãn tài khoản vào thông báo lỗi
 
     def __setitem__(self, k, v):
         try:
-            if (self.khi_loi and isinstance(v, dict) and v.get("state") == "error"
-                    and (self.get(k) or {}).get("msg") != v.get("msg")):
-                self.khi_loi(k, str(v.get("msg") or ""))
+            if isinstance(v, dict) and v.get("state") == "error":
+                # DÁN TÊN TÀI KHOẢN + CỔNG VÀO MỌI THÔNG BÁO LỖI.
+                #
+                # Lỗi Chrome ("ô soạn aria-hidden", "Page crashed") chỉ nói URL
+                # chatgpt.com — mà bốn cửa sổ đều cùng URL đó, nên nhìn hộp 🐞
+                # không biết phải đi chữa cửa sổ nào. Dán ở đây là bao trọn hơn
+                # hai chục nhánh báo lỗi rải khắp sfboard.py, khỏi phải nhớ sửa
+                # từng chỗ.
+                if self.dan_nhan:
+                    v = dict(v)
+                    v["msg"] = self.dan_nhan(str(v.get("msg") or ""))
+                if self.khi_loi and (self.get(k) or {}).get("msg") != v.get("msg"):
+                    self.khi_loi(k, str(v.get("msg") or ""))
         except Exception:
             pass                # móc hỏng KHÔNG được làm hỏng việc đặt trạng thái
         super().__setitem__(k, v)

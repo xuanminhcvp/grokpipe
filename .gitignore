@@ -71,6 +71,8 @@ Nhân vật/
 
 # ⛔ DỮ LIỆU PHIM — prompt SF/video/nhạc là bí quyết riêng, chỉ nằm trên máy
 *.project/
+# mã sinh prompt của từng phim (chứa nguyên văn prompt — cùng loại bí mật với *.project/)
+build_*/
 
 # ⛔ Công cụ kiểm — mã hoá sẵn ngưỡng của skill, giữ trên máy
 sfboard/kiem-luat.py
