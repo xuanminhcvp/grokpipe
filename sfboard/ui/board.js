@@ -998,6 +998,9 @@ function render() {
   $('#vfilter').style.display = VIEW === 'script' ? '' : 'none';
   $('#vfilter').className = $('#vfilter').value === 'all' ? '' : 'act';
   if (VIEW !== 'script') $('#vbulk').style.display = 'none';
+  // Nút "Chạy hết video" chỉ có nghĩa ở tab Kịch bản — tab Start frames không
+  // có dòng video nào để chạy.
+  { const b = $('#vidallbtn'); if (b) b.style.display = VIEW === 'script' ? '' : 'none' }
   // Dòng chú thích dài dưới thanh công cụ (#hint) đã BỎ 2026-08-09 theo yêu cầu user.
   if (VIEW === 'script') { renderScript(); snav(); return }
   const fl = $('#filter').value;
@@ -1222,6 +1225,37 @@ function veChayHetPhim() {
   const n = Object.keys(AUTO || {}).length;
   b.textContent = n ? `■ Dừng auto (${n} scene)` : '▶▶ Chạy hết phim';
   b.classList.toggle('on', !!n);
+}
+
+// Xếp hàng loạt VIDEO cho CẢ PHIM (nút 🎬 trên thanh công cụ).
+// Header từng scene KHÔNG có nút này (user chốt 2026-08-13): ở đó đã có
+// "▶ Chạy hết" lo cả ảnh lẫn video của scene. Hàm vẫn nhận `sid` để dùng lại
+// được nếu sau này cần chạy riêng một scene.
+// Khác "Chạy hết phim" (ảnh): video KHÔNG gom lô được, Grok chỉ nhận một ảnh +
+// một prompt mỗi lượt, nên đây là xếp từng việc rời vào hàng đợi.
+async function chayHetVideo(sid) {
+  const scs = DATA.scenes.filter(s => !sid || s.id === sid);
+  const dem = scs.reduce((n, sc) => n + (sc.shots || []).filter(sh => {
+    const f = sfById(sh.sf);
+    return !sh.video && (sh.prompt || '').trim() && f && f.image;
+  }).length, 0);
+  if (!dem) {
+    bao(sid ? `Scene ${sid} không có video nào cần chạy.`
+      : 'Không có video nào cần chạy — mọi dòng đã có video, hoặc thiếu prompt / ảnh SF.');
+    return;
+  }
+  if (!await hoi(`Tạo ${dem} video${sid ? ' của ' + sid : ' của cả phim'}?\n\n`
+    + `Mỗi video là một lượt Grok riêng và TỐN CREDIT.\n`
+    + `Bỏ qua dòng đã có video, thiếu prompt, hoặc ảnh SF chưa vẽ xong.`,
+    { dong: `Tạo ${dem} video` })) return;
+  const r = await (await fetch('/api/video-lo' + (sid ? '?scene=' + encodeURIComponent(sid) : ''),
+    { method: 'POST' })).json();
+  const b = r.bo || {};
+  $('#runstatus').textContent = `đã xếp ${r.so} video`
+    + (b.co_video ? ` · bỏ ${b.co_video} đã có` : '')
+    + (b.thieu_sf ? ` · ${b.thieu_sf} thiếu ảnh SF` : '')
+    + (b.thieu_prompt ? ` · ${b.thieu_prompt} thiếu prompt` : '');
+  setTimeout(() => $('#runstatus').textContent = '', 9000);
 }
 
 async function toggleAutoVid() {

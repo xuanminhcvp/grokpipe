@@ -3969,6 +3969,36 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "err": "đang chạy"}); return
             _enqueue("vid", sf_id)
             self._json({"ok": True})
+        elif u.path == "/api/video-lo":
+            # XẾP HÀNG LOẠT VIDEO — một scene (`scene=S7`) hoặc cả phim (không
+            # truyền gì). Mỗi video là MỘT việc riêng: Grok chỉ nhận một ảnh và
+            # một prompt mỗi lượt, không gom lô như ảnh SF được.
+            _sid = (q.get("scene", [""])[0] or "").strip()
+            _d = BOARD.read()
+            _xep, _bo = [], {"co_video": 0, "thieu_sf": 0, "thieu_prompt": 0, "dang_chay": 0}
+            for sc in _d.get("scenes", []):
+                if _sid and sc["id"] != _sid:
+                    continue
+                _anh = {f["id"] for f in sc.get("sfs", []) if f.get("image")}
+                for sh in sc.get("shots", []):
+                    if sh.get("video"):
+                        _bo["co_video"] += 1; continue
+                    if not (sh.get("prompt") or "").strip():
+                        _bo["thieu_prompt"] += 1; continue
+                    # SF của shot có thể nằm ở scene khác (thẻ dùng lại), nên
+                    # tra cả board chứ không chỉ trong scene này.
+                    if not BOARD.find_file(sh.get("sf") or ""):
+                        _bo["thieu_sf"] += 1; continue
+                    if JOBS.get(sh["id"], {}).get("state") in ("running", "queued"):
+                        _bo["dang_chay"] += 1; continue
+                    _xep.append(sh["id"])
+            for i in _xep:
+                _enqueue("vid", i)
+            _LOG.info("xếp %d video%s — bỏ qua: %d đã có video · %d thiếu ảnh SF · "
+                      "%d thiếu prompt · %d đang chạy", len(_xep),
+                      f" của {_sid}" if _sid else " (cả phim)", _bo["co_video"],
+                      _bo["thieu_sf"], _bo["thieu_prompt"], _bo["dang_chay"])
+            self._json({"ok": True, "so": len(_xep), "bo": _bo})
         elif u.path == "/api/upload-video":
             if not re.match(r"^[A-Za-z0-9_\-]+$", sf_id):
                 self._json({"ok": False, "err": "id không hợp lệ"}, 400); return
