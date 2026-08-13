@@ -189,6 +189,19 @@ def y_trong_hang(Q) -> set:
         return {it[2][1] for it in list(Q.queue) if len(it) > 2 and len(it[2]) > 1}
 
 
+def thu_tu_hang(Q) -> list[str]:
+    """Ident theo ĐÚNG thứ tự sẽ được nhấc — cái đầu danh sách chạy trước.
+
+    Sắp theo chính khoá của PriorityQueue `(ưu tiên, số thứ tự xếp)`: cùng mức
+    ưu tiên thì ai xếp trước đi trước. KHÔNG đọc thẳng `Q.queue` theo thứ tự
+    list: đó là mảng heap, phần tử đầu đúng là cái nhỏ nhất nhưng phần còn lại
+    KHÔNG hề có thứ tự — hiện thẳng ra là bảng nói dối người đọc.
+    """
+    with Q.mutex:
+        it = [x for x in list(Q.queue) if len(x) > 2 and len(x[2]) > 1]
+    return [x[2][1] for x in sorted(it, key=lambda x: (x[0], x[1]))]
+
+
 def vet_hang(Q) -> list:
     """Nhấc sạch hàng đợi, trả về danh sách item đã lấy ra."""
     ra = []

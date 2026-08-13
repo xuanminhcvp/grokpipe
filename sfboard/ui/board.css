@@ -287,6 +287,22 @@ a.sm.dl:hover {
   white-space: nowrap
 }
 
+/* Số thứ tự TASK trong hàng chờ. */
+#qbody .qstt {
+  flex: none;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--tx2);
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center
+}
+
 #qbody .qi .t {
   color: var(--tx2);
   font-size: 11px;
@@ -1411,8 +1427,22 @@ details.scr pre {
   color: var(--acc)
 }
 
-#snav .sp {
+/* % ĐÃ CÓ ẢNH (tiến độ render) — đứng giữa, nhạt hơn cột % duyệt bên phải để
+   nhìn phát biết đâu là cái nào. */
+#snav .si {
   margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--tx2);
+  opacity: .62
+}
+
+#snav .si.du {
+  color: var(--acc);
+  opacity: 1
+}
+
+#snav .sp {
   font-size: 10.5px;
   font-weight: 700;
   color: var(--tx2)
@@ -1422,7 +1452,10 @@ details.scr pre {
   color: var(--ok, #1a7f37)
 }
 
+/* Thanh hai lớp: lớp mờ = đã có ảnh, lớp đậm = đã duyệt (nằm đè lên). Đọc được
+   ngay "render tới đâu, duyệt tới đâu" mà không tốn thêm dòng nào. */
 #snav .bar {
+  position: relative;
   height: 4px;
   border-radius: 3px;
   background: var(--line);
@@ -1430,7 +1463,19 @@ details.scr pre {
   overflow: hidden
 }
 
+#snav .bar u {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--acc);
+  opacity: .32;
+  border-radius: 3px;
+  transition: width .25s
+}
+
 #snav .bar i {
+  position: relative;
   display: block;
   height: 100%;
   background: var(--acc);
@@ -2152,43 +2197,221 @@ button.auto-b.on {
   word-break: break-word
 }
 
-/* Dải ẢNH CHỜ trên thẻ đang báo lỗi — dựng lại 2026-08-12. Bỏ dải này
-   2026-08-09 làm ảnh của lượt lệch không còn đường nào lên thẻ, dù thông báo
-   vẫn bảo user "bấm chọn ngay trên thẻ". */
-.plstrip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  padding: 5px 7px;
-  background: #fffbeb;
-  border-top: 1px solid #fde68a
-}
-
-.plstrip .pllab {
-  flex: 0 0 100%;
-  font-size: 11px;
-  color: #92400e
-}
-
-.plstrip img {
-  width: 62px;
-  height: 62px;
-  object-fit: cover;
-  border-radius: 4px;
-  border: 1px solid #fcd34d;
-  cursor: pointer
-}
-
-.plstrip img:hover {
-  border-color: var(--acc);
-  transform: scale(1.06)
-}
-/* Nhãn lượt `T12·#02` từng vẽ đè lên góc dưới-trái thumbnail. BỎ 2026-08-07:
-   ChatGPT giờ in thẳng mã SF vào đúng góc đó trong ảnh, hai nhãn chồng lên nhau.
-   Số lượt vẫn tra được ở tooltip từng bản trong dãy "bản:" và trong dòng trạng
-   thái của việc — không mất đường lần ngược nào. */
 .thumb.drop-sf {
   outline: 2px dashed var(--acc);
   outline-offset: -6px
+}
+
+/* Một TASK trong hàng chờ = một tin nhắn sẽ gửi đi. Xong task 1 mới tới task 2 —
+   nhóm các SF đi chung một lượt lại, đừng liệt kê rời làm người đọc tưởng chúng
+   chạy lần lượt. */
+#qbody .qtask {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: var(--panel2)
+}
+
+#qbody .qth {
+  display: flex;
+  align-items: center;
+  gap: 7px
+}
+
+#qbody .qtb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px
+}
+
+#qbody .qsf {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--tx2);
+  cursor: pointer
+}
+
+#qbody .qsf:hover {
+  border-color: var(--bad);
+  color: var(--bad)
+}
+
+/* Số thẻ trên nút chọn nhanh theo task (T1⁵ = task 1, 5 thẻ). */
+.scene-h .tn {
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--tagbg);
+  color: var(--tagtx);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700
+}
+
+/* Hai tab trong ngăn kéo Hàng đợi: đang chạy&chờ · đã xong. */
+#qdrawer .qtabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px 0;
+  border-bottom: 1px solid var(--line, #d5d8de)
+}
+
+#qdrawer .qtabs button {
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: none;
+  color: var(--tx2);
+  padding: 5px 10px;
+  font-size: 12.5px
+}
+
+#qdrawer .qtabs button.on {
+  background: var(--panel2);
+  border-color: var(--line);
+  color: var(--tx);
+  font-weight: 650
+}
+
+#qdrawer .qtabs i {
+  font-style: normal;
+  font-weight: 700;
+  margin-left: 4px;
+  color: var(--acc)
+}
+
+/* BẢNG TÀI KHOẢN — canh cột bằng grid, không phải flex + width tay.
+   Flex với width cứng thì cột nào có chữ dài hơn là đẩy lệch cả hàng, nhìn răng
+   cưa. Grid cho mọi hàng chung một khung cột nên đọc dọc được. */
+/* KHUNG CỘT PHẢI NẰM Ở BẢNG, KHÔNG PHẢI Ở TỪNG DÒNG. Mỗi dòng một grid riêng
+   thì cột `auto` tự co theo nội dung DÒNG ĐÓ — dòng có "cao nhất 161" đẩy cột
+   khác hẳn dòng chỉ có "hôm nay 0", và bảng răng cưa. `subgrid` cho mọi dòng
+   dùng chung đúng một khung cột. */
+#acctrows {
+  display: grid;
+  grid-template-columns: 16px 62px 104px 56px minmax(150px, 1fr) auto auto auto;
+  gap: 3px 10px
+}
+
+.acctrow {
+  /* SỐ Ô PHẢI CỐ ĐỊNH: nút "Thử lại" chỉ hiện khi bị chặn, nên toàn bộ nút gom
+     vào MỘT ô (.anut). Dòng nào cũng đúng 8 ô thì subgrid mới thẳng hàng. */
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  font-size: 13px;
+  padding: 3px 6px;
+  border-radius: 7px
+}
+
+.acctrow:hover {
+  background: var(--hover)
+}
+
+.acctrow .ak,
+.acctrow .ap {
+  color: var(--tx2)
+}
+
+.acctrow .ap {
+  font-variant-numeric: tabular-nums
+}
+
+.acctrow .as {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
+
+.acctrow .ad {
+  color: var(--tx2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right
+}
+
+.acctrow .at {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--tx2);
+  white-space: nowrap
+}
+
+.acctrow button {
+  padding: 3px 9px;
+  font-size: 12px
+}
+
+/* Màn hẹp: giấu cột phụ bằng visibility+width 0 thay cho display:none, để chúng
+   vẫn giữ chỗ trong grid — display:none là phần tử biến mất khỏi layout và mọi
+   cột sau tụt lên một bậc. */
+@media (max-width:980px) {
+  #acctrows {
+    grid-template-columns: 16px 62px 0 0 minmax(120px, 1fr) 0 auto auto;
+    gap: 3px 7px
+  }
+
+  .acctrow .ak,
+  .acctrow .ap,
+  .acctrow .ad {
+    visibility: hidden;
+    overflow: hidden
+  }
+}
+
+.acctrow .anut {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: flex-end
+}
+
+/* Công tắc bật/tắt tài khoản. Thay cho nút chữ "Bật/Tắt": nút chữ ghi hành động
+   nằm cạnh cột ghi trạng thái, đọc lướt thành hai thứ ngược nhau trên cùng dòng. */
+.sw {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer
+}
+
+.sw input {
+  display: none
+}
+
+.sw i {
+  width: 34px;
+  height: 19px;
+  border-radius: 999px;
+  background: var(--line);
+  position: relative;
+  transition: .15s
+}
+
+.sw i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--card, #fff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: .15s
+}
+
+.sw input:checked+i {
+  background: var(--ok)
+}
+
+.sw input:checked+i::after {
+  left: 17px
 }

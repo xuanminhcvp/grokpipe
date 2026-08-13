@@ -27,7 +27,8 @@ from .dom_grok import (
     DAU_TRANG_POST, JS_CHAN_DOAN, JS_CHU_TRONG_O_SOAN, JS_CLICK_LUOT_MOI,
     JS_CLICK_RADIO, JS_CLICK_TEXT, JS_CO_MODE_VIDEO, JS_CO_NUT_GUI,
     JS_DAT_TEN_TAB, JS_DONG_DAU_VIDEO_CU, JS_HET_CREDIT, JS_NUT_DANG_CO,
-    JS_VIDEO_THAT, SELECTORS, URL_IMAGINE, loi_mang,
+    JS_RADIO_DA_CHON, JS_VIDEO_THAT, NHOM_PHAN_GIAI, NHOM_THOI_LUONG,
+    SELECTORS, URL_IMAGINE, loi_mang,
 )
 
 try:
@@ -177,6 +178,39 @@ class GrokSession:
         """Click nút role=radio theo aria-label HOẶC text (mode Video/Image là icon
         chỉ có aria-label; 480p/720p/6s/10s có text)."""
         return bool(self.page.evaluate(JS_CLICK_RADIO, name))
+
+    def _chot_radio(self, name: str, nhom: list, giay: float = 10) -> bool:
+        """Bấm chip rồi KIỂM LẠI THEO HIỆN TRẠNG, không theo ý định.
+
+        Mặc định của Grok là 10s/720p. Bấm "6s" mà trượt — nút chưa dựng xong,
+        hoặc upload ảnh làm Grok dựng lại hàng chip và reset về mặc định — thì
+        clip ra 10s: không lỗi, không log, chỉ có hoá đơn dài hơn và một clip sai
+        thời lượng nằm trong versions/. Đúng thứ user bắt được 2026-08-12.
+        """
+        het = time.time() + giay
+        lan = 0
+        while time.time() < het:
+            lan += 1
+            self._click_radio(name)
+            time.sleep(0.6)
+            try:
+                dang = self.page.evaluate(JS_RADIO_DA_CHON, nhom)
+            except Exception:
+                dang = ""
+            if dang == name:
+                if lan > 1:
+                    self.logger.info("Grok: chốt được %s ở lần bấm thứ %d", name, lan)
+                return True
+            time.sleep(0.4)
+        try:
+            dang = self.page.evaluate(JS_RADIO_DA_CHON, nhom)
+        except Exception:
+            dang = "(không đọc được)"
+        self.logger.warning(
+            "Grok: KHÔNG chốt được chip %r sau %.0fs — đang chọn %r. Clip sẽ ra "
+            "theo %r chứ không phải %r. %s", name, giay, dang, dang, name,
+            self._chan_doan())
+        return False
 
     def _cho_radio(self, name: str, giay: float = 20) -> bool:
         """Chờ nút xuất hiện rồi mới bấm. Grok là SPA: sau goto, hàng nút mất vài
@@ -380,8 +414,8 @@ class GrokSession:
             if not self._cho_radio("Video", 15):
                 self.logger.warning("Grok: chưa thấy nút mode 'Video' (lượt %d/3)", lan + 1)
                 continue
-            self._cho_radio(self.resolution, 8)
-            self._cho_radio(dur_label, 8)
+            self._chot_radio(self.resolution, NHOM_PHAN_GIAI, 8)
+            self._chot_radio(dur_label, NHOM_THOI_LUONG, 8)
 
             page.locator(SELECTORS["file_input"]).first.set_input_files(image_path)
             time.sleep(4)
@@ -391,8 +425,12 @@ class GrokSession:
                 self.logger.warning("Grok: tab trôi sang trang post sau khi upload "
                                     "(lượt %d/3), làm lại", lan + 1)
                 continue
-            # upload có thể dựng lại hàng nút → bấm lại cho chắc, bấm trùng vô hại
-            self._cho_radio(dur_label, 6)
+            # UPLOAD DỰNG LẠI HÀNG CHIP và Grok reset về mặc định 10s — nên đây
+            # KHÔNG phải "bấm lại cho chắc" mà là cú bấm quyết định. Phải chốt
+            # bằng aria-checked, bấm suông rồi đi tiếp là ra clip sai thời lượng.
+            if not self._chot_radio(dur_label, NHOM_THOI_LUONG, 10):
+                self.logger.warning(
+                    "Grok: bỏ qua và gửi tiếp — clip có thể dài hơn %s đã xin.", dur_label)
 
             # DỌN Ô SOẠN TRƯỚC KHI GÕ. Tab dùng lại cho việc kế tiếp vẫn còn
             # nguyên prompt của lượt trước (thấy trên UI 2026-08-09) — gõ chồng

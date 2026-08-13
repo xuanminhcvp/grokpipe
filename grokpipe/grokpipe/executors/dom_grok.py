@@ -74,6 +74,25 @@ JS_CO_NUT_GUI = """() => !![...document.querySelectorAll('button[type=submit]')]
 JS_HET_CREDIT = """() => [...document.querySelectorAll('[aria-label]')]
      .some(e => /100% credits used/i.test(e.getAttribute('aria-label')||''))"""
 
+# Chip nào trong nhóm đang ĐƯỢC CHỌN THẬT. Dò trên UI thật 2026-08-12: mọi chip
+# (Image/Video/Agent · 480p/720p/1080p · 6s/10s/15s) đều là `role=radio` mang
+# `aria-checked`, và MẶC ĐỊNH CỦA GROK LÀ 10s.
+# Vì vậy bấm "6s" mà trượt thì clip ra 10s — không lỗi, không log, chỉ có hoá
+# đơn dài hơn và một clip sai thời lượng nằm trong versions/.
+JS_RADIO_DA_CHON = """(tens) => {
+    const hien = e => e.getBoundingClientRect().width > 0;
+    const ten = e => (e.getAttribute('aria-label')||'').trim()
+                     || (e.textContent||'').trim();
+    const e = [...document.querySelectorAll('[role=radio]')]
+        .filter(hien)
+        .find(x => tens.includes(ten(x)) && x.getAttribute('aria-checked') === 'true');
+    return e ? ten(e) : '';
+}"""
+
+# Các nhóm chip cần chốt cho đúng trước khi bấm gửi.
+NHOM_THOI_LUONG = ["6s", "10s", "15s"]
+NHOM_PHAN_GIAI = ["480p", "720p", "1080p"]
+
 JS_CHU_TRONG_O_SOAN = """() => {const b=document.querySelector("[contenteditable='true']");
                           return b ? (b.innerText||'').trim().length : -1}"""
 

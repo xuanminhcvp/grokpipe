@@ -114,11 +114,16 @@ class Board:
             data = json.load(f)
         data["mtime"] = int(os.path.getmtime(self.path))
         nk = self.turn_log()
+        # Bốn lượt quét đĩa cho CẢ board, thay cho gần 1900 lượt của bản cũ.
+        d_as, d_ve = self._quet(self.assets), self._quet(self.versions)
+        d_vi, d_vv = self._quet(self.videos), self._quet(self.vversions)
+        ds_ve = sorted(n for ns in d_ve.values() for n in ns)
+        ds_vv = sorted(n for ns in d_vv.values() for n in ns)
         for sc in data.get("scenes", []):
             sc.setdefault("shots", [])
             for sf in sc.get("sfs", []):
-                sf["image"] = self._img_url(self.assets, sf["id"])
-                sf["versions"] = self._versions(sf["id"], nk)
+                sf["image"] = self._img_url(self.assets, sf["id"], d_as)
+                sf["versions"] = self._versions(sf["id"], nk, ds_ve)
                 # LƯỢT nào đẻ ra ảnh ĐANG DÙNG — để lúc tải lỗi còn lần ngược
                 # được về đúng lượt trong log và trong thư mục Chờ phân loại.
                 _cur = sf.get("picked") or (sf["versions"][-1]["file"]
@@ -129,15 +134,17 @@ class Board:
                     sf["turn_o"] = _t.get("o") or 0
                     sf["turn_port"] = _t.get("port") or 0
             for sh in sc["shots"]:
-                sh["video"] = self._vid_url(sh["id"])
-                sh["vversions"] = self._vversions(sh["id"])
+                sh["video"] = self._vid_url(sh["id"], d_vi)
+                sh["vversions"] = self._vversions(sh["id"], ds_vv)
         return data
 
     # ---- video
-    def _vid_url(self, sid: str) -> str | None:
-        for name in sorted(os.listdir(self.videos)):
+    def _vid_url(self, sid: str, ds: dict | None = None) -> str | None:
+        ten = ds.get(sid, []) if ds is not None else \
+            [n for n in sorted(os.listdir(self.videos)) if os.path.splitext(n)[0] == sid]
+        for name in ten:
             s, ext = os.path.splitext(name)
-            if s == sid and ext.lower() == ".mp4":
+            if ext.lower() == ".mp4":
                 p = os.path.join(self.videos, name)
                 return f"/videos/{name}?t={int(os.path.getmtime(p))}"
         return None
@@ -146,9 +153,9 @@ class Board:
         p = os.path.join(self.videos, sid + ".mp4")
         return p if os.path.isfile(p) else None
 
-    def _vversions(self, sid: str) -> list[dict]:
+    def _vversions(self, sid: str, ds: list | None = None) -> list[dict]:
         out = []
-        for name in sorted(os.listdir(self.vversions)):
+        for name in (ds if ds is not None else sorted(os.listdir(self.vversions))):
             s, ext = os.path.splitext(name)
             if ext.lower() == ".mp4" and re.match(rf"^{re.escape(sid)}_v\d+$", s):
                 p = os.path.join(self.vversions, name)
@@ -232,10 +239,27 @@ class Board:
                     pass
 
     # ---- ảnh
-    def _img_url(self, folder: str, stem: str) -> str | None:
-        for name in sorted(os.listdir(folder)):
-            s, ext = os.path.splitext(name)
-            if s == stem and ext.lower() in IMAGE_EXT:
+    # QUÉT MỘT LẦN, TRA NHIỀU LẦN.
+    #
+    # Bản cũ để `read()` gọi listdir CHO TỪNG THẺ: 509 SF × 2 thư mục + 437 shot
+    # × 2 = gần 1900 lượt quét đĩa cho MỘT lần đọc board (đo 2026-08-12: 299 ms).
+    # Mà `get_sf()` lại gọi `read()`, nên tích 10 ảnh rồi bấm Tạo là 3,2 GIÂY
+    # đứng hình trước khi việc kịp vào hàng đợi.
+    # Giờ quét mỗi thư mục ĐÚNG MỘT LẦN rồi tra map {tên gốc: [file]}.
+    def _quet(self, folder: str) -> dict:
+        ra: dict[str, list[str]] = {}
+        try:
+            for name in sorted(os.listdir(folder)):
+                ra.setdefault(os.path.splitext(name)[0], []).append(name)
+        except OSError:
+            pass
+        return ra
+
+    def _img_url(self, folder: str, stem: str, ds: dict | None = None) -> str | None:
+        ten = ds.get(stem, []) if ds is not None else \
+            [n for n in sorted(os.listdir(folder)) if os.path.splitext(n)[0] == stem]
+        for name in ten:
+            if os.path.splitext(name)[1].lower() in IMAGE_EXT:
                 p = os.path.join(folder, name)
                 base = "assets" if folder == self.assets else "versions"
                 return f"/{base}/{name}?t={int(os.path.getmtime(p))}"
@@ -248,10 +272,11 @@ class Board:
                 return os.path.join(self.assets, name)
         return None
 
-    def _versions(self, sf_id: str, nk: dict | None = None) -> list[dict]:
+    def _versions(self, sf_id: str, nk: dict | None = None,
+                  ds: list | None = None) -> list[dict]:
         nk = self.turn_log() if nk is None else nk
         out = []
-        for name in sorted(os.listdir(self.versions)):
+        for name in (ds if ds is not None else sorted(os.listdir(self.versions))):
             s, ext = os.path.splitext(name)
             if ext.lower() in IMAGE_EXT and re.match(rf"^{re.escape(sf_id)}_v\d+$", s):
                 p = os.path.join(self.versions, name)
@@ -312,8 +337,13 @@ class Board:
                 if s == sf_id or s.startswith(sf_id + "_v"):
                     os.remove(os.path.join(folder, name))
 
-    def get_sf(self, sf_id: str):
-        data = self.read()
+    def get_sf(self, sf_id: str, data: dict | None = None):
+        """Một thẻ SF. TRUYỀN `data` VÀO khi đang lặp nhiều thẻ.
+
+        Không truyền thì hàm phải đọc lại cả board — vòng lặp 10 thẻ là 10 lần
+        đọc, đúng thứ làm nút "Tạo ảnh đã chọn" đứng hình mấy giây.
+        """
+        data = self.read() if data is None else data
         for sc in data["scenes"]:
             for sf in sc["sfs"]:
                 if sf["id"] == sf_id:
@@ -589,9 +619,38 @@ def _kill_chrome(port: int):
     được qua cờ --remote-debugging-port nên không đụng vào Chrome cá nhân của user.
     Phiên đăng nhập nằm trong profile trên đĩa, đóng cửa sổ không mất."""
     import subprocess
+    ep = f"http://127.0.0.1:{port}"
     subprocess.run(["pkill", "-f", f"remote-debugging-port={port}"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # CHỜ CỔNG NHẢ THẬT, đừng bắn xong đi luôn.
+    #
+    # `pkill` chỉ gửi TERM; Chrome còn hàng chục tiến trình con và có thể giữ cổng
+    # thêm vài giây. Mở lại ngay sau đó là trúng lúc cổng còn bận — cửa sổ mới im
+    # lặng không lên, và ta lại có một cổng "treo" phải bấm tay.
+    for _ in range(10):                       # tối đa ~5 giây
+        if not _ping_http(ep):
+            break
+        time.sleep(0.5)
+    else:
+        subprocess.run(["pkill", "-9", "-f", f"remote-debugging-port={port}"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _LOG.warning("Chrome cổng %s không chịu tắt sau 5s — đã buộc dừng (kill -9).", port)
+        time.sleep(1)
+    # Chrome để lại SingletonLock trong profile khi bị giết ngang; còn file này
+    # thì lần mở sau bị chính Chrome từ chối ("profile đang được dùng").
+    try:
+        with ACC_LOCK:
+            a = next((x for x in ACCOUNTS if x["port"] == port), None)
+        if a:
+            prof = os.path.abspath(os.path.expanduser(a["profile"]))
+            for ten in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+                p = os.path.join(prof, ten)
+                if os.path.islink(p) or os.path.exists(p):
+                    os.remove(p)
+    except OSError as e:
+        _LOG.warning("không dọn được khoá profile cổng %s: %s", port, str(e)[:60])
     CHROME_GEN["n"] += 1
+    _WS_HONG.pop(ep, None)                    # cửa sổ đã đóng → dấu nửa vời hết nghĩa
 
 
 _THUMB_W = {240, 320, 420, 640}          # chỉ cho phép vài cỡ, tránh sinh cache vô hạn
@@ -670,14 +729,141 @@ def _is_dead_session_error(e: Exception) -> bool:
     ))
 
 
-def _endpoint_alive(url: str) -> bool:
-    """Cửa sổ Chrome debug ở endpoint này còn mở không."""
+def _nhan_tien_trinh(cmd: str, cong_theo_prof: dict) -> str:
+    """Tên dễ đọc của một tiến trình, để gộp RAM theo APP chứ không theo tiến trình.
+
+    Chrome đẻ hàng chục tiến trình con (mỗi tab, mỗi GPU, mỗi tiện ích một cái);
+    liệt kê thô thì bảng đầy Google Chrome Helper mà không ai biết cái nào của cửa
+    sổ nào. Gộp theo `--user-data-dir` mới ra được "cửa sổ pipeline cổng 9222"
+    tách khỏi "Chrome cá nhân" — và đó chính là câu hỏi cần trả lời: chỗ ngốn RAM
+    có phải do board không.
+    """
+    m = re.search(r"--user-data-dir=(\S+)", cmd)
+    if m and m.group(1) in cong_theo_prof:
+        return f"Chrome pipeline :{cong_theo_prof[m.group(1)]}"
+    if "Google Chrome" in cmd:
+        return "Chrome (cá nhân)"
+    m = re.search(r"sfboard\.py\s+(\S+)", cmd)
+    if m:
+        return f"board {m.group(1).replace('PIPELINE-', '').replace('.project', '')}"
+    if "playwright" in cmd and "node" in cmd:
+        return "Playwright (driver)"
+    # Bó .app ở BẤT KỲ đâu trong đường dẫn, không riêng /Applications: app cài
+    # trong ~/Library hay /System cũng phải ra tên app, nếu không bảng đầy những
+    # nhãn vô nghĩa kiểu "Application" (cắt từ "Application Support").
+    m = re.search(r"/([^/]+)\.app/", cmd)
+    if m:
+        return m.group(1)
+    return os.path.basename((cmd.split() or [""])[0])[:28]
+
+
+def _anh_chup_may(port: int = 0, top: int = 8) -> str:
+    """Ảnh chụp bộ nhớ máy NGAY LÚC NÀY — đính vào log khi tab chết.
+
+    Chrome báo "Aw, Snap! Error code: 5" khi renderer bị HỆ ĐIỀU HÀNH thu hồi,
+    không phải khi phần mềm sập: sập thật thì để lại file .ips trong
+    ~/Library/Logs/DiagnosticReports, còn bị thu hồi vì cạn bộ nhớ thì KHÔNG để
+    lại gì cả. Nghĩa là sau khi tab chết, không còn dấu vết nào để lần ngược —
+    trừ khi chụp lại đúng lúc nó chết. Đó là việc của hàm này.
+
+    Chụp ĐỦ chứ không chỉ tổng: có bảng ai đang giữ bao nhiêu, vì "hết RAM" chưa
+    phải kết luận — còn phải biết hết vì cái gì. Nếu thủ phạm không phải Chrome
+    pipeline thì hạ số tab của board là chữa nhầm chỗ.
+
+    Chỉ đọc, không đổi gì. Hỏng thì trả chuỗi báo hỏng, không ném lỗi ra ngoài
+    (nó chạy trong nhánh xử lý lỗi — ném tiếp là che mất lỗi gốc).
+    """
+    try:
+        import subprocess as _sp
+        ra = []
+        vm = _sp.run(["vm_stat"], capture_output=True, text=True, timeout=5).stdout
+        psz = int(re.search(r"page size of (\d+)", vm).group(1))
+        free = int(re.search(r"Pages free:\s+(\d+)", vm).group(1)) * psz / 1024**3
+        tong = int(_sp.run(["sysctl", "-n", "hw.memsize"], capture_output=True,
+                           text=True, timeout=5).stdout or 0) / 1024**3
+        ra.append(f"RAM trống {free:.2f}/{tong:.0f} GB")
+        sw = _sp.run(["sysctl", "-n", "vm.swapusage"], capture_output=True,
+                     text=True, timeout=5).stdout
+        m = re.search(r"total = ([\d.]+)M.*used = ([\d.]+)M", sw)
+        if m:
+            t, u = float(m.group(1)) / 1024, float(m.group(2)) / 1024
+            ra.append(f"swap {u:.1f}/{t:.1f} GB ({u / max(t, .01) * 100:.0f}%)")
+
+        # MỘT lần đọc ps cho tất cả — gọi nhiều lần thì mỗi lần là một thời điểm
+        # khác nhau, và bảng sẽ mô tả một cái máy không có thật.
+        dong = _sp.run(["ps", "-axo", "rss,command"], capture_output=True,
+                       text=True, timeout=8).stdout.splitlines()[1:]
+        cong_theo_prof = {}
+        for d in dong:
+            mp = re.search(r"--remote-debugging-port=(\d+)", d)
+            mu = re.search(r"--user-data-dir=(\S+)", d)
+            if mp and mu:
+                cong_theo_prof[mu.group(1)] = mp.group(1)
+
+        gom: dict[str, float] = {}
+        for d in dong:
+            p = d.split(None, 1)
+            if len(p) < 2 or not p[0].isdigit():
+                continue
+            ten = _nhan_tien_trinh(p[1], cong_theo_prof)
+            gom[ten] = gom.get(ten, 0) + int(p[0]) / 1024
+
+        if port and str(port) in cong_theo_prof.values():
+            mb = gom.get(f"Chrome pipeline :{port}", 0)
+            ra.append(f"cửa sổ vừa chết (cổng {port}) giữ {mb:.0f} MB")
+        xep = sorted(gom.items(), key=lambda x: -x[1])[:top]
+        bang = " · ".join(f"{k} {v:.0f}MB" for k, v in xep if v >= 50)
+        ra.append(f"ai đang giữ RAM: {bang}")
+        return " · ".join(ra)
+    except Exception as e:
+        return f"không đọc được hiện trạng máy ({str(e)[:60]})"
+
+
+# CHROME "SỐNG NỬA VỜI": HTTP trả lời nhưng WebSocket CDP treo.
+#
+# Ping `/json/version` KHÔNG chứng minh được gì trong ca này — nó trả 200 bình
+# thường trong khi `connect_over_cdp` treo 180 giây ở bước `<ws connecting>`.
+# Board tin là sống nên không mở lại, không báo lỗi, và mọi job đẩy vào đều chết:
+# đúng cái "treo cổng" phải ngồi bấm tay xưa nay.
+#
+# Không đi viết WebSocket client để tự đoán. Dùng BẰNG CHỨNG THẬT: thợ nào nối
+# CDP hụt thì đánh dấu endpoint đó hỏng, và giữ dấu tới khi cửa sổ được mở lại.
+# Fail-closed — thà báo chết oan (board mở lại, mất vài giây) còn hơn báo sống
+# nhầm (job chết hàng loạt, log sạch bong).
+_WS_HONG: dict[str, int] = {}      # endpoint -> thế hệ Chrome lúc bị đánh dấu
+
+
+def _ping_http(url: str) -> bool:
+    """Cổng debug có TRẢ LỜI HTTP không — chỉ là tầng vận chuyển, KHÔNG đồng
+    nghĩa dùng được. Tách riêng để phân biệt 'cửa sổ đã đóng hẳn' với 'cửa sổ còn
+    đó nhưng CDP treo'."""
     import urllib.request
     try:
         with urllib.request.urlopen(url.rstrip("/") + "/json/version", timeout=3):
             return True
     except Exception:
         return False
+
+
+def _bao_ws_hong(endpoint: str, vi: str = "") -> None:
+    if not endpoint:
+        return
+    if _WS_HONG.get(endpoint) != CHROME_GEN["n"]:
+        _WS_HONG[endpoint] = CHROME_GEN["n"]
+        _LOG.warning("Chrome %s SỐNG NỬA VỜI — HTTP trả lời nhưng CDP không nối "
+                     "được%s. Coi như chết để board mở lại.",
+                     endpoint, f" ({vi[:70]})" if vi else "")
+
+
+def _endpoint_alive(url: str) -> bool:
+    """Cửa sổ Chrome debug ở endpoint này còn DÙNG ĐƯỢC không.
+
+    Không chỉ là "có mở": cửa sổ nửa vời bị coi là chết cho tới khi mở lại.
+    """
+    # Dấu chỉ hết hiệu lực khi Chrome được đóng/mở lại (thế hệ tăng).
+    if _WS_HONG.get(url) == CHROME_GEN["n"]:
+        return False
+    return _ping_http(url)
 
 
 def _release_tl():
@@ -707,7 +893,7 @@ from hangdoi import (                                          # noqa: E402
     CHO_RIENG, CR_LOCK as _CR_LOCK, _HOAN,
     TRAN_MAY_TU_GOM, xep as _xep, lay as _lay, y_trong_hang as _y_trong_hang,
     vet_hang, dat_job as _dat_job, bi_huy as _bi_huy, uu_tien as _uu_tien,
-    thu_tu_shot, dung_gen, tang_dung_gen, bo_co_huy,
+    thu_tu_shot, thu_tu_hang, dung_gen, tang_dung_gen, bo_co_huy,
 )
 import hangdoi                                                 # noqa: E402
 
@@ -775,12 +961,120 @@ def _mark_dead(endpoint: str, reason: str, kind: str = "img", den: float = 0.0):
     _LOG.warning("%s ở %s — còn %d/%d tài khoản %s chạy được",
                  reason, endpoint, len(alive), len(pool),
                  "Grok" if kind == "vid" else "ChatGPT")
+    # HẾT HẠN MỨC → ĐÓNG CỬA SỔ CHROME **VÀ** TẮT TÀI KHOẢN.
+    #
+    # Cửa sổ đang nghỉ không nhận việc nào mà vẫn ngốn 0,5–1,5 GB, trong khi board
+    # bật thêm một tài khoản khác cho đủ số — "giữ 3" hoá ra 3 cửa sổ làm việc
+    # cộng mấy cửa sổ nằm không. Đúng thứ làm máy 16GB chạm trần rồi Chrome bị hệ
+    # điều hành thu hồi ("Error code: 5").
+    #
+    # Tắt hẳn (không chỉ đánh dấu chết) vì nếu để `enabled` thì supervisor vẫn đẻ
+    # thợ cho nó, thợ chết ngay ở bước nối CDP rồi tài khoản lại vào diện chết —
+    # quay vòng vô ích.
+    #
+    # HẾT GIỜ NGHỈ **KHÔNG** TỰ MỞ LẠI (user chốt 2026-08-12): tài khoản chỉ trở
+    # thành DỰ BỊ SẴN SÀNG. Chừng nào một tài khoản khác bị chặn và board thiếu
+    # người, `_giu_du_tai_khoan()` mới bật nó lên và mở Chrome lúc đó. Mở sẵn một
+    # cửa sổ để nằm không là đúng thứ vừa gây ra sự cố trên.
+    if str(reason).startswith("hết lượt"):
+        try:
+            with ACC_LOCK:
+                a = next((x for x in ACCOUNTS if _ep(x) == endpoint), None)
+                if a:
+                    a["enabled"] = False
+                    a["auto_off"] = True      # board tắt, không phải user
+            _kill_chrome(int((endpoint or ":0").rsplit(":", 1)[1] or 0))
+            if a:
+                _save_accounts()
+            _LOG.info("đóng cửa sổ Chrome và tắt %s trong lúc nghỉ — trả RAM cho máy; "
+                      "hết giờ nghỉ nó nằm chờ làm dự bị, chỉ bật lại khi cần bù người",
+                      endpoint)
+        except Exception as e:
+            _LOG.warning("không đóng được Chrome của %s: %s", endpoint, str(e)[:60])
 
 
 def _dang_nghi(endpoint: str) -> float:
     """Mốc epoch tài khoản này được chạy lại; 0 = không phải đang nghỉ có hẹn."""
     with _DEAD_LOCK:
         return DEAD_DEN.get(endpoint, 0.0) if DEAD.get(endpoint) else 0.0
+
+
+# ───────── GIỮ ĐÚNG SỐ TÀI KHOẢN ẢNH CHẠY ĐỒNG THỜI ──────────────────────────
+# User đặt một con số (mặc định 3): board luôn cố giữ ĐÚNG bấy nhiêu tài khoản
+# ChatGPT đang chạy được. Thừa thì tắt bớt, thiếu thì bật thêm từ danh sách.
+#
+# Cái này khác "số tab": tab là nhiều việc song song TRONG một tài khoản (chung
+# một hạn mức), còn đây là nhiều tài khoản (mỗi cái một hạn mức riêng).
+#
+# Điểm gặp nhau với cơ chế nghỉ: tài khoản bị ChatGPT chặn sẽ vào DEAD kèm giờ
+# mở lại, tức không còn "chạy được" — supervisor thấy hụt số và tự bật một tài
+# khoản khác thay chỗ. Tới giờ hết chặn nó hồi sinh, lúc đó có thể thành thừa và
+# bị tắt bớt. Nhờ vậy số cửa sổ Chrome (và RAM) luôn ổn định.
+SO_TK_PATH = os.path.expanduser("~/.grokpipe-so-tk.json")
+SO_TK_MAC_DINH = 3
+
+# Tài khoản do CHÍNH BOARD tắt vì thừa số mang cờ `auto_off` trong hồ sơ tài
+# khoản. Cần bật lại thì bật đúng chúng, đừng đụng tài khoản user chủ động tắt.
+# Cờ nằm trong ~/.grokpipe-accounts.json chứ không phải biến trong RAM: restart
+# board là mất biến, và board sẽ lại đi bật nhầm tài khoản user để dành.
+
+
+def _so_tk_doc() -> int:
+    try:
+        with open(SO_TK_PATH, encoding="utf-8") as f:
+            return max(1, min(12, int(json.load(f).get("so") or SO_TK_MAC_DINH)))
+    except Exception:
+        return SO_TK_MAC_DINH
+
+
+def _so_tk_ghi(n: int) -> int:
+    n = max(1, min(12, int(n or SO_TK_MAC_DINH)))
+    try:
+        with open(SO_TK_PATH, "w", encoding="utf-8") as f:
+            json.dump({"so": n}, f)
+    except OSError as e:
+        _LOG.warning("không ghi được số tài khoản: %s", e)
+    return n
+
+
+def _giu_du_tai_khoan() -> None:
+    """Bật/tắt tài khoản ảnh để số ĐANG CHẠY ĐƯỢC khớp con số user đặt.
+
+    "Chạy được" = đang bật VÀ không bị chặn. Tài khoản đang nghỉ chờ hết hạn mức
+    KHÔNG tính, vì nó không nhận được việc nào.
+    """
+    muon = _so_tk_doc()
+    with ACC_LOCK:
+        accs = [a for a in ACCOUNTS if a["kind"] == "img"]
+        song = [a for a in accs if a["enabled"] and not DEAD.get(_ep(a))]
+        # Ứng viên để bật thêm: đang tắt và KHÔNG đang trong giờ nghỉ.
+        # ƯU TIÊN CÁI DO CHÍNH BOARD TẮT. User tắt một tài khoản là có lý do
+        # (chưa đăng nhập, để dành, biết nó sắp hết lượt) — board đi bật lại đúng
+        # cái đó là cãi lại ý user. Cái board tự tắt vì thừa thì bật lại thoải mái.
+        du_bi = sorted((a for a in accs if not a["enabled"] and not DEAD.get(_ep(a))),
+                       key=lambda a: 0 if a.get("auto_off") else 1)
+    if len(song) < muon and du_bi:
+        for a in du_bi[:muon - len(song)]:
+            with ACC_LOCK:
+                a["enabled"] = True
+            a.pop("auto_off", None)
+            with _DEAD_LOCK:
+                DEAD.pop(_ep(a), None)
+                DEAD_DEN.pop(_ep(a), None)
+            if not _endpoint_alive(_ep(a)):
+                _launch_chrome(a)
+            _LOG.info("giữ đủ %d tài khoản: BẬT thêm %s (:%s)", muon, a["id"], a["port"])
+        _save_accounts()
+    elif len(song) > muon:
+        # Tắt từ CUỐI danh sách lên: tài khoản đầu thường là cái user dùng lâu
+        # nhất và đã đăng nhập chắc chắn.
+        for a in list(reversed(song))[:len(song) - muon]:
+            with ACC_LOCK:
+                a["enabled"] = False
+            a["auto_off"] = True
+            _kill_chrome(a["port"])
+            _LOG.info("giữ đủ %d tài khoản: TẮT bớt %s (:%s)", muon, a["id"], a["port"])
+        _save_accounts()
 
 
 def _mo_chrome_du_phong(kind: str, tru: str = "") -> int:
@@ -850,6 +1144,16 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                 continue
         _, ident, tries = item[0], item[1], item[2]
         manual = item[3] if len(item) > 3 else False
+        # ĐÁNH DẤU 'ĐANG CHẠY' NGAY KHI NHẤC, trước cả bước nối Chrome.
+        #
+        # Từ lúc `_lay()` rút việc khỏi hàng tới lúc `_generate_lo` kịp ghi nhãn
+        # 'running' có vài giây (đọc board, mở tab, đính ref). Trong khoảng đó
+        # việc KHÔNG còn trong hàng mà nhãn vẫn là 'chờ' — đúng định nghĩa "mồ
+        # côi" của người gác, nên nó xếp lại và một thợ thứ hai nhấc luôn.
+        # Hậu quả: CÙNG MỘT LÔ GỬI HAI LẦN, đốt gấp đôi lượt. Bắt được tận tay
+        # 2026-08-12 với lô SF-S22 — log có hai dòng "đã gửi lô 4 khung" cách
+        # nhau 2 giây, ngay sau một dòng "đã xếp lại (lần 1)".
+        _dat_job(ident, {"state": "running", "msg": "đang khởi động…"})
         # Chrome đã bị đóng/mở lại từ lần chạy trước (ngủ khi rảnh, user tắt-bật,
         # supervisor hồi sinh)? Nhả sạch Playwright của luồng này rồi nối lại từ
         # đầu — nếu không, mọi job sẽ chết ở bước mở tab.
@@ -888,6 +1192,15 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
             else:
                 _gen_video(ident)
         except Exception as e:
+            # TAB/CỬA SỔ CHẾT THÌ CHỤP NGAY HIỆN TRẠNG MÁY, trước khi làm gì khác.
+            # "Aw, Snap! Error code: 5" là renderer bị hệ điều hành thu hồi vì cạn
+            # bộ nhớ — nó KHÔNG để lại báo cáo sự cố nào, nên qua thời điểm này là
+            # mất hẳn bằng chứng và chỉ còn nước đoán.
+            if _is_dead_session_error(e):
+                _LOG.warning("TAB/CỬA SỔ CHẾT khi chạy %s trên %s — %s | lỗi gốc: %s",
+                             ident, endpoint,
+                             _anh_chup_may(int((endpoint or ":0").rsplit(":", 1)[1] or 0)),
+                             str(e)[:120])
             fatal = _is_quota_error(e) or (
                 _is_dead_session_error(e) and not _endpoint_alive(endpoint))
             if fatal:
@@ -1072,6 +1385,10 @@ def _supervisor():
     - Tài khoản 'hết lượt' giữ nguyên đến khi user bấm 'Thử lại' trên giao diện."""
     while True:
         try:
+            _giu_du_tai_khoan()      # số tài khoản chạy được luôn bằng con số user đặt
+        except Exception as e:
+            _LOG.warning("giữ đủ tài khoản lỗi: %s", str(e)[:90])
+        try:
             with ACC_LOCK:
                 accs = [dict(a) for a in ACCOUNTS]
             has_vid = any(a["kind"] == "vid" and a["enabled"] for a in accs)
@@ -1083,17 +1400,18 @@ def _supervisor():
                     with _DEAD_LOCK:
                         DEAD.pop(ep, None)
                     _LOG.info("Chrome %s đã mở lại — hồi sinh tài khoản.", ep)
-                # Hết giờ nghỉ (trần đính tệp theo giờ của ChatGPT) → tự sống lại.
-                # Chrome có thể đã bị user đóng trong lúc nghỉ nên mở lại luôn,
-                # nếu không thợ mới sẽ chết ngay ở bước nối CDP.
+                # Hết giờ nghỉ → gỡ dấu chặn, tài khoản thành DỰ BỊ SẴN SÀNG.
+                # KHÔNG mở Chrome ở đây (user chốt 2026-08-12): mở một cửa sổ để
+                # nằm không là phí RAM. Nó chỉ được bật khi board thật sự thiếu
+                # người — lúc một tài khoản khác bị chặn — và `_giu_du_tai_khoan()`
+                # sẽ mở Chrome ngay lúc bật.
                 _den = _dang_nghi(ep)
                 if _den and time.time() >= _den:
                     with _DEAD_LOCK:
                         DEAD.pop(ep, None)
                         DEAD_DEN.pop(ep, None)
-                    _LOG.info("Tài khoản %s đã hết giờ nghỉ — chạy lại.", a["id"])
-                    if not _endpoint_alive(ep):
-                        _launch_chrome(a)
+                    _LOG.info("Tài khoản %s đã hết giờ nghỉ — sẵn sàng làm dự bị "
+                              "(chưa mở Chrome, chờ tới lúc cần bù người).", a["id"])
                 if DEAD.get(ep):
                     continue
                 kinds = [a["kind"]]
@@ -1155,18 +1473,33 @@ def _auto_vid_ghi(on: bool) -> None:
 
 
 AUTO_PERIOD = 20                 # giây mỗi vòng quét
+
+# ĐÁNH THỨC VÒNG QUÉT NGAY khi user vừa bật "Chạy hết".
+#
+# Nhãn trên nút ("12/17 ảnh") do chính vòng quét ghi ra, nên bản cũ bấm xong phải
+# ngồi nhìn "⏳ đang quét…" tới 20 giây mới thấy số — mà trong 20 giây đó cũng
+# chưa việc nào vào hàng đợi, trông như bấm hụt.
+_AUTO_WAKE = threading.Event()
 AUTO_MAX_TRY = 40                # số lần bắn lại tối đa cho một ident
 AUTO_COOLDOWN = 6                # số vòng phải chờ trước khi bắn lại cùng ident (~2 phút)
 
 
-def _auto_allow(st: dict, ident: str, cyc: int) -> bool:
-    """Còn lượt thử và đã hết thời gian chờ thì cho bắn."""
+def _auto_allow(st: dict, ident: str, cyc: int, ghi: bool = True) -> bool:
+    """Còn lượt thử và đã hết thời gian chờ thì cho bắn.
+
+    `ghi=False` là CHỈ HỎI, không tính một lần thử. Bắt buộc dùng khi mới đang
+    lọc xem thẻ nào đủ điều kiện: auto đẩy lần lượt từng task, nên phần lớn thẻ
+    trong danh sách lọc sẽ KHÔNG được đẩy vòng này. Tính lượt cho chúng là mỗi
+    task chưa tới lượt đã ăn sẵn một cooldown 6 vòng (~2 phút) — auto bò từng
+    task một, chậm gấp mấy lần mà nhìn log không ra vì sao.
+    """
     if st["try"].get(ident, 0) >= AUTO_MAX_TRY:
         return False
     if cyc - st["last"].get(ident, -999) < AUTO_COOLDOWN:
         return False
-    st["try"][ident] = st["try"].get(ident, 0) + 1
-    st["last"][ident] = cyc
+    if ghi:
+        st["try"][ident] = st["try"].get(ident, 0) + 1
+        st["last"][ident] = cyc
     return True
 
 
@@ -1188,21 +1521,37 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     miss_img = [f["id"] for f in sfs if not BOARD.find_file(f["id"])]
     xep = [i for i in (thieu_bg + san_sang)
            if JOBS.get(i, {}).get("state") not in ("running", "queued")
-           and _auto_allow(st, i, cyc)]
+           and _auto_allow(st, i, cyc, ghi=False)]
     if xep:
         _data = BOARD.read()
         nhom: dict[str, list[str]] = {}
         for i in xep:
             nhom.setdefault(_nhom_cua(i, _data), []).append(i)
-        for m, xs in nhom.items():
+        # Dựng danh sách TASK theo đúng thứ tự sẽ chạy: mỗi task ≤ TRAN_MAY_TU_GOM
+        # ảnh và CÙNG MỘT ĐỊA ĐIỂM (một tin nhắn chỉ mang được một `luatchung`).
+        tasks: list[tuple[str, list[str]]] = []
+        for m, xs in sorted(nhom.items(), key=lambda kv: min(map(_uu_tien, kv[1]))):
             xs.sort(key=_uu_tien)
             for k in range(0, len(xs), TRAN_MAY_TU_GOM):
-                lo = xs[k:k + TRAN_MAY_TU_GOM]
-                for i in lo:
-                    JOBS[i] = {"state": "queued",
-                               "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m, _data)}"}
-                _xep(IMG_QUEUE, ("img", "LO:" + ",".join(lo), 0, False))
-                _LOG.info("[auto %s] xếp lô %d ảnh · %s", sc["id"], len(lo), m)
+                tasks.append((m, xs[k:k + TRAN_MAY_TU_GOM]))
+
+        # ĐẨY HẾT MỌI TASK VÀO HÀNG CHỜ NGAY, theo đúng thứ tự T1 → T2 → T3.
+        #
+        # Từng thử cách giữ hàng chờ mỏng (chỉ đủ việc cho số tab đang rảnh) rồi
+        # đẩy dần. User chốt 2026-08-12: KHÔNG. Việc nào đã quyết chạy thì phải
+        # nằm trong hàng chờ để theo dõi được — hàng chờ mỏng thì nhìn vào không
+        # biết còn bao nhiêu việc phía sau, mà chờ ngoài hàng thì không đếm được,
+        # không huỷ được, không biết thứ tự.
+        # Chi phí gần như bằng không: một việc trong hàng chỉ tốn ~700 byte, và
+        # thứ chặn tốc độ vẫn là số tab chứ không phải độ dài hàng.
+        for m, lo in tasks:
+            for i in lo:
+                _auto_allow(st, i, cyc)      # tính một lần thử: task này đi thật
+                JOBS[i] = {"state": "queued",
+                           "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m, _data)}"}
+            _xep(IMG_QUEUE, ("img", "LO:" + ",".join(lo), 0, False))
+        _LOG.info("[auto %s] đẩy %d task (%d ảnh) vào hàng chờ",
+                  sc["id"], len(tasks), sum(len(l) for _, l in tasks))
 
     # 2) video còn thiếu, nhưng chỉ khi ảnh SF của shot đó đã có
     #    VÀ chỉ khi công tắc auto-video đang bật (mặc định tắt).
@@ -1222,7 +1571,9 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
 def _auto_runner():
     cyc = 0
     while True:
-        time.sleep(AUTO_PERIOD)
+        # Chờ tới vòng sau, NHƯNG tỉnh ngay nếu user vừa bật một scene.
+        _AUTO_WAKE.wait(AUTO_PERIOD)
+        _AUTO_WAKE.clear()
         cyc += 1
         try:
             with AUTO_LOCK:
@@ -1390,6 +1741,10 @@ def _hub():
         # Trả luồng về trạng thái sạch rồi mới ném, để lần bấm sau còn báo đúng
         # bệnh chứ không đổ sang lỗi asyncio loop khó hiểu.
         _bo_hub()
+        # Nối hụt TRONG KHI cổng vẫn trả lời HTTP = cửa sổ nửa vời. Đánh dấu để
+        # `_endpoint_alive` ngừng báo sống, supervisor mới chịu mở lại.
+        if _ping_http(_TL.endpoint):
+            _bao_ws_hong(_TL.endpoint, str(e))
         raise RuntimeError(
             f"Không nối được Chrome debug ở {_TL.endpoint} ({e}). "
             "Mở lại cửa sổ Chrome debug của tài khoản này rồi thử lại."
@@ -1761,6 +2116,11 @@ def _pl_ten(turn: int) -> str:
 # Lệch bao nhiêu ảnh thì VẪN GIỮ nguyên lượt cho user bấm chọn tay, thay vì đốt
 # thêm một lượt để mua lại thứ đã có trong tay.
 PL_LECH_TOI_DA = 2
+
+# Số lần gửi lại NGUYÊN TASK khi lượt về không trọn vẹn (0 ảnh · thiếu · kèm
+# chữ). Hết số lần: còn ảnh thì ghép bấy nhiêu, không ảnh nào thì báo lỗi.
+# User chốt 2 (2026-08-12) — mỗi lần thử lại là một lượt credit thật.
+LO_THU_LAI = 2
 
 # Giữ bao nhiêu lượt trong hộp chờ. Chỉ dọn lượt ĐÃ GẮN HẾT, cũ nhất trước —
 # ảnh của lượt đó vẫn còn nguyên trong `versions/` nên không mất gì.
@@ -2204,9 +2564,12 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
             if not sf_ids:
                 return
 
+    # MỘT lần đọc board cho cả lô. get_sf() không tham số sẽ đọc lại toàn bộ
+    # cho TỪNG thẻ — lô 10 ảnh là 10 lần đọc, mỗi lần ~300ms.
+    _d = BOARD.read()
     viec, attach, thieu = [], [], []
     for i in sf_ids:
-        sf = BOARD.get_sf(i)
+        sf = BOARD.get_sf(i, _d)
         if not sf or not (sf.get("prompt") or "").strip():
             thieu.append(i); continue
         viec.append((i, sf["prompt"].strip()))
@@ -2226,7 +2589,7 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
     # có ảnh master ĐÃ DUYỆT để đính làm bối cảnh. Chốt từ lô master là gắn cả
     # địa điểm vào một tài khoản trước khi biết bản master nào được chọn, và để
     # lại trong chat những bản master hỏng.
-    chi_anh_goc = all(_la_the_dia_diem(BOARD.get_sf(i) or {"id": i}) for i in sf_ids)
+    chi_anh_goc = all(_la_the_dia_diem(BOARD.get_sf(i, _d) or {"id": i}) for i in sf_ids)
 
     # CỔNG CHẶN — đứng ở đây, TRƯỚC khi mở phiên Chrome và trước khi chốt chat.
     # Chặn ở server chứ không chỉ ở giao diện: auto-runner, hàng giao đích danh
@@ -2284,6 +2647,16 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
                                       nen_dung=lambda: any(i in DUNG_RIENG for i, _ in viec))
 
     port = int((getattr(_TL, "endpoint", "") or ":0").rsplit(":", 1)[1] or 0)
+    # TÀI KHOẢN VỪA CHẠM TRẦN ĐÍNH TỆP trong chính lượt này. ChatGPT cho up xong
+    # rồi mới báo, nên lượt này vẫn đủ ref và đã chạy tới nơi — chỉ cần cho tài
+    # khoản nghỉ NGAY, đừng để nó nhận thêm lô nào rồi mới phát hiện trắng tay.
+    _nghi = (ghi.get("nghi_den") or "").strip()
+    if _nghi:
+        _den = _moc_nghi(RuntimeError(f"[NGHI-DEN:{_nghi}]"))
+        _mark_dead(_TL.endpoint, "hết lượt đính tệp — nghỉ tới "
+                   + (time.strftime("%H:%M", time.localtime(_den)) if _den else _nghi),
+                   "img", _den)
+        _mo_chrome_du_phong("img", tru=_TL.endpoint)
     # KHÔNG lưu chat_url nữa (bỏ 2026-08-12): lần sau lại chat trắng.
 
     # TẢI HẾT VỀ TRƯỚC KHI PHÁN. Kể cả lượt thiếu, thừa, hay trả kèm chữ — ảnh
@@ -2292,15 +2665,20 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
     n_ve = int((luot or {}).get("so_anh") or 0)
     loi_text = (ghi.get("loi_text") or "").strip()
 
-    # SỐ ẢNH KHÁC SỐ PROMPT THÌ KHÔNG GHÉP. Lệch một nấc là ảnh gắn nhầm SF, và
-    # các ảnh cùng một địa điểm trông na ná nhau nên mắt rất khó bắt.
-    # Nguyên nhân hay gặp: guardrail ChatGPT từ chối MỘT ảnh giữa lô ("may
-    # violate our guardrails…"), thường chỉ cần xin lại là qua. Cơ chế tiếp tục:
-    #   · lệch tới PL_LECH_TOI_DA ảnh → coi LƯỢT ĐÃ XONG, ảnh nằm sẵn trên đĩa,
-    #     hiện thẳng lên thẻ để user bấm chọn. KHÔNG gửi lại: gửi lại là đốt
-    #     thêm một lượt để mua lại thứ đã có trong tay.
-    #   · lệch nhiều hơn thế (hoặc về 0 ảnh) → gần như chắc cả lượt bị chặn,
-    #     gửi lại cả lô 3 lần rồi mới tách chạy lẻ để cô lập prompt phạm.
+    # ═══ LƯỢT KHÔNG TRỌN VẸN — user chốt 2026-08-12 ═════════════════════════
+    #
+    # MỌI ca không trọn vẹn (0 ảnh · thiếu ảnh · trả kèm chữ) đều xử như nhau:
+    # gửi lại NGUYÊN TASK, tối đa `LO_THU_LAI` lần. Hết số lần thì
+    #   · còn ảnh  → ghép bấy nhiêu về được, theo thứ tự;
+    #   · 0 ảnh    → báo lỗi kèm hướng sửa prompt.
+    #
+    # Bỏ TÁCH CHẠY LẺ: bản cũ trượt 3 lần thì xé lô thành N việc một-ảnh. Chính
+    # đường đó đang lỗi, và nó biến một lô hỏng thành N lượt hỏng.
+    # Bỏ BẤM CHỌN TAY: ảnh không nằm chờ trong hộp nữa, ghép thẳng theo thứ tự.
+    #
+    # ⚠ ĐÁNH ĐỔI CÓ CHỦ Ý ở bước ghép cuối: nếu ChatGPT bỏ một ảnh ở GIỮA lô thì
+    # mọi ảnh sau đó lệch một nấc và vào nhầm thẻ. Đây là điều bản cũ từ chối
+    # làm. Bật "🔖 Mã SF" để mã in sẵn trong ảnh, nhìn là biết ảnh của thẻ nào.
     _bi_dung = [i for i, _ in viec if i in DUNG_RIENG]
     if _bi_dung:
         with HUY_LOCK:
@@ -2312,74 +2690,77 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
         _LOG.info("lô %d ảnh bị user dừng riêng — không thử lại", len(viec))
         return
 
-    # ---- LƯỢT LỆCH: giữ nguyên ảnh, để user gắn tay ngay trên thẻ ----------
-    if luot and (n_ve != len(viec) or loi_text) and abs(n_ve - len(viec)) <= PL_LECH_TOI_DA:
-        _ly = (f"lượt trả kèm chữ ({loi_text[:60]}…)" if loi_text and n_ve == len(viec)
-               else f"thiếu {len(viec) - n_ve} ảnh" if n_ve < len(viec)
+    _gr = "GR:" + _ident
+    if n_ve != len(viec) or loi_text:
+        # PHÂN BIỆT "CHƯA GỬI ĐƯỢC" VỚI "GỬI RỒI MÀ KHÔNG CÓ ẢNH".
+        #
+        # `da_gui=False` nghĩa là board KHÔNG bấm nổi nút Send — draft còn nguyên
+        # trong ô soạn, ChatGPT chưa hề nhận gì, KHÔNG tốn lượt nào. Bản cũ gộp
+        # chung vào câu "ChatGPT không trả ảnh nào", nên user nhìn thấy chat đầy
+        # ảnh (của lượt khác) mà board thì bảo không có — đi tìm lỗi nhận diện
+        # ảnh suốt trong khi bệnh nằm ở cú bấm gửi.
+        _chua_gui = not ghi.get("da_gui", True)
+        _vi = ("board CHƯA GỬI ĐƯỢC tin (nút Send bị nuốt, draft còn trong ô soạn) "
+               "— chưa tốn lượt nào" if _chua_gui
+               else "ChatGPT nhận tin nhưng không trả ảnh nào" if not n_ve
+               else f"lượt trả kèm chữ ({loi_text[:50]}…)" if loi_text and n_ve == len(viec)
+               else f"chỉ về {n_ve}/{len(viec)} ảnh" if n_ve < len(viec)
                else f"thừa {n_ve - len(viec)} ảnh")
-        if loi_text and n_ve != len(viec):
-            _ly += " · lượt còn trả kèm chữ"
-        luot["ly_do"] = _ly
-        _pl_ghi_meta(luot)
-        _HOAN.pop("GR:" + _ident, None)
-        for i, _ in viec:
-            JOBS[i] = {"state": "error",
-                       "msg": f"lượt {luot['turn']}: {_ly} — {n_ve} ảnh ĐÃ TẢI VỀ, "
-                              f"bấm chọn ngay trên thẻ (không gửi lại, không mất ảnh)"}
-        _LOG.warning("lượt %d LỆCH (%d ảnh / %d prompt · %s) — giữ nguyên cho user chọn tay",
-                     luot["turn"], n_ve, len(viec), _ly)
-        return
-
-    if n_ve != len(viec):
-        # USER ĐÃ BẤM DỪNG trong lúc lượt này đang chạy → KHÔNG được tự xếp hàng lại.
-        # Không có chốt này thì cú "Dừng tất cả" bị vô hiệu một cách im lặng: lô hỏng
-        # quay lại hàng đợi rồi vẽ đè lên ảnh đang có.
+        # USER ĐÃ BẤM DỪNG trong lúc lượt này chạy → KHÔNG được tự xếp lại. Thiếu
+        # chốt này thì "Dừng tất cả" bị vô hiệu một cách im lặng: lô hỏng quay
+        # lại hàng đợi rồi vẽ đè lên ảnh đang có.
         if dung_gen() != _gen0:
             for i, _ in viec:
                 JOBS[i] = {"state": "error", "msg": "đã dừng — không thử lại"}
-            _LOG.info("lô %d ảnh xong sau khi user bấm dừng — bỏ, không xếp hàng lại", len(viec))
+            _LOG.info("lô %d ảnh xong sau khi user bấm dừng — bỏ, không xếp lại", len(viec))
             return
-        # Guardrail chặn là chặn CẢ LƯỢT (thường về 0 ảnh) và phần lớn chỉ cần
-        # GỬI LẠI NGUYÊN LÔ là qua — đó là đường chính, giữ nguyên tốc độ lô.
-        # Tách chạy lẻ CHỈ là đường cùng sau 3 lần cả lô đều trượt: lúc đó gần
-        # như chắc có một prompt phạm thật, và chạy lẻ là cách duy nhất chỉ ra nó.
-        _gr = "GR:" + _ident
         _n = _HOAN.get(_gr, 0)
-        if _n < 3:
+        if _n < LO_THU_LAI:
             _HOAN[_gr] = _n + 1
-            _con = (f" · {n_ve} ảnh vớt được đã để ở lượt {luot['turn']}"
-                    if luot and n_ve else "")
             for i, _ in viec:
                 JOBS[i] = {"state": "queued",
-                           "msg": f"ChatGPT chặn/thiếu ảnh ({n_ve}/{len(viec)}) "
-                                  f"— gửi lại cả tin, lần {_n + 1}/3{_con}"}
+                           "msg": f"{_vi} — gửi lại cả tin, lần {_n + 1}/{LO_THU_LAI}"}
+            _LOG.warning("lô %d ảnh: %s — gửi lại nguyên task, lần %d/%d",
+                         len(viec), _vi, _n + 1, LO_THU_LAI)
             time.sleep(15)
             _xep(IMG_QUEUE, ("img", _ident, 0, tay))
             return
         _HOAN.pop(_gr, None)
-        if len(viec) > 1:
-            _LOG.warning("lô %d ảnh trượt 3 lần liền — tách chạy lẻ để cô lập prompt bị chặn",
-                         len(viec))
+        if not n_ve:
+            _cach = ("Board không bấm nổi nút Send sau nhiều lần. Xem hộp 🐞 để biết ô "
+                     "soạn và nút gửi lúc đó ra sao — thường là tab ChatGPT kẹt ở khung "
+                     "cũ, đóng tab đó rồi bấm Tạo lại." if _chua_gui
+                     else "Thường là guardrail chặn: sửa prompt — bớt chữ nhấn vào gương "
+                          "mặt, đổi vài chi tiết bố cục, hoặc đổi ảnh ref rồi bấm Tạo lại.")
             for i, _ in viec:
-                JOBS[i] = {"state": "queued", "msg": "trượt 3 lần → chạy lẻ từng ảnh để tìm prompt bị chặn"}
-                _xep(IMG_QUEUE, ("img", "LO:" + i, 0, tay))
+                JOBS[i] = {"state": "error",
+                           "msg": f"{_vi} — sau {LO_THU_LAI} lần thử. {_cach}"}
+            _LOG.warning("lô %d ảnh trượt cả %d lần — dừng, chờ user sửa prompt",
+                         len(viec), LO_THU_LAI)
             return
-        i = viec[0][0]
-        JOBS[i] = {"state": "error",
-                   "msg": "ChatGPT chặn đúng ảnh này nhiều lần (guardrail 'similarity to "
-                          "third-party content'). Cách chữa: sửa prompt — bớt chữ nhấn "
-                          "vào gương mặt/người nổi tiếng, đổi vài chi tiết bố cục; hoặc "
-                          "đổi ảnh ref của nhân vật rồi chạy lại."}
-        raise RuntimeError(f"{i}: guardrail chặn nhiều lần")
+        _LOG.warning("lô %d ảnh: %s sau %d lần gửi lại — thôi không thử nữa, ghép "
+                     "bấy nhiêu về được", len(viec), _vi, LO_THU_LAI)
 
-    # ---- ĐỦ ĐÚNG SỐ VÀ KHÔNG KÈM CHỮ → GHÉP TỰ ĐỘNG ----------------------
+    _HOAN.pop(_gr, None)                 # có ảnh về = lượt đã xong, xoá đếm
+
+    # ---- GHÉP TỰ ĐỘNG: có bao nhiêu ghép bấy nhiêu ------------------------
     # Ảnh đã nằm sẵn trong thư mục lượt, chỉ còn chép sang versions/. GHÉP RỒI
     # VẪN GIỮ thư mục lượt (xem PL_GIU_TOI_DA): lượt ghép đúng cũng phải còn
     # trong hộp chờ để dịch ảnh sang thẻ khác, không phải vẽ lại.
-    hong = []
+    hong, thieu = [], []
     for k, (i, _) in enumerate(viec, 1):
-        _HOAN.pop("GR:" + _ident, None)  # về đủ ảnh thì xoá đếm guardrail của lô
-        _HOAN.pop("GR:LO:" + i, None)    # và của bản chạy lẻ nếu từng tách
+        _HOAN.pop("GR:LO:" + i, None)    # xoá đếm guardrail của bản chạy lẻ cũ
+        # LỆCH SỐ THÌ MẤY THẺ CUỐI KHÔNG CÓ ẢNH.
+        # Cờ `nhe` = báo ở NGĂN KÉO HÀNG ĐỢI và hộp 🐞, KHÔNG dán dải đỏ lên thẻ
+        # (user chốt 2026-08-12). Thẻ trống đã tự nói lên nó chưa có ảnh; thêm
+        # dải đỏ nữa chỉ làm bảng đầy cảnh báo. Nhưng cũng không được im lặng —
+        # im thì thẻ hụt lẫn vào đám thẻ chưa chạy, không ai biết mà chạy lại.
+        if k > n_ve:
+            thieu.append(i)
+            JOBS[i] = {"state": "error", "nhe": True,
+                       "msg": f"lượt {luot['turn']} về {n_ve}/{len(viec)} ảnh sau "
+                              f"{LO_THU_LAI} lần thử — thẻ này chưa có ảnh, bấm Tạo lại"}
+            continue
         src = os.path.join(_pl_duong(luot["turn"]), luot["anh"][k - 1]["ten"])
         with BOARD_LOCK:
             out = BOARD.next_version_path(i, reserve=True)
@@ -2412,9 +2793,19 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
         JOBS[i] = {"state": "done", "msg": f"xong (lô · lượt {luot['turn']} #{k:02d})"}
     if hong:
         luot["ly_do"] = "chép vào versions/ lỗi ở " + ", ".join(hong[:4])
+    elif thieu:
+        luot["ly_do"] = (f"ghép {n_ve}/{len(viec)} ảnh theo thứ tự — thiếu ảnh cho "
+                         + ", ".join(thieu[:4]))
+        _LOG.warning("lượt %d về %d/%d ảnh — đã ghép theo thứ tự, %d thẻ chưa có ảnh: %s",
+                     luot["turn"], n_ve, len(viec), len(thieu), ", ".join(thieu[:6]))
     else:
         luot["ly_do"] = (f"đã ghép tự động đủ {len(viec)} ảnh — giữ lại để "
                          f"kéo sang thẻ khác nếu thứ tự chưa đúng")
+    # THỪA ảnh thì phần dôi nằm lại trong hộp chờ, không mất: nó vẫn ở
+    # cho-phan-loai/turn-NNNN/ và tra được qua nhật ký lượt.
+    if n_ve > len(viec):
+        _LOG.info("lượt %d thừa %d ảnh — phần dôi giữ trong hộp chờ",
+                  luot["turn"], n_ve - len(viec))
     _pl_ghi_meta(luot)
     _pl_don_bot()
 
@@ -2709,7 +3100,22 @@ class Handler(BaseHTTPRequestHandler):
                 kh = _nhom_cua(k, _d)
                 bt, ten = _ten_nhom(kh, _tat)
                 _nh[k] = {"khoa": kh, "bieu_tuong": bt, "nhan": ten}
+            # HÀNG ĐỢI THẬT + tình hình thợ, để giao diện nói được VÌ SAO một
+            # việc đang chờ. Nhãn "chờ" tự nó là dấu vết đã ghi, không phải hàng
+            # đợi — hai thứ lệch nhau được, và đúng lúc lệch là lúc user ngồi
+            # nhìn Chrome rảnh mà việc không nhúc nhích.
+            _hang = {"anh": thu_tu_hang(IMG_QUEUE), "video": thu_tu_hang(VID_QUEUE)}
+            _tho = {"img": {"song": 0, "ban": 0}, "vid": {"song": 0, "ban": 0}}
+            for (_p, _k, _s), _t in list(WORKERS.items()):
+                if _k in _tho and _t.is_alive():
+                    _tho[_k]["song"] += 1
+            for _id, _v in list(JOBS.items()):
+                if _v.get("state") != "running":
+                    continue
+                # ident lô ("LO:a,b") là việc ảnh; ident shot (V-…) là việc video.
+                _tho["vid" if _id.startswith("V-") else "img"]["ban"] += 1
             self._json({"jobs": JOBS, "auto": _auto_status(), "nhom": _nh,
+                        "hang": _hang, "tho": _tho,
                         "pl": _pl_dem(), "dan_ma": _dan_ma_doc(),
                         # tổng số bản ghi lỗi từ lúc board chạy — giao diện so
                         # con số này để biết khi nào phải kéo phần mới về
@@ -2742,6 +3148,8 @@ class Handler(BaseHTTPRequestHandler):
             })
         elif u.path == "/api/accounts":
             self._json({"accounts": _accounts_status()})
+        elif u.path == "/api/so-tk":
+            self._json({"ok": True, "so": _so_tk_doc()})
         elif u.path == "/api/loi":
             # Sổ lỗi cho hộp 🐞. `tu` = số thứ tự bản ghi giao diện đã có, để mỗi
             # vòng poll chỉ tải phần MỚI thay vì cả 800 dòng.
@@ -2911,6 +3319,13 @@ class Handler(BaseHTTPRequestHandler):
                 JOBS[k] = {"state": "error", "msg": "đã huỷ"}
             dang = [k for k, v in JOBS.items() if v.get("state") == "running"]
             self._json({"ok": True, "bo": bo, "cho_da_huy": len(cho), "dang_chay": dang})
+        elif u.path == "/api/xoa-xong":
+            # DỌN sổ việc ĐÃ XONG. Chỉ xoá dòng trạng thái — ảnh đã nằm trong
+            # assets/ và versions/, nhật ký lượt vẫn còn trong cho-phan-loai/.
+            bo = [k for k, v in JOBS.items() if v.get("state") == "done"]
+            for k in bo:
+                JOBS.pop(k, None)
+            self._json({"ok": True, "bo": len(bo)})
         elif u.path == "/api/xoa-loi":
             # DỌN việc LỖI khỏi hàng đợi.
             #
@@ -3074,7 +3489,7 @@ class Handler(BaseHTTPRequestHandler):
             # ở đây để user biết LIỀN thay vì thấy cả loạt job đỏ vài giây sau.
             _chan = []
             for m, xs in nhom.items():
-                if all(_la_the_dia_diem(BOARD.get_sf(i) or {"id": i}) for i in xs):
+                if all(_la_the_dia_diem(BOARD.get_sf(i, data) or {"id": i}) for i in xs):
                     continue                      # lô toàn thẻ địa điểm — không tự gác
                 ly = _cong_master(m, data)
                 if ly:
@@ -3343,6 +3758,25 @@ class Handler(BaseHTTPRequestHandler):
                 with AUTO_LOCK:
                     AUTO.clear()
                 self._json({"ok": True, "auto": {}}); return
+            if op == "onall":
+                # Bật auto cho MỌI scene còn thiếu ảnh — nút "bố" của từng nút
+                # "Chạy hết". Không đụng REF: thẻ nhân vật và đạo cụ là bản neo,
+                # user tự chọn tự duyệt từng cái, không giao cho máy quét.
+                # Scene đã đủ ảnh bị bỏ qua để auto khỏi tự tắt ngay vòng đầu.
+                _d = BOARD.read()
+                _mo = []
+                for sc in _d.get("scenes", []):
+                    if sc["id"] == "REF":
+                        continue
+                    if any(not f.get("image") for f in sc.get("sfs", [])):
+                        _mo.append(sc["id"])
+                with AUTO_LOCK:
+                    for sid2 in _mo:
+                        AUTO.setdefault(sid2, {"try": {}, "last": {}, "stat": {}})
+                _AUTO_WAKE.set()
+                _LOG.info("bật auto cho %d scene: %s", len(_mo), ", ".join(_mo))
+                self._json({"ok": True, "so": len(_mo), "scenes": _mo,
+                            "auto": _auto_status()}); return
             if not sid:
                 self._json({"ok": False, "err": "thiếu scene"}, 400); return
             with AUTO_LOCK:
@@ -3350,8 +3784,21 @@ class Handler(BaseHTTPRequestHandler):
                     AUTO.pop(sid, None)
                 else:
                     AUTO[sid] = {"try": {}, "last": {}, "stat": {}}
+                    _AUTO_WAKE.set()      # quét ngay, đừng bắt user đợi hết vòng
             self._json({"ok": True, "on": sid in AUTO, "auto": _auto_status()})
 
+        elif u.path == "/api/so-tk":
+            # Số tài khoản ChatGPT chạy ĐỒNG THỜI. Board tự bật/tắt để giữ đúng
+            # con số này — kể cả khi một tài khoản bị chặn và phải nghỉ.
+            want = (q.get("n", [""])[0] or "").strip()
+            if want:
+                _so_tk_ghi(want)
+                _LOG.info("đặt số tài khoản chạy đồng thời: %s", _so_tk_doc())
+                try:
+                    _giu_du_tai_khoan()
+                except Exception as e:
+                    _LOG.warning("giữ đủ tài khoản lỗi: %s", str(e)[:90])
+            self._json({"ok": True, "so": _so_tk_doc()})
         elif u.path == "/api/acct":
             op = q.get("op", [""])[0]
             port = int(q.get("port", ["0"])[0] or 0)
@@ -3383,6 +3830,10 @@ class Handler(BaseHTTPRequestHandler):
                 with ACC_LOCK:
                     acc["enabled"] = not acc["enabled"]
                     now = acc["enabled"]
+                # User tự bấm → xoá cờ "board tự tắt": từ giờ đây là ý user,
+                # board không được coi nó là chỗ trống để bật lại tuỳ ý.
+                with ACC_LOCK:
+                    acc.pop("auto_off", None)
                 _save_accounts()
                 if now:
                     # Bật = mở lại Chrome (nếu chưa mở) + xóa dấu chết để chạy lại từ đầu
@@ -3410,6 +3861,12 @@ class Handler(BaseHTTPRequestHandler):
                 with _DEAD_LOCK:
                     DEAD.pop(_ep(acc), None)
                     DEAD_DEN.pop(_ep(acc), None)
+                # Board đóng cửa sổ Chrome khi cho tài khoản nghỉ (trả RAM), nên
+                # gỡ dấu chết thôi là chưa đủ — thợ mới sẽ chết ngay ở bước nối
+                # CDP và tài khoản lại vào diện chết, vòng vo mà user không hiểu.
+                if acc["enabled"] and not _endpoint_alive(_ep(acc)):
+                    _launch_chrome(acc)
+                    _LOG.info("Thử lại %s — mở lại cửa sổ Chrome.", acc["id"])
                 self._json({"ok": True})
             elif op == "del":
                 # Xóa hẳn tài khoản: đóng Chrome, bỏ khỏi danh sách, XÓA LUÔN

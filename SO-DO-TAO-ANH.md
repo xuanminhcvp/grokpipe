@@ -1,307 +1,269 @@
-# Sơ đồ tạo ảnh SF — toàn bộ đường đi
+# App đang chạy hoạt động thế nào — khâu tạo ảnh SF
 
-Bản đồ đầy đủ của khâu **vẽ ảnh Start Frame**: từ lúc bấm nút tới lúc ảnh nằm trong
-`assets/`, kèm mọi ngã rẽ khi hỏng. Muốn tinh chỉnh gì thì tra bảng cuối file — mỗi
-hành vi có ghi **chỉnh ở đâu**.
+Mô tả **hệ thống đang chạy thật**: tiến trình nào, luồng nào, dữ liệu nằm ở đâu, một
+việc đi qua những chặng nào. Bảng ngưỡng và "muốn đổi X thì sửa ở đâu" nằm riêng ở
+[`SO-DO-TAO-ANH-KY-THUAT.md`](SO-DO-TAO-ANH-KY-THUAT.md).
 
-Video (Grok) đi đường khác, không nằm trong file này.
-
----
-
-## 1. Toàn cảnh
-
-```mermaid
-flowchart TD
-    A[Bạn tích bao nhiêu ảnh cũng được<br/>rồi bấm Tạo] --> B{Lẫn nhiều địa điểm?}
-    B -->|có| X[Báo lỗi, không chạy<br/>bạn tích lại cho chuẩn]
-    B -->|không| C[(IMG_QUEUE<br/>hàng đợi ưu tiên)]
-    C --> D{Thợ nào rảnh cũng nhặt được}
-    D --> G[Mở chat trắng<br/>gửi 1 tin nhắn]
-    G --> H[Chờ ChatGPT vẽ]
-    H --> I[Tải HẾT ảnh về cho-phan-loai/]
-    I --> J{Số ảnh khớp số prompt?}
-    J -->|khớp| K[Ghép tự động vào versions/]
-    J -->|lệch ít| L[Giữ nguyên, user bấm chọn tay]
-    J -->|lệch nhiều| M[Gửi lại cả tin, tối đa 3 lần]
-    M --> C
-    K --> N[Ảnh hiện trên thẻ, chờ duyệt]
-    L --> N
-```
-
-Bốn thứ chi phối toàn bộ, hiểu bốn cái này là hiểu cả hệ:
-
-| Khái niệm | Nghĩa |
-|---|---|
-| **Tích gì gửi nấy** | Bạn tự tích các thẻ muốn vẽ cùng nhau. Chúng đi trong **đúng một tin nhắn**, vẽ cùng lúc nên đồng bộ với nhau. **Không giới hạn số ảnh** — tích bao nhiêu gửi bấy nhiêu. |
-| **Luôn chat trắng** | Mỗi lần chạy mở một đoạn chat mới, gửi lại luật chung và đính lại đủ ref. Board **không nhớ** đoạn chat nào cả. |
-| **Một lần một địa điểm** | Tích lẫn hai địa điểm thì board **báo lỗi, không cho chạy** — một tin nhắn chỉ mang được một khối `luatchung`. Bạn tự tích lại cho chuẩn. |
-| **Ident** | Tên của một việc trong hàng đợi: `LO:SF-S3-01,SF-S3-02,…` (tên nội bộ, giữ nguyên cho khỏi phải sửa hàng loạt) |
+Video (Grok) đi đường riêng, không nằm trong file này.
 
 ---
 
-## 2. Lối vào — việc từ đâu ra
+## 1. Bức tranh tiến trình
 
 ```mermaid
 flowchart LR
-    A1[Nút Tạo ảnh đã chọn] --> Z[(IMG_QUEUE)]
-    A2[Nút tạo 1 ảnh trên thẻ] --> Z
-    A3[Nút Ảnh gốc địa điểm] --> Z
-    A4[Auto quét cả scene] --> Z
-    A5[chay-anh.py hàng loạt] --> Z
-    A6[Người gác cứu việc rơi] --> Z
-    A7[Gửi lại sau lỗi] --> Z
+    subgraph BR[Trình duyệt của bạn]
+        UI[board.html + board.js<br/>poll 1,5 giây]
+    end
+    subgraph BOARD[MỘT tiến trình python — sfboard.py]
+        HTTP[HTTP server đa luồng]
+        Q[(Hàng đợi ưu tiên<br/>ảnh · video)]
+        W1[thợ 9222·img·0]
+        W2[thợ 9222·img·1]
+        W3[thợ 9228·vid·0]
+        BG[supervisor · người gác<br/>auto · lưu bản]
+    end
+    subgraph CH[Chrome debug — mỗi tài khoản MỘT cửa sổ]
+        C1[cổng 9222<br/>tab gpslot0, gpslot1]
+        C2[cổng 9228<br/>tab gpslot0]
+    end
+    UI <-->|HTTP| HTTP
+    HTTP --> Q
+    Q --> W1 & W2 & W3
+    W1 & W2 -->|CDP| C1
+    W3 -->|CDP| C2
+    C1 -->|chatgpt.com| NET1[ChatGPT]
+    C2 -->|grok.com| NET2[Grok]
 ```
 
-| Lối vào | Ghi chú |
+Ba tầng, chạy độc lập với nhau:
+
+| Tầng | Là gì | Chết thì sao |
+|---|---|---|
+| **Board** | Một tiến trình python duy nhất, đa luồng. Không có database, không có tiến trình con nào của riêng nó. | Mất hàng đợi và mọi nhãn trạng thái. Ảnh trên đĩa còn nguyên. |
+| **Chrome debug** | Mỗi tài khoản một cửa sổ riêng, `--remote-debugging-port` riêng, profile riêng trong `~/.grokpipe-*`. Board mở nó bằng `subprocess.Popen`, không giữ tay lái. | Board đánh dấu tài khoản chết, chuyển việc sang tài khoản khác. Mở lại là tự hồi sinh. |
+| **Giao diện** | Trang tĩnh trong trình duyệt, chỉ nói chuyện với board qua HTTP. Không có WebSocket — tất cả là poll. | Board vẫn chạy tiếp, không biết và không cần biết. |
+
+Board **không đăng nhập gì cả**. Phiên ChatGPT/Grok nằm trong profile Chrome, do bạn tự
+đăng nhập một lần; board chỉ điều khiển cửa sổ đã đăng nhập sẵn qua CDP.
+
+---
+
+## 2. Các luồng chạy nền
+
+Bốn luồng nền khởi động cùng board, cộng với các luồng thợ sinh động theo số tài khoản:
+
+| Luồng | Nhịp | Việc |
+|---|---|---|
+| **supervisor** | 4 giây | Bảo đảm mỗi tài khoản đang bật luôn có đủ luồng thợ sống. Mở lại Chrome cho tài khoản hết giờ nghỉ. Dọn luồng thừa khi bạn hạ số tab. |
+| **người gác** | 30 giây | Tìm việc mang nhãn "chờ" mà đã rơi khỏi hàng đợi thật rồi xếp lại, tối đa 3 lần. |
+| **auto-runner** | vòng quét | Với scene đang bật auto: bù ảnh còn thiếu, đẩy video khi ảnh xong, bắn lại việc lỗi, xong scene thì tự tắt. |
+| **lưu bản** | theo giờ chốt | Sao lưu định kỳ. |
+| **thợ** | chờ hàng đợi | Xem mục 3. |
+
+HTTP server cũng đa luồng: mỗi request một luồng, nên poll của giao diện không bao giờ
+chặn việc render.
+
+---
+
+## 3. Thợ — đơn vị chạy việc
+
+**Một luồng thợ = một tài khoản × một loại việc × một chỗ ngồi.**
+
+```
+tài khoản gpt-1 (cổng 9222), user đặt 2 tab
+  → thợ (9222, img, slot 0)  lái tab window.name = "gpslot0"
+  → thợ (9222, img, slot 1)  lái tab window.name = "gpslot1"
+```
+
+- Thợ **gắn cứng** với một cổng CDP. Nó không đi lấy việc hộ tài khoản khác.
+- `slot` quyết định thợ lái tab nào. Tab được đánh dấu bằng `window.name` chứ không phải
+  bằng đối tượng Python — mỗi luồng mở một kết nối CDP riêng nên cùng một tab thật là
+  hai đối tượng khác nhau ở hai luồng, so bằng địa chỉ đối tượng là luôn trượt.
+- Không có tab riêng thì hai luồng cùng gõ vào một ô soạn và cả hai việc cùng hỏng.
+- Thợ tự thoát khi tài khoản bị tắt hoặc bị đánh dấu chết; supervisor mở thợ mới khi tài
+  khoản sống lại.
+
+Board đếm số lần Chrome bị đóng-mở (`CHROME_GEN`). Thợ giữ bản sao con số đó; lệch nghĩa
+là cửa sổ nó đang bám đã chết → nhả sạch Playwright rồi nối lại từ đầu. Không có bộ đếm
+này thì mọi việc sau đó chết ở bước mở tab.
+
+**Chưa bật tài khoản Grok nào** thì thợ ảnh kiêm luôn việc video — chạy nhờ trong cửa sổ
+ChatGPT, và board kêu to trong log vì profile đó thường không đăng nhập grok.com.
+
+---
+
+## 4. Trạng thái nằm ở đâu
+
+Đây là chỗ hay gây hiểu nhầm nhất: **một nửa hệ thống sống trong RAM, một nửa trên đĩa.**
+
+### Trong RAM — mất sạch khi restart board
+
+| Cái gì | Ghi chú |
 |---|---|
-| **Tạo ảnh đã chọn** | Tích thẻ nào gửi thẻ đó, **bao nhiêu ảnh cũng được, luôn đúng một tin**. Lẫn địa điểm thì báo lỗi. Bấm là chạy, không hỏi lại. |
-| **Tạo 1 ảnh trên thẻ** | Cũng là một tin nhắn, chỉ chứa một ảnh — vẫn có `luatchung`. |
-| **Ảnh gốc địa điểm** | Chỉ chạy các thẻ địa điểm còn thiếu ảnh. |
-| **Auto cả scene** | Vòng quét tự bù ảnh thiếu, tự bắn lại cái lỗi, xong scene thì tự tắt. |
-| **`chay-anh.py`** | Chạy hàng loạt ngoài giao diện: master trước, SF con sau. |
-| **Người gác** | Mỗi 30 giây, cứu việc mang nhãn "chờ" mà đã rơi khỏi hàng đợi. |
-| **Gửi lại sau lỗi** | Tin bị guardrail chặn tự quay lại hàng, tối đa 3 lần. |
+| Hai hàng đợi ưu tiên (ảnh, video) | Việc đang chờ biến mất |
+| Nhãn trạng thái từng việc | Đây là **dấu vết đã ghi**, không phải hàng đợi. Hai thứ lệch nhau được — việc rơi khỏi hàng vẫn để lại nhãn "chờ" nằm đó |
+| Sổ lỗi của hộp 🐞 | 800 dòng gần nhất |
+| Danh sách tài khoản chết + hẹn giờ sống lại | |
+| Sổ hoàn tác (nút ↩) | 100 lần gắn gần nhất |
+| Đếm số lần thử lại của từng việc | |
+
+### Trên đĩa — sống qua mọi lần restart
+
+| Đường | Nội dung |
+|---|---|
+| `sf-board.json` | Nguồn chuẩn duy nhất: scene → SF → shot, prompt, trạng thái duyệt, bản đang chọn |
+| `assets/` | Ảnh **đang dùng** của mỗi thẻ, một file một SF |
+| `versions/` | Mọi bản đã render, để so và chọn |
+| `cho-phan-loai/turn-NNNN/` | Ảnh của từng lượt gửi + `meta.json` mô tả lượt đó |
+| `cho-phan-loai/nhat-ky.json` | Bản nào ra từ lượt nào, ảnh thứ mấy, tài khoản nào |
+| `~/.grokpipe-accounts.json` | Danh sách tài khoản, cổng, số tab, bật/tắt |
+| `~/.grokpipe-dem-ngay.json` | Số bản mỗi tài khoản làm được trong ngày |
+
+Hệ quả thực tế: **ảnh không bao giờ mất vì restart**, nhưng việc đang chờ thì mất. Đó
+cũng là lý do phải kiểm hàng đợi trước khi khởi động lại board.
 
 ---
 
-## 3. Thứ tự trong hàng đợi
-
-Hàng đợi **không phải FIFO**. Nó xếp theo **vị trí shot trong tab video**:
-
-```
-tab video : B1 01 02 03 05 06 B2 07 08 09 …
-hàng đợi  : B1 01 02 03 05 06 B2 07 08 09 …   ← khớp đúng
-```
-
-- Thứ tự đọc từ `shots[]`, **không suy từ tên SF**. Tên có hậu tố chữ (`SF-S3-B1`) vẫn
-  đúng chỗ — trước đây suy từ tên nên mọi thẻ `B` rơi xuống cuối.
-- `REF_…` và thẻ master luôn ưu tiên **0** (chạy trước hết).
-- SF không thuộc shot nào → rơi xuống đáy.
-- Cùng ưu tiên thì giữ FIFO (ai xếp trước chạy trước).
-
----
-
-## 4. Thợ nhặt việc
+## 5. Vòng đời một việc tạo ảnh
 
 ```mermaid
-flowchart TD
-    A[Thợ rảnh] --> B[Lấy việc đầu hàng đợi]
-    B --> C{Việc đã bị huỷ?}
-    C -->|rồi| D[Bỏ, ghi 'đã huỷ']
-    C -->|chưa| E[Mở chat trắng và chạy]
+sequenceDiagram
+    participant UI as Giao diện
+    participant B as Board
+    participant T as Thợ
+    participant C as Chrome/ChatGPT
+    UI->>B: POST /api/tao-lo?sf=…
+    B->>B: gom theo địa điểm · chặn nếu lẫn 2 địa điểm
+    B->>B: xếp vào hàng đợi, đặt nhãn "chờ"
+    T->>B: nhấc việc đầu hàng
+    T->>T: kiểm đã huỷ? · thẻ địa điểm có ảnh chưa? · SF đã có ảnh chưa?
+    T->>C: mở chat trắng, đính đủ ref, gửi luật chung + prompt
+    C-->>T: vẽ ảnh
+    T->>T: chờ đủ ảnh + hết nút stop + trang yên liên tục 25s
+    T->>B: tải HẾT ảnh về cho-phan-loai/turn-NNNN/
+    B->>B: so số ảnh với số prompt
+    B->>B: khớp → chép sang versions/ + đặt làm ảnh chính
+    UI->>B: poll /api/jobs (1,5s) thấy trạng thái đổi
+    UI->>B: GET /api/board → vẽ lại thẻ
 ```
 
-Từ 2026-08-12 phần này **đơn giản hẳn**. Trước đây nó là chỗ rắc rối nhất của cả hệ:
-khoá địa điểm, hàng chờ khoá, giao việc đích danh cho tài khoản đang giữ chat, cân bằng
-chat giữa các tài khoản — bốn tầng luật ngầm, và phần lớn lỗi "board đứng im mà tài
-khoản vẫn rảnh" đều đẻ ra từ đó.
+Vài điểm quyết định trong chuỗi này:
 
-Vì board không nhớ đoạn chat nữa nên **mọi việc chạy được trên mọi tài khoản**. Không
-còn "chat này chỉ mở được ở tài khoản kia", nên cũng không cần khoá, không cần giao
-đích danh, không cần cân bằng.
+**Xếp hàng theo thứ tự shot, không phải theo lúc bấm.** Thứ tự đọc thẳng từ `shots[]`
+trong dữ liệu phim, không suy từ tên SF — suy từ tên thì mọi thẻ có hậu tố chữ rơi xuống
+cuối. Thẻ nhân vật và thẻ địa điểm luôn ưu tiên cao nhất.
 
-Hai việc cùng một địa điểm giờ **chạy song song được** trên hai tài khoản. Đổi lại,
-chúng nằm ở hai đoạn chat khác nhau nên không đồng bộ với nhau — muốn đồng bộ thì tích
-chúng chạy chung một lần.
+**Mỗi lần chạy là một chat trắng.** Board không còn nhớ đoạn chat của địa điểm nữa (bỏ
+2026-08-12). Nhờ vậy mọi việc chạy được trên mọi tài khoản: không còn "chat này chỉ mở
+được ở tài khoản kia", nên không cần khoá địa điểm, không cần giao việc đích danh, không
+cần cân bằng chat. Đổi lại, luật chung và toàn bộ ref phải gửi lại mỗi lần.
+
+**Tải hết về trước khi xét.** Ảnh đã sinh là lượt đã tiêu tiền. Board không được vứt ảnh
+vì một phép đếm, nên thứ tự luôn là: tải hết → mới so số lượng → mới quyết định.
+
+**Thứ tự ảnh lấy từ DOM, số lượng lấy từ mạng.** Sự kiện mạng bắn lúc ảnh *tải xong* chứ
+không phải lúc *vẽ xong* — ảnh nhẹ về trước ảnh nặng, nên thứ tự mạng là thứ tự kích
+thước file. Dùng nó để gán thẻ là ảnh vào nhầm chỗ, im lặng tuyệt đối.
 
 ---
 
-## 5. Cổng chặn trước khi gửi
+## 6. Ba ngã rẽ sau khi ảnh về
 
-Ba cửa phải qua, theo đúng thứ tự:
-
-| # | Cửa | Không qua thì |
+| Số ảnh so với số prompt | Board làm gì | Vì sao |
 |---|---|---|
-| 1 | **Thẻ địa điểm đã có ảnh chưa?** | Dừng. Ảnh thẻ địa điểm là bản neo khoá màu · ánh sáng · trục cho cả cụm; chạy khung con trước là mỗi khung tự bịa một look. |
-| 2 | **SF đã có ảnh rồi?** | Bỏ khỏi tin, không vẽ lại. Lọc lại ngay trước khi gửi vì hàng đợi nằm trong RAM và có thể cũ. |
-| 3 | **Còn tài khoản nào sống không?** | Hết tài khoản thì việc ghi lỗi và nằm chờ; bật lại Chrome ở ⚙ Tài khoản là chạy tiếp. |
+| **Khớp, không kèm chữ** | Ghép tự động: ảnh thứ k → thẻ thứ k, chép sang `versions/`, đặt làm ảnh chính | Đây là đường thường |
+| **Lệch ≤ 2 ảnh**, hoặc lượt trả kèm chữ | Dừng lại, giữ nguyên ảnh trong hộp chờ, hiện dải cho user bấm | Ảnh đã có trong tay; gửi lại là đốt thêm một lượt để mua lại thứ mình đã có |
+| **Lệch > 2, hoặc 0 ảnh** | Gửi lại cả tin, tối đa 3 lần, cách nhau 15 giây. Vẫn trượt thì tách chạy lẻ từng ảnh | Gần như chắc cả lượt bị chặn; gửi lại nguyên lô giữ được tốc độ. Chạy lẻ là cách duy nhất chỉ ra prompt phạm |
+
+**Lệch thì không bao giờ đoán.** Lệch một nấc là mọi ảnh phía sau vào nhầm thẻ, mà ảnh
+cùng địa điểm trông na ná nhau nên chỉ lộ ra lúc dựng video. Tương tự với ảnh **thừa**:
+ChatGPT thi thoảng vẽ thêm một biến thể ngoài số đã xin, và nó có thể nằm ở giữa — cắt
+"N ảnh cuối" là cả lô lệch.
+
+### Đường ảnh đi trên đĩa
+
+```
+cho-phan-loai/turn-0097/03.png   ← nơi ảnh hạ cánh, luôn luôn
+        │
+        ├─ (khớp số)   chép sang  versions/SF-S3-04_v2.png  → đặt làm assets/SF-S3-04.png
+        └─ (lệch)      nằm lại, chờ user bấm ở dải vàng → cùng đường như trên
+```
+
+Ảnh gốc trong hộp chờ **không bị đụng** khi gắn, nên gắn nhầm thì lùi được và gắn lại
+được. Hộp chờ giữ 40 lượt gần nhất, chỉ dọn lượt **đã gắn hết** — lượt còn ảnh treo thì
+không bao giờ bị chạm.
 
 ---
 
-## 6. Gửi tin nhắn và chờ vẽ
+## 7. Giao diện đồng bộ thế nào
+
+Không có WebSocket. Tất cả là poll:
+
+| Nhịp | Gọi gì | Để làm gì |
+|---|---|---|
+| 1,5 giây | `/api/jobs` | Nhãn trạng thái · số ảnh đang treo · số dòng lỗi · thời điểm sửa file dữ liệu |
+| khi có việc vừa chạy xong | `/api/board` | Nạp lại toàn bộ dữ liệu phim và vẽ lại |
+| khi file dữ liệu bị sửa từ ngoài | `/api/board` | AI sửa prompt bằng công cụ dòng lệnh thì board tự nhận ra và nạp lại |
+| khi số ảnh treo đổi | `/api/luot` | Vẽ lại dải ảnh chờ |
+| khi số dòng lỗi tăng | `/api/loi?tu=N` | Chỉ kéo phần mới, không kéo lại cả 800 dòng |
+
+`/api/jobs` cố tình trả về những con số rẻ (đếm, mốc thời gian) để giao diện tự quyết
+định khi nào cần gọi API đắt. Poll mỗi 1,5 giây mà lần nào cũng đọc cả thư mục hộp chờ
+thì board bận hơn cả việc render.
+
+**Giao diện được đọc lại từ đĩa mỗi request.** Sửa `board.js` hay `board.css` xong chỉ
+cần F5, không phải restart board — mà restart giữa chừng thì mất hàng đợi.
+
+---
+
+## 8. Định tuyến tài khoản và cơ chế tự chữa
 
 ```mermaid
-flowchart TD
-    A[Mở chat trắng] --> C[Gửi luatchung<br/>+ đính ĐỦ ref]
-    C --> E[Ghi prompt vào ô soạn]
-    E --> F[Đối chiếu số ký tự đã ghi]
-    F --> G[Bấm gửi]
-    G --> H[Chờ: đủ ảnh VÀ hết nút stop<br/>VÀ trang yên liên tục 25s]
-    H --> I[Chốt thứ tự ảnh]
+stateDiagram-v2
+    [*] --> Sống
+    Sống --> Chết: hết lượt · cửa sổ đóng · CDP đứt
+    Chết --> Nghỉ_có_hẹn: hết lượt đính tệp (ChatGPT báo giờ)
+    Nghỉ_có_hẹn --> Sống: tới giờ, tự mở lại Chrome
+    Chết --> Sống: phát hiện Chrome đã mở lại
 ```
 
-Vài điểm dễ hỏng, đã trả giá:
-
-- **Đính ĐỦ ref mỗi lần.** Chat trắng thì model không có trí nhớ gì; thiếu ref là nó tự
-  bịa mặt và trang phục — hỏng câm, không có thông báo nào. Mỗi nhân vật cần cả
-  `_PORTRAIT` (neo mặt) lẫn `_FULL` (neo trang phục).
-- **Phải chờ trang yên liên tục 25 giây** rồi mới đọc thứ tự ảnh. Đủ ảnh + hết nút stop
-  vẫn chưa xong: lúc ChatGPT đang chốt lượt, thumbnail còn sắp xếp lộn xộn. Đọc sớm là
-  gắn ảnh lộn thẻ.
-- **Không tin phép đếm 300 giây**: nút Stop không tồn tại xuyên suốt lúc ChatGPT nghĩ
-  ngầm. Im lặng lâu mà không có chữ từ chối rõ ràng thì vẫn chờ tiếp.
-- **`luatchung` gửi ở đầu mỗi tin nhắn.** Phần lặp của địa điểm (nội thất · bảng màu ·
-  ánh sáng · trang phục · trục) viết vào `luatchung`, đừng chép vào từng `prompt`.
+- Tài khoản chết bị rút khỏi pool; việc của nó chảy sang tài khoản còn sống.
+- "Hết lượt đính tệp" có kèm giờ hồi phục → board cho nghỉ đúng tới giờ đó rồi tự mở lại
+  Chrome, vì user có thể đã đóng cửa sổ trong lúc nghỉ.
+- Tab đóng hoặc sập (`target crashed`) thì thợ mở lại tab và chạy lại **cùng tài khoản** —
+  đây không phải lỗi tài khoản.
+- Có một ca board **không** tự chữa được: Chrome "sống nửa vời", HTTP trả lời bình thường
+  nhưng WebSocket CDP treo. Phép thử HTTP không chứng minh được gì ở ca này. Cách duy
+  nhất là làm sạch cả hai đầu: dừng board → đóng hết Chrome debug → mở lại board → mở lại
+  Chrome.
 
 ---
 
-## 7. Ảnh về rồi — phân loại
+## 9. Đường lỗi
 
-**Luật gốc: tải hết về trước khi phán.** Ảnh đã sinh là lượt đã tiêu, không được vứt vì
-một phép đếm. Mọi ảnh vào `cho-phan-loai/turn-NNNN/` theo đúng thứ tự hiển thị.
+Mọi cảnh báo và lỗi chảy về **một chỗ** — hộp 🐞 trên board — từ ba nguồn:
 
-```mermaid
-flowchart TD
-    A[Đã tải hết về] --> B{User bấm dừng riêng?}
-    B -->|rồi| C[Ghi lỗi 'đã dừng riêng'<br/>không thử lại]
-    B -->|chưa| D{Số ảnh so với số prompt}
-    D -->|khớp, không kèm chữ| E[Ghép tự động<br/>→ versions/ → thẻ]
-    D -->|lệch ≤ 2 ảnh<br/>hoặc kèm chữ| F[Giữ nguyên<br/>user bấm chọn trên thẻ]
-    D -->|lệch > 2 hoặc 0 ảnh| G{User đã bấm<br/>Dừng tất cả?}
-    G -->|rồi| H[Bỏ, không xếp lại]
-    G -->|chưa| I{Đã gửi lại mấy lần?}
-    I -->|< 3| J[Chờ 15s, gửi lại CẢ TIN]
-    I -->|= 3, tin nhiều ảnh| K[Tách chạy LẺ<br/>để cô lập prompt phạm]
-    I -->|= 3, tin một ảnh| L[Báo lỗi guardrail<br/>kèm cách chữa]
-```
-
-Vì sao chia ba mức:
-
-- **Lệch ít (≤ 2 ảnh)** — thường guardrail từ chối *một* ảnh giữa tin. Ảnh đã có trong
-  tay rồi, gửi lại là đốt thêm một lượt để mua lại thứ mình đã có. Nên giữ nguyên cho
-  user bấm chọn.
-- **Lệch nhiều / 0 ảnh** — gần như chắc cả lượt bị chặn, và phần lớn chỉ cần **gửi lại
-  nguyên lô** là qua. Đây là đường chính vì nó giữ được tốc độ của lô.
-- **Tách chạy lẻ** chỉ là đường cùng sau 3 lần cả lô đều trượt: lúc đó gần như chắc có
-  một prompt phạm thật, và chạy lẻ là cách duy nhất chỉ ra nó.
-
-**Số ảnh khác số prompt thì không bao giờ ghép tự động.** Lệch một nấc là ảnh gắn nhầm
-SF, mà ảnh cùng địa điểm trông na ná nhau nên mắt rất khó bắt.
-
----
-
-## 8. Bảng đầy đủ các trường hợp hỏng
-
-### 8.1 Hỏng ở phía ChatGPT
-
-| Trường hợp | Board làm gì | Bạn cần làm gì |
-|---|---|---|
-| Guardrail chặn cả lượt (0 ảnh) | Gửi lại cả tin, tối đa 3 lần, cách nhau 15s | Chờ |
-| Guardrail chặn 1 ảnh giữa tin | Giữ ảnh đã về, ghi "bấm chọn trên thẻ" | Bấm chọn ảnh trên thẻ |
-| Trượt 3 lần liền, tin nhiều ảnh | Tách chạy lẻ từng ảnh | Chờ, rồi xem ảnh nào lỗi |
-| Trượt 3 lần, tin một ảnh | Báo lỗi kèm hướng chữa | Sửa prompt: bớt chữ nhấn vào gương mặt, đổi vài chi tiết bố cục, hoặc đổi ref |
-| Lượt trả kèm chữ | Coi là lỗi, giữ ảnh, để user chọn | Bấm chọn trên thẻ |
-| Thừa ảnh | Giữ nguyên, để user chọn | Bấm chọn trên thẻ |
-| **Hết lượt tạo ảnh** | Đánh dấu tài khoản chết, chuyển việc sang tài khoản khác | Không |
-| **Hết lượt đính tệp (có hẹn giờ)** | Cho tài khoản nghỉ tới đúng giờ rồi tự sống lại; mở Chrome dự phòng | Không |
-
-### 8.2 Hỏng ở phía trình duyệt / máy
-
-| Trường hợp | Board làm gì | Bạn cần làm gì |
-|---|---|---|
-| Tab bị đóng | Nhả phiên, mở lại tab, thử lại **cùng tài khoản** | Không |
-| Tab crash (hết RAM) | Như trên — nhận diện qua `target crashed` | Giảm số tab / cửa sổ nếu lặp lại |
-| Cửa sổ Chrome bị đóng | Đánh dấu chết, chuyển sang tài khoản khác; Chrome mở lại thì tự hồi sinh | Mở lại Chrome ở ⚙ Tài khoản |
-| Kết nối CDP đứt | Phát hiện bằng `is_connected()`, dựng lại kết nối | Không |
-| **Chrome "sống nửa vời"** — HTTP trả lời nhưng WebSocket treo | Không tự chữa được | Dừng board → đóng hết Chrome debug → mở lại board → mở lại Chrome. Khởi động lại riêng một đầu **không đủ**. |
-
-### 8.3 Hỏng ở phía hàng đợi
-
-| Trường hợp | Board làm gì | Bạn cần làm gì |
-|---|---|---|
-| Việc mang nhãn "chờ" mà đã rơi khỏi hàng đợi | Người gác gom lại và xếp lại, tối đa 3 lần | Không |
-| Rơi khỏi hàng 3 lần | Ghi lỗi "bấm chạy lại" | Bấm chạy lại |
-| Hai việc cùng địa điểm | **Chạy song song được** (từ 2026-08-12). Chúng ở hai chat khác nhau nên không đồng bộ với nhau | Muốn đồng bộ thì tích chạy chung một lần |
-| Tất cả tài khoản đều bận | Việc nằm chờ tới lượt | Chờ, hoặc thêm tài khoản/tab |
-| Tích lẫn nhiều địa điểm | **Không xếp gì cả**, báo rõ địa điểm nào gồm thẻ nào | Bỏ tích để chỉ còn một địa điểm |
-
-### 8.4 Khi bạn chủ động dừng
-
-| Nút | Tác dụng | Ảnh đang vẽ |
-|---|---|---|
-| **✕ trên một việc đang chờ** | Vứt khỏi hàng đợi | — |
-| **■ trên một việc đang chạy** | Bấm nút Stop của ChatGPT, cắt thật, không đụng việc khác | Mất |
-| **Huỷ việc đang chờ** | Vứt mọi việc chưa chạy | Việc đang chạy vẫn chạy nốt |
-| **Dừng tất cả** | Tắt auto, vét hàng đợi, **bấm Stop trên mọi đoạn chat**, đóng Chrome | Mất |
-
-**Vì sao Dừng tất cả phải bấm Stop chứ không chỉ đóng Chrome:** việc sinh ảnh chạy ở
-phía máy chủ OpenAI, không phải trong trình duyệt. Đóng cửa sổ chỉ làm mình hết nhìn
-thấy — lượt đó vẫn vẽ tiếp, vẫn tính vào hạn mức, mở lại Chrome là thấy nó vẫn chạy.
-
-Sau khi Dừng tất cả, **người gác không được cứu việc lên nữa** — việc rơi khỏi hàng lúc
-đó là đúng ý bạn.
-
----
-
-## 9. Trạng thái hiện trên hàng đợi
-
-| Nhãn | Nghĩa |
+| Nguồn | Vào sổ bằng cách nào |
 |---|---|
-| `chờ` | Trong hàng đợi, chưa tới lượt |
-| `N ảnh [tk 2/2] · chat mới · đính k ref` | Đang chạy |
-| `ChatGPT chặn/thiếu ảnh (x/y) — gửi lại cả lô, lần k/3` | Đang thử lại |
-| `lượt N: thiếu k ảnh — đã TẢI VỀ, bấm chọn ngay trên thẻ` | Cần bạn chọn tay |
+| Log của board và của executor | Một handler gắn vào logger gốc, bắt từ mức WARNING |
+| Việc chuyển sang trạng thái lỗi | Bảng trạng thái việc là một `dict` có móc: mỗi lần một việc đổi sang lỗi là tự ghi. Trạng thái lỗi được đặt ở hơn hai chục nhánh, phần lớn không tự gọi log — chặn ở một chỗ là chặn cho tất cả |
+| Lỗi JavaScript của chính giao diện | Bắt `error` và `unhandledrejection` ngay trong trang |
 
-**Nhãn ở đây là dấu vết đã ghi, không phải hàng đợi thật.** Hai thứ có thể lệch nhau.
-Muốn biết hàng đợi thật thì mở `/api/chan-doan` (mục 11).
+Sổ giữ 800 dòng gần nhất trong RAM. Giao diện chỉ kéo phần mới, gộp thêm các việc đang
+lỗi, và cho copy cả hộp.
 
----
-
-## 10. Các ngưỡng — chỉnh ở đâu
-
-| Ngưỡng | Giá trị | Chỉnh ở | Cân nhắc trước khi đổi |
-|---|---|---|---|
-| Ảnh tối đa khi **bạn tích** | **không giới hạn** | — | Tích bao nhiêu gửi bấy nhiêu, luôn đúng một tin |
-| Ảnh tối đa khi **máy tự gom** | **10** | `sfboard/hangdoi.py` · `TRAN_MAY_TU_GOM` | Chỉ áp cho auto quét và người gác — để máy đừng tự dồn cả scene vào một tin khi không ai nhìn |
-| Lệch bao nhiêu ảnh thì vẫn giữ | **2** | `sfboard/sfboard.py` · `PL_LECH_TOI_DA` | Nới rộng = ít gửi lại hơn nhưng phải chọn tay nhiều hơn |
-| Số lần gửi lại cả tin | **3** | `sfboard/sfboard.py`, tìm `_gr = "GR:"` | Tăng = tốn lượt; giảm = tách chạy lẻ sớm |
-| Giữ bao nhiêu lượt trong hộp chờ | **40** | `sfboard/sfboard.py` · `PL_GIU_TOI_DA` | Giữ nhiều tốn đĩa, ít thì mất chỗ dịch ảnh sang thẻ khác |
-| Giây trang phải yên trước khi chốt thứ tự | **25** | `image_chatgpt.py`, tìm `YEN = 25.0` | Giảm là gắn ảnh lộn thẻ |
-| Hạn tổng chờ một lượt | **300s** | `image_chatgpt.py` · `gen_timeout` | |
-| Tab tối đa một tài khoản | **6** | `sfboard/sfboard.py` · `MAX_TABS` | Mỗi tab thêm là thêm RAM; nhiều tab **không** nhân được hạn mức |
-| Người gác quét mỗi | **30s** | `sfboard/sfboard.py` · `_gac_hang_doi` | |
-| Ref nặng hơn thì thu nhỏ | **1200 KB / cạnh 1600** | `image_chatgpt.py` · `_REF_TRAN_KB`, `_REF_CANH_MAX` | |
-
-## 11. Chỉnh hành vi — tra ở đây
-
-| Muốn đổi | Sửa ở |
-|---|---|
-| Thứ tự chạy trong hàng đợi | `hangdoi.py` · `uu_tien()` / `thu_tu_shot()` |
-| Luật "một lần một địa điểm" | `sfboard.py` · `_lan_dia_diem()` |
-| Trần khi máy tự gom | `sfboard/hangdoi.py` · `TRAN_MAY_TU_GOM` |
-| Nút "Tạo ảnh đã chọn" và thanh chọn | `ui/board.js` · `loChay()`, `veLoBar()` |
-| Cổng chặn "thẻ địa điểm phải có ảnh trước" | `sfboard.py` · `_cong_master()` |
-| Xử lý khi số ảnh lệch | `sfboard.py` · `_generate_lo_ruot()`, đoạn "LƯỢT LỆCH" |
-| Cứu việc rơi khỏi hàng | `sfboard.py` · `_gac_hang_doi()` |
-| Nhận diện lỗi hết lượt / tab chết | `sfboard.py` · `_is_quota_error()`, `_is_dead_session_error()` |
-| Selector, mọi đoạn JS chạy trong trang | `grokpipe/executors/dom_chatgpt.py` |
-| Cách đính ref, gửi prompt, chờ ảnh | `image_chatgpt.py` · `generate_lo()` |
-| Giao diện hàng đợi | `sfboard/ui/board.js`, `board.css` |
-
-## 12. Soi khi hàng đợi đứng im
-
-```bash
-curl -s http://localhost:8782/api/chan-doan | python3 -m json.tool
-```
-
-| Trường | Đọc thế nào |
-|---|---|
-| `hang_doi.anh` | Số việc **thật** trong hàng. Lệch với số "chờ" trên giao diện = có việc mồ côi |
-| `tho` | `cổng·loại·slot: true` = thợ còn sống |
-| `chet` | Tài khoản bị đánh dấu chết và lý do |
-| `lo_dang_hoan` | Việc nào đang phải thử lại, và bao nhiêu lần |
-| `da_huy` | Việc user đã huỷ |
-| `dung_gen` | Số lần đã bấm "Dừng tất cả" |
-
-**Đứng im mà `tho` đủ và `chet` rỗng** → nghi việc mồ côi: nhãn "chờ" còn mà hàng đợi
-rỗng. Người gác sẽ cứu trong 30 giây; không cứu được thì bấm chạy lại.
+Lỗi của khâu Grok còn kèm một dòng chẩn đoán đầy đủ: URL · ngôn ngữ giao diện · số ô
+soạn · số nút gửi · có nút mode Video không · có nút mở lượt mới không · số video · danh
+sách nút đang hiện. Đủ để phân biệt ba ca trước đây trông giống hệt nhau trong log: tab
+kẹt ở trang kết quả · trang đổi giao diện · tab chết.
 
 ---
 
-## 13. Ba luật cứng, đừng phá
+## 10. Ba luật cứng của hệ thống
 
-1. **Ảnh đã duyệt là bản đã chốt.** Không xoá, không ghi đè, không "nâng cấp" lên bản
-   nét hơn trong `versions/`. Nghi sai thì báo, để user quyết.
-2. **Đính đủ ref mỗi lần chạy.** Mỗi tin là một chat trắng, model không nhớ gì từ lần
-   trước; thiếu ref là nó tự bịa mặt và trang phục — hỏng hoàn toàn im lặng.
+1. **Ảnh đã duyệt là bản đã chốt.** Mọi đường ghi ảnh đều kiểm cờ duyệt trước và từ chối
+   nếu thẻ đã chốt — kể cả ghép tự động lẫn gắn tay.
+2. **Đính đủ ref mỗi lần chạy.** Mỗi lượt là một chat trắng, model không nhớ gì từ lần
+   trước; thiếu ref là nó tự bịa mặt và trang phục, hỏng hoàn toàn im lặng.
 3. **Tải hết ảnh về trước khi phán.** Lượt đã sinh là lượt đã tiêu.

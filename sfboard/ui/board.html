@@ -57,6 +57,15 @@
       <span style="flex:1"></span>
       <button class="sm" onclick="toggleQueue(false)" title="Đóng">✕</button>
     </div>
+    <!-- HAI TAB: việc đang sống · sổ việc đã xong. Trộn chung thì danh sách đã
+         xong dài dần và đẩy phần đang chạy xuống dưới màn hình. -->
+    <div class="qtabs">
+      <button id="qtab-live" class="on" onclick="qTab('live')">⏳ Đang chạy &amp; chờ <i id="qn-live"></i></button>
+      <button id="qtab-done" onclick="qTab('done')">✓ Đã xong <i id="qn-done"></i></button>
+      <span style="flex:1"></span>
+      <button class="sm" id="qclear" onclick="xoaXong()" style="display:none"
+        title="Dọn sổ việc đã xong. Chỉ xoá dòng theo dõi — ảnh và nhật ký lượt vẫn nguyên.">🗑 Clear</button>
+    </div>
     <div class="qacts" id="qbulk" style="display:none">
       <b id="qseln" style="font-size:12.5px"></b>
       <span style="flex:1"></span>
@@ -83,17 +92,13 @@
   <nav id="snav"></nav>
   <main>
     <div class="toolbar">
-      <button onclick="toggleRunAll()" id="runall">▶ Chạy tuần tự</button>
+      <button onclick="chayHetPhim()" id="allbtn"
+        title="Bật 'Chạy hết' cho MỌI scene còn thiếu ảnh (bỏ qua REF và bỏ qua thẻ đã có ảnh).&#10;Board tự chia task 10 ảnh cùng địa điểm rồi đẩy lần lượt vào hàng chờ.">▶▶
+        Chạy hết phim</button>
       <button onclick="toggleAutoVid()" id="avbtn"
         title="Vòng quét tự động có được phép xếp việc TẠO VIDEO hay không. Tắt = auto chỉ lo ảnh SF.&#10;Không liên quan nút 'Tạo video' bấm tay — bấm tay lúc nào cũng chạy.">🎞
         Auto video: …</button>
       <button onclick="toggleAccts()" id="acctbtn">⚙ Tài khoản</button>
-      <button onclick="chayMaster()" id="mstbtn"
-        title="Chạy ảnh của MỌI thẻ địa điểm còn thiếu. Ảnh thẻ địa điểm là bản neo khoá màu · ánh sáng · trục cho cả địa điểm, nên phải có ảnh trước khi chạy khung con.">📍
-        Ảnh gốc địa điểm</button>
-      <button onclick="toggleMa()" id="mabtn"
-        title="In mã SF vào GÓC DƯỚI BÊN TRÁI của ảnh khi tạo. Bật để nhận ra ảnh nào của thẻ nào khi một lượt trả về lệch số ảnh. ⚠ Nhãn nằm TRONG ảnh nên nó theo start frame vào video — TẮT trước khi render bản cuối.">🔖
-        Mã SF</button>
       <button onclick="toggleQueue()" id="qbtn"
         title="Xem mọi việc đang chạy và đang chờ, xếp theo đoạn chat. Nút dừng nằm trong đây.">▤ Hàng đợi</button>
       <button onclick="toggleLoi()" id="loibtn"
@@ -111,12 +116,16 @@
       style="display:none;margin:8px 0;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card,#fff)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <b>Tài khoản Chrome</b>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px"
+          title="Số tài khoản ChatGPT chạy ĐỒNG THỜI. Board tự bật/tắt để luôn giữ đúng con số này.&#10;Một tài khoản bị chặn hạn mức sẽ vào chế độ nghỉ và KHÔNG tính — board bật tài khoản khác thay chỗ, tới giờ hết chặn thì nó quay lại và cái thừa bị tắt bớt.&#10;Khác 'tab': tab là nhiều việc trong CÙNG một tài khoản, chung một hạn mức.">chạy cùng lúc
+          <input type="number" min="1" max="12" id="sotk" style="width:48px"
+            onchange="datSoTK(this.value)"> tài khoản</label>
         <button onclick="acctAdd('img')">+ ChatGPT</button>
         <button onclick="acctAdd('vid')">+ Grok</button>
         <span class="hint">Bật = mở Chrome + đưa vào vòng chạy · Tắt = đóng Chrome + ngừng dùng · login thì bạn tự làm
           trong cửa sổ</span>
       </div>
-      <div id="acctrows" style="display:flex;flex-direction:column;gap:4px"></div>
+      <div id="acctrows"></div>
     </div>
     <!-- HỘP LỖI. Nằm trong luồng trang chứ không phải cửa sổ nổi: lỗi thường
          phải đọc song song với thẻ đang hỏng, hộp nổi che mất thẻ. -->

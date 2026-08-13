@@ -211,14 +211,15 @@ document.addEventListener('mousedown', e => {
 });
 function veHangDoi() {
   const nay = Date.now();
-  const dang = [], cho = [], loi = [];
+  const dang = [], cho = [], loi = [], xong = [];
   for (const [id, j] of Object.entries(JOBS || {})) {
     if (id.startsWith('LO:')) continue;              // ident lô — đã rải cho từng SF
     if (j.state === 'running') { if (!QSEEN[id]) QSEEN[id] = nay; dang.push([id, j]) }
     else {
       delete QSEEN[id];
       if (j.state === 'queued') cho.push([id, j]);
-      else if (j.state === 'error') loi.push([id, j])
+      else if (j.state === 'error') loi.push([id, j]);
+      else if (j.state === 'done') xong.push([id, j]);
     }
   }
   const n = dang.length + cho.length;
@@ -227,32 +228,112 @@ function veHangDoi() {
   const fab = $('#qfab'), fabn = $('#qfabn');
   if (fab) { fab.classList.toggle('has', !!n); if (fabn) fabn.textContent = n > 99 ? '99+' : n }
   const tom = $('#qtom');
-  if (tom) tom.textContent = n || loi.length
-    ? `${dang.length} đang chạy · ${cho.length} chờ${loi.length ? ' · ' + loi.length + ' lỗi' : ''}`
+  if (tom) tom.textContent = n || loi.length || xong.length
+    ? `${dang.length} đang chạy · ${cho.length} chờ`
+      + (xong.length ? ` · ${xong.length} xong` : '')
+      + (loi.length ? ` · ${loi.length} lỗi` : '')
     : 'không có việc nào';
   const don = $('#qdon');
   if (don) don.style.display = loi.length ? '' : 'none';
-  const con = new Set([...dang, ...cho, ...loi].map(x => x[0]));   // bỏ chọn id đã biến mất
+  const con = new Set([...dang, ...cho, ...loi, ...xong].map(x => x[0]));   // bỏ chọn id đã biến mất
   [...QTICK].forEach(i => { if (!con.has(i)) QTICK.delete(i) });
   qCapNhatChon();
+  const _nl = $('#qn-live'), _nd = $('#qn-done'), _cl = $('#qclear');
+  if (_nl) _nl.textContent = (dang.length + cho.length) || '';
+  if (_nd) _nd.textContent = xong.length || '';
+  if (_cl) _cl.style.display = (QVIEW === 'done' && xong.length) ? '' : 'none';
   if (!QOPEN) return;
   const MAU = { running: '#16a34a', queued: '#9ca3af', error: '#dc2626' };
-  const gom = {};
-  for (const [tt, ds] of [['running', dang], ['queued', cho], ['error', loi]])
-    for (const [id, j] of ds) {
-      const g = (QNHOM || {})[id] || { bieu_tuong: '•', nhan: '(chưa xếp nhóm)' };
-      const k = g.bieu_tuong + ' ' + g.nhan;
-      (gom[k] = gom[k] || []).push([id, j, tt]);
-    }
+  // XẾP THEO THỨ TỰ SẼ CHẠY, không gom theo địa điểm nữa (user chốt 2026-08-12).
+  // Gom theo nhóm thì đọc được "còn nợ chỗ nào", nhưng KHÔNG trả lời được câu
+  // hay phải hỏi hơn: "tới lượt tôi chưa?". Thứ tự lấy từ chính hàng đợi của
+  // board, nên nó là thứ tự THẬT chứ không phải thứ tự bấm.
+  cho.sort((a, b) => (qViTri(a[0]) + 1 || 9e9) - (qViTri(b[0]) + 1 || 9e9));
   const box = $('#qbody');
-  if (!Object.keys(gom).length) {
+  if (!dang.length && !cho.length && !loi.length && !xong.length) {
     box.innerHTML = '<div class="hint" style="padding:10px 0">Hàng đợi trống — không có việc nào đang chạy hay đang chờ.</div>';
     return;
   }
   let h = '';
-  for (const [ten, ds] of Object.entries(gom)) {
+  // ---- ĐANG CHỜ: một TASK = một tin nhắn gửi đi, xong task 1 mới tới task 2.
+  // Đơn vị này mới là thứ board thật sự chạy; liệt kê từng SF rời làm người đọc
+  // tưởng chúng chạy lần lượt, trong khi cả nhóm đi chung MỘT lượt.
+  if (QVIEW === 'live' && cho.length) {
+    const theoTask = new Map();      // ident lô → [SF con đang chờ]
+    const moCoi = [];
+    for (const [id, j] of cho) {
+      const k = qViTri(id);
+      if (k < 0) { moCoi.push([id, j]); continue }
+      const key = [...(QHANG.anh || []), ...(QHANG.video || [])][k];
+      if (!theoTask.has(key)) theoTask.set(key, []);
+      theoTask.get(key).push([id, j]);
+    }
+    const dsTask = [...theoTask.entries()]
+      .sort((a, b) => qViTri(a[1][0][0]) - qViTri(b[1][0][0]));
+    h += `<div class="qg"><b>⏳ Đang chờ</b> <span class="hint">${dsTask.length} task`
+      + `${moCoi.length ? ' + ' + moCoi.length + ' mồ côi' : ''}</span>`
+      + `<div class="hint" style="font-size:11px;margin:2px 0 6px">${esc(qViSao())}</div>`;
+    dsTask.forEach(([key, ds], idx) => {
+      const g = (QNHOM || {})[ds[0][0]] || {};
+      const ghi = ds.map(([, j]) => j.msg).find(m => m && /gửi lại|chặn|thiếu/i.test(m));
+      h += `<div class="qtask">
+        <div class="qth"><span class="qstt">${idx + 1}</span>
+          <b>Task ${idx + 1}</b>
+          <span class="hint">${ds.length} ảnh${g.nhan ? ' · ' + esc(g.bieu_tuong || '') + ' ' + esc(g.nhan) : ''}</span>
+          <span style="flex:1"></span>
+          <span class="t">${idx === 0 ? 'kế tiếp' : 'sau ' + idx + ' task'}</span>
+        </div>
+        <div class="qtb">${ds.map(([id]) => `<span class="qsf" title="Huỷ ${esc(id)} khỏi task này"
+             onclick="huyMotViec('${esc(id)}')">${esc(id)} ✕</span>`).join('')}</div>
+        ${ghi ? `<div class="hint" style="font-size:11px;margin-top:3px">${esc(ghi.slice(0, 120))}</div>` : ''}
+      </div>`;
+    });
+    for (const [id, j] of moCoi)
+      h += `<div class="qi" title="${esc(j.msg || '')}"><span class="d" style="background:#dc2626"></span>
+        <span class="n">${esc(id)}</span><span class="t">mồ côi ⟳</span></div>`;
+    h += '</div>';
+  }
+  // ---- TAB "✓ ĐÃ XONG": gom theo LƯỢT, để đọc được "task nào xong, về mấy ảnh".
+  // Từng SF một thì 10 dòng cho một tin nhắn, và không thấy được lượt đó có trả
+  // đủ hay không — mà đó mới là thứ cần theo dõi.
+  if (QVIEW === 'done') {
+    if (!xong.length) {
+      box.innerHTML = '<div class="hint" style="padding:10px 0">Chưa có việc nào xong trong phiên này.'
+        + '<br>Sổ này nằm trong bộ nhớ board — khởi động lại board là sạch.</div>';
+      return;
+    }
+    const theoLuot = new Map();
+    for (const [id, j] of xong) {
+      const m = /lượt (\d+)/.exec(j.msg || '');
+      const k = m ? +m[1] : 0;
+      if (!theoLuot.has(k)) theoLuot.set(k, []);
+      theoLuot.get(k).push([id, j]);
+    }
+    const ds = [...theoLuot.entries()].sort((a, b) => b[0] - a[0]);   // mới nhất lên đầu
+    h += `<div class="qg"><b>✓ Đã xong</b> <span class="hint">${ds.length} lượt · ${xong.length} ảnh</span>`;
+    for (const [luot, xs] of ds) {
+      const g = (QNHOM || {})[xs[0][0]] || {};
+      // "đã duyệt nên giữ bản cũ" = ảnh về nhưng KHÔNG thay ảnh chính. Đếm riêng,
+      // nếu không con số "10 ảnh" nói dối là thẻ đã đổi ảnh.
+      const giu = xs.filter(([, j]) => /đã duyệt/.test(j.msg || '')).length;
+      h += `<div class="qi">
+        <span class="d" style="background:#16a34a"></span>
+        <span class="n">${luot ? `Lượt ${luot}` : 'Gắn tay'}
+          <span class="hint">${g.nhan ? esc(g.bieu_tuong || '') + ' ' + esc(g.nhan) : ''}</span></span>
+        <span class="t">${xs.length} ảnh${giu ? ` · ${giu} giữ bản cũ` : ''}</span></div>
+        <div class="qtb">${xs.map(([id]) => `<span class="qsf" style="cursor:default">${esc(id)}</span>`).join('')}</div>`;
+    }
+    h += '</div>';
+    box.innerHTML = h;
+    return;
+  }
+  for (const [ten, ds, tt] of [['⏵ Đang chạy', dang, 'running'],
+                               ['⚠ Lỗi', loi, 'error']]) {
+    if (!ds.length) continue;
     h += `<div class="qg"><b>${esc(ten)}</b> <span class="hint">${ds.length} việc</span>`;
-    for (const [id, j, tt] of ds) {
+    let stt = 0;
+    for (const [id, j] of ds) {
+      stt++;
       const giay = QSEEN[id] ? Math.round((nay - QSEEN[id]) / 1000) : 0;
       // Việc ĐANG CHẠY không cắt được: thợ đang nằm trong lượt chờ ChatGPT vẽ,
       // chỉ "Dừng tất cả" (đóng Chrome) mới cắt nổi. Nên nút ✕ chỉ mở cho việc CHỜ.
@@ -267,12 +348,13 @@ function veHangDoi() {
           : `<button class="sm" style="padding:0 6px;line-height:1.5"
              title="Dọn dòng lỗi này khỏi danh sách — không đụng ảnh hay prompt"
              onclick="xoaLoi('${esc(id)}')">✕</button>`);
+      const g = (QNHOM || {})[id] || {};
       h += `<div class="qi" title="${esc(j.msg || '')}">`
         + `<input type="checkbox" data-qt="${esc(id)}" ${QTICK.has(id) ? 'checked' : ''}
         onclick="qTick('${esc(id)}',this.checked)" style="flex:none;margin:0">`
         + `<span class="d" style="background:${MAU[tt]}"></span>`
-        + `<span class="n">${esc(id)}</span>`
-        + `<span class="t">${tt === 'running' ? (giay ? giay + 's' : '…') : tt === 'queued' ? 'chờ' : 'lỗi'}</span>`
+        + `<span class="n">${esc(id)}${g.bieu_tuong ? ` <span class="hint">${esc(g.bieu_tuong)} ${esc(g.nhan || '')}</span>` : ''}</span>`
+        + `<span class="t">${tt === 'running' ? (giay ? giay + 's' : '…') : 'lỗi'}</span>`
         + nut + `</div>`;
       if (tt === 'error' && j.msg)
         h += `<div class="hint" style="font-size:11px;margin:-2px 0 4px 14px;color:#b45309">${esc(j.msg.slice(0, 150))}</div>`;
@@ -281,9 +363,57 @@ function veHangDoi() {
   }
   box.innerHTML = h;
 }
+
+// ---- VÌ SAO ĐANG CHỜ ------------------------------------------------------
+// Câu hỏi hay gặp nhất mà board cũ không trả lời được: "Chrome đang rảnh, sao
+// việc vẫn nằm im?". Ba nguyên nhân thật, ba câu khác nhau — đoán mò một câu
+// chung là vô dụng.
+function qViSao() {
+  const t = QTHO.img || { song: 0, ban: 0 };
+  const v = QTHO.vid || { song: 0, ban: 0 };
+  const ranh = Math.max(0, t.song - t.ban) + Math.max(0, v.song - v.ban);
+  if (!t.song && !v.song) return 'KHÔNG có tab nào sống — bật tài khoản ở ⚙ Tài khoản.';
+  const mo = [`ảnh ${t.ban}/${t.song} tab đang chạy`];
+  if (v.song) mo.push(`video ${v.ban}/${v.song} tab`);
+  return ranh
+    ? `${mo.join(' · ')} — còn ${ranh} tab rảnh, việc đầu hàng sẽ được nhấc trong vài giây.`
+    : `${mo.join(' · ')} — mọi tab đều bận, việc chờ tới lượt.`;
+}
+
+// Vị trí TASK chứa SF này trong hàng đợi thật, -1 nếu không có (= việc mồ côi:
+// nhãn 'chờ' còn mà không ai nhặt nữa — người gác cứu trong 30 giây). Đây đúng
+// là ca 'Chrome đang rảnh mà việc đứng im'.
+// PHẢI DÒ CẢ IDENT LÔ: hàng đợi giữ "LO:sf1,sf2,…" (một lô là một tin nhắn),
+// còn danh sách này hiện TỪNG SF. So thẳng tên SF với hàng là trượt hết, và
+// mọi việc đang chờ bị gán nhầm là "mồ côi".
+function qViTri(id) {
+  const thuTu = [...(QHANG.anh || []), ...(QHANG.video || [])];
+  const k = thuTu.indexOf(id);
+  if (k >= 0) return k;
+  return thuTu.findIndex(x => x.startsWith('LO:') && x.slice(3).split(',').includes(id));
+}
+
 /* CHỌN NHIỀU rồi xử một lượt — khúc giữa còn thiếu giữa "một cái" và "tất cả".
    Mỗi trạng thái cần một cách xử khác nhau nên gom vào đây, thay vì bắt user tự
    nhớ: đang chạy → dừng · đang chờ → huỷ · lỗi → dọn. */
+// Ngăn kéo có hai tab: 'live' (đang chạy & chờ) · 'done' (sổ việc đã xong).
+let QVIEW = 'live';
+
+function qTab(v) {
+  QVIEW = v;
+  $('#qtab-live').classList.toggle('on', v === 'live');
+  $('#qtab-done').classList.toggle('on', v === 'done');
+  veHangDoi();
+}
+
+async function xoaXong() {
+  const r = await (await fetch('/api/xoa-xong', { method: 'POST' })).json();
+  for (const [k, v] of Object.entries(JOBS)) if (v.state === 'done') delete JOBS[k];
+  veHangDoi();
+  $('#runstatus').textContent = `đã dọn ${r.bo || 0} dòng đã xong`;
+  setTimeout(() => $('#runstatus').textContent = '', 4000);
+}
+
 let QTICK = new Set();
 function qTick(id, on) { on ? QTICK.add(id) : QTICK.delete(id); qCapNhatChon() }
 function qBoChon() { QTICK.clear(); const a = $('#qall'); if (a) a.checked = false; veHangDoi() }
@@ -352,27 +482,22 @@ async function huyMotViec(id) {
   setTimeout(() => $('#runstatus').textContent = '', 7000);
   veHangDoi();
 }
-let QNHOM = {};
+let QNHOM = {}, QHANG = {}, QTHO = {};
 async function poll() {
   const r = await (await fetch('/api/jobs')).json();
   const j = r.jobs || {};
-  QNHOM = r.nhom || {};
+  QNHOM = r.nhom || {}; QHANG = r.hang || {}; QTHO = r.tho || {};
   const a = r.auto || {};
   const changed = JSON.stringify(j) !== JSON.stringify(JOBS) || JSON.stringify(a) !== JSON.stringify(AUTO);
   AUTO = a;
+  veChayHetPhim();
   const wasRunning = Object.values(JOBS).some(x => x.state === 'running');
   JOBS = j;
   veHangDoi();          // cập nhật số trên nút + nội dung ngăn kéo mỗi vòng poll
-  // Lượt mới rơi vào diện chờ phân loại → nạp dải ảnh. CHỈ gọi khi có lượt mà
-  // ta chưa biết, chứ không mỗi vòng poll: /api/luot đọc cả thư mục hộp chờ.
-  // Sổ lỗi: chỉ kéo phần mới khi tổng số bản ghi bên server đã nhích lên.
-  if ((r.loi || 0) > LOI_N) { await napLoi(); veLoi() }
-  const _cho = (r.pl || {}).cho || 0;
-  if (_cho !== PLCHO || [...luotCanXem()].some(t => !LUOT[t])) {
-    PLCHO = _cho; await napLuot(); render();
-  }
   if (r.dan_ma !== undefined && !!r.dan_ma !== MAON) { MAON = !!r.dan_ma; veMa() }
   if (r.auto_vid !== undefined && !!r.auto_vid !== AVON) { AVON = !!r.auto_vid; veAutoVid() }
+  // Sổ lỗi: chỉ kéo phần mới khi tổng bên server đã nhích lên.
+  if ((r.loi || 0) > LOI_N) { await napLoi(); veLoi() }
   HTAC = { ht: (r.pl || {}).ht || 0, ht_cuoi: (r.pl || {}).ht_cuoi || '' };
   if (changed) {
     const nowRunning = Object.values(j).some(x => x.state === 'running');
@@ -493,33 +618,72 @@ function toggleAccts() {
   if (ACCT_OPEN) { pollAccts(); ACCT_TIMER = setInterval(pollAccts, 4000) }
   else if (ACCT_TIMER) { clearInterval(ACCT_TIMER); ACCT_TIMER = null }
 }
+async function datSoTK(n) {
+  const r = await (await fetch('/api/so-tk?n=' + encodeURIComponent(n), { method: 'POST' })).json();
+  const o = $('#sotk'); if (o) o.value = r.so;
+  $('#runstatus').textContent = `giữ ${r.so} tài khoản ChatGPT chạy cùng lúc`;
+  setTimeout(() => $('#runstatus').textContent = '', 5000);
+  pollAccts();
+}
+
 async function pollAccts() {
   try {
     const r = await (await fetch('/api/accounts')).json();
+    // Ô "chạy cùng lúc" chỉ nạp giá trị khi user KHÔNG đang gõ vào nó — nếu
+    // không, mỗi vòng poll 4 giây lại giật con số về giá trị cũ.
+    const _o = $('#sotk');
+    if (_o && document.activeElement !== _o) {
+      fetch('/api/so-tk').then(x => x.json()).then(d => { if (document.activeElement !== _o) _o.value = d.so });
+    }
     const rows = (r.accounts || []).map(a => {
-      const dot = a.chrome ? '🟢' : '🔴';
+      const dot = !a.enabled ? '⚫' : a.dead ? '🌙' : a.chrome ? '🟢' : '🟡';
       const kind = a.kind === 'img' ? 'ChatGPT · ảnh' : 'Grok · video';
-      const st = !a.enabled ? '<span style="color:var(--tx2)">đang tắt</span>'
-        : a.dead ? `<span style="color:var(--bad)">${esc(a.dead)}</span>`
-          : a.worker ? '<span style="color:var(--acc)">sẵn sàng</span>'
-            : '<span style="color:var(--tx2)">chờ thợ…</span>';
-      return `<div style="display:flex;align-items:center;gap:8px;font-size:13px">
-    <span>${dot}</span><b style="width:64px">${esc(a.id)}</b>
-    <span style="width:96px">${kind}</span>
-    <span style="width:76px">:${a.port}</span>
-    <span style="flex:1">${st}</span>
-    <span title="Số bản tài khoản này làm XONG hôm nay, và ngày cao nhất từng đạt.&#10;ChatGPT/Grok không công bố trần mỗi ngày — cứ chạy tới lúc bị chặn thì con số 'cao nhất' chính là trần thật."
-          style="color:var(--tx2);font-variant-numeric:tabular-nums">hôm nay <b style="color:var(--acc)">${a.hom_nay || 0}</b>${a.ky_luc ? ` · cao nhất <b style="color:var(--tx)">${a.ky_luc}</b> <span style="opacity:.7">(${esc(a.ky_luc_ngay || '')})</span>` : ''}</span>
+      // NGHỈ TỚI MẤY GIỜ — ChatGPT có nói giờ mở lại trong thông báo chặn, board
+      // đã bắt và lưu; trước đây chỉ nằm trong log nên nhìn giao diện chỉ thấy
+      // "hết lượt" mà không biết chờ bao lâu, và ai cũng bấm "Thử lại" vô ích.
+      let _nghi = '';
+      if (a.nghi_den) {
+        const con = Math.max(0, Math.round((a.nghi_den * 1000 - Date.now()) / 60000));
+        const gio = new Date(a.nghi_den * 1000).toTimeString().slice(0, 5);
+        _nghi = ` <b style="color:var(--warn)">· nghỉ đến ${gio}`
+          + (con ? ` (còn ${con >= 60 ? Math.floor(con / 60) + 'h' + (con % 60 ? (con % 60) + 'p' : '') : con + ' phút'})` : ' — sắp mở lại')
+          + '</b>';
+      }
+      // MỘT DÒNG TRẠNG THÁI, MỘT NÚT. Trước đây có cả "Bật/Tắt" lẫn "Mở Chrome"
+      // và không ai phân biệt nổi: Tắt vốn đã đóng Chrome, Bật vốn đã mở Chrome.
+      // Nút "Mở Chrome" chỉ MỞ THÊM chứ không kill cái đang treo, nên đúng lúc
+      // cổng treo thì nó vô dụng — đường chữa thật xưa nay vẫn là Tắt rồi Bật.
+      // Board tự mở lại Chrome khi tài khoản đang bật mà cửa sổ chết, nên không
+      // còn việc gì cho nút đó nữa.
+      const st = !a.enabled
+        ? (a.auto_off
+          ? '<span style="color:var(--tx2)">💤 dự bị — board tự bật khi cần bù người</span>'
+          : '<span style="color:var(--tx2)">⚫ tắt</span>')
+        : a.dead ? `<span style="color:var(--bad)">${esc(a.dead)}</span>${_nghi}`
+          : !a.chrome ? '<span style="color:var(--warn)">🟡 đang mở Chrome…</span>'
+            : a.worker ? '<span style="color:var(--ok)">🟢 đang chạy</span>'
+              : '<span style="color:var(--tx2)">🟡 chờ thợ…</span>';
+      return `<div class="acctrow">
+    <span>${dot}</span><b>${esc(a.id)}</b>
+    <span class="ak">${kind}</span>
+    <span class="ap">:${a.port}</span>
+    <span class="as">${st}</span>
+    <span class="ad" title="Số bản tài khoản này làm XONG hôm nay, và kỷ lục cao nhất từng đạt${a.ky_luc_ngay ? ' (ngày ' + esc(a.ky_luc_ngay) + ')' : ''}.&#10;ChatGPT/Grok không công bố trần mỗi ngày — cứ chạy tới lúc bị chặn thì con số 'cao nhất' chính là trần thật.">hôm nay <b style="color:var(--acc)">${a.hom_nay || 0}</b>${a.ky_luc ? ` · cao nhất <b style="color:var(--tx)">${a.ky_luc}</b>` : ''}</span>
     <label title="Số tab chạy ĐỒNG THỜI trên cùng cửa sổ Chrome này.&#10;1 = chạy tuần tự từng việc (mặc định).&#10;Tăng lên để tạo nhiều video/ảnh song song trên CÙNG một tài khoản.&#10;Càng nhiều tab càng tốn RAM — tăng dần và xem máy có chịu nổi không."
-           style="display:flex;align-items:center;gap:4px;color:var(--tx2)">tab
+           class="at">tab
       <input type="number" min="1" max="6" value="${a.tabs || 1}" style="width:44px"
              onchange="acctTabs(${a.port},this.value)">
-      ${a.tho_song > 1 ? `<span style="color:var(--acc)">×${a.tho_song}</span>` : ''}
+
     </label>
-    ${a.chrome ? '' : `<button onclick="acctOp('launch',${a.port})">Mở Chrome</button>`}
-    ${a.dead ? `<button onclick="acctOp('revive',${a.port})">Thử lại</button>` : ''}
-    <button onclick="acctOp('toggle',${a.port})">${a.enabled ? 'Tắt' : 'Bật'}</button>
-    <button class="bad-b" title="Xóa hẳn tài khoản này khỏi danh sách (dữ liệu đăng nhập trong profile Chrome vẫn giữ)" onclick="acctDel('${esc(a.id)}',${a.port},${a.enabled})">🗑</button>
+    <span class="anut">
+      ${a.dead ? `<button onclick="acctOp('revive',${a.port})" title="Bỏ dấu chặn và mở lại Chrome ngay, không đợi hết giờ nghỉ">Thử lại</button>` : ''}
+      ${/* CÔNG TẮC, KHÔNG PHẢI NÚT CHỮ. Nút chữ ghi HÀNH ĐỘNG ("Tắt") nằm cạnh
+           cột ghi TRẠNG THÁI ("đang chạy") đọc lướt như hai thứ mâu thuẫn nhau.
+           Công tắc thì bản thân nó vừa là trạng thái vừa là chỗ bấm. */''}
+      <label class="sw" title="${a.enabled ? 'Đang bật — gạt để TẮT: đóng cửa sổ Chrome và ngừng nhận việc.' : 'Đang tắt — gạt để BẬT: mở cửa sổ Chrome và đưa vào vòng chạy.'}&#10;Cửa sổ Chrome đi theo công tắc này, không còn nút mở riêng.&#10;Chrome treo hay chết giữa chừng thì board tự mở lại; gạt tắt rồi bật là cách dọn dứt điểm.">
+        <input type="checkbox" ${a.enabled ? 'checked' : ''} onchange="acctOp('toggle',${a.port})"><i></i></label>
+      <button class="bad-b" title="Xóa hẳn tài khoản này khỏi danh sách (dữ liệu đăng nhập trong profile Chrome vẫn giữ)" onclick="acctDel('${esc(a.id)}',${a.port},${a.enabled})">🗑</button>
+    </span>
   </div>`});
     $('#acctrows').innerHTML = rows.join('') || '<span class="hint">chưa có tài khoản nào</span>';
   } catch (e) { }
@@ -624,80 +788,17 @@ async function clearAI() {
   save(); render();
 }
 
-let RUNALL = { active: false, stop: false };
 
 function allShotsOrdered() {
   return DATA.scenes.flatMap(sc => (sc.shots || []).map(sh => ({ sc, sh })));
 }
 
-async function waitJob(id) {
-  while (true) {
-    const r = await (await fetch('/api/jobs')).json();
-    const j = (r.jobs || r)[id];   // tương thích cả 2 dạng response cũ/mới
-    if (!j || j.state !== 'running') return j;
-    await new Promise(res => setTimeout(res, 4000));
-    if (RUNALL.stop) return j;
-  }
-}
 
-async function toggleRunAll() {
-  if (RUNALL.active) { RUNALL.stop = true; $('#runstatus').textContent = 'đang dừng…'; return }
+// "▶ Chạy tuần tự" ĐÃ BỎ 2026-08-12 (user chốt). Nó chạy TỪNG ẢNH MỘT — mỗi ảnh
+// một tin nhắn, không gửi `luatchung`, không gom lô — nên vừa chậm vừa cho ảnh
+// mất neo bối cảnh. Thay bằng "▶▶ Chạy hết phim" (tự chia task 10 ảnh cùng địa
+// điểm) và các nút T1/T2 để chạy tay từng task.
 
-  if (VIEW === 'sf') {
-    const all = allSF().filter(x => x.f.prompt && !x.f.image);
-    if (!all.length) { bao('Không có ảnh SF/Ref nào cần chạy (tất cả đã có ảnh hoặc thiếu prompt).'); return }
-    if (!await hoi(`Sẽ chạy tuần tự ${all.length} ảnh CHƯA có sẵn.\nCó thể bấm lại nút để DỪNG giữa chừng.\n\nBắt đầu?`)) return;
-
-    RUNALL = { active: true, stop: false };
-    $('#runall').textContent = '■ Dừng'; $('#runall').classList.add('on');
-
-    let done = 0, failed = [];
-    for (const { f } of all) {
-      if (RUNALL.stop) break;
-      $('#runstatus').textContent = `Đang tạo ảnh ${done + 1}/${all.length}: ${f.id}…`;
-      JOBS[f.id] = { state: 'running', msg: 'khởi động…' }; render();
-      await fetch('/api/generate?sf=' + encodeURIComponent(f.id), { method: 'POST' });
-      const j = await waitJob(f.id);
-      if (RUNALL.stop) break;
-      done++;
-      if (j && j.state === 'error') failed.push(f.id + ': ' + j.msg);
-      await load();
-    }
-    RUNALL.active = false;
-    $('#runall').textContent = '▶ Chạy tuần tự'; $('#runall').classList.remove('on');
-    $('#runstatus').textContent = '';
-    bao(`Xong. Đã tạo ${done}/${all.length} ảnh.` + (failed.length ? `\n\nLỗi (${failed.length}):\n` + failed.join('\n') : ''));
-    return;
-  }
-
-  const all = allShotsOrdered().filter(x => {
-    const f = sfById(x.sh.sf);
-    return f && f.image && (x.sh.prompt || '').trim() && !x.sh.video;
-  });
-  if (!all.length) { bao('Không có video nào cần chạy (mọi dòng đã có video, hoặc thiếu SF/prompt).'); return }
-  if (!await hoi(`Sẽ chạy tuần tự ${all.length} video CHƯA có sẵn (bỏ qua dòng đã có video).\nCó thể bấm lại nút để DỪNG giữa chừng.\n\nBắt đầu?`)) return;
-
-  RUNALL = { active: true, stop: false };
-  $('#runall').textContent = '■ Dừng'; $('#runall').classList.add('on');
-
-  let done = 0, failed = [];
-  for (const { sh } of all) {
-    if (RUNALL.stop) break;
-    $('#runstatus').textContent = `Đang chạy ${done + 1}/${all.length}: ${sh.id}…`;
-    JOBS[sh.id] = { state: 'running', msg: 'khởi động…' }; render();
-    await fetch('/api/genvideo?sf=' + encodeURIComponent(sh.id), { method: 'POST' });
-    const j = await waitJob(sh.id);
-    if (RUNALL.stop) break;
-    done++;
-    if (j && j.state === 'error') failed.push(sh.id + ': ' + j.msg);
-    await load();
-  }
-
-  RUNALL.active = false;
-  $('#runall').textContent = '▶ Chạy tuần tự'; $('#runall').classList.remove('on');
-  $('#runstatus').textContent = '';
-  bao(`Xong. Đã chạy ${done}/${all.length} video.` + (failed.length ? `\n\nLỗi (${failed.length}):\n` + failed.join('\n') : ''));
-}
 
 // Nút "🎬 Xuất CapCut" và "+ Thêm scene" đã BỎ 2026-08-09 theo yêu cầu user.
 // API /api/export-capcut phía server vẫn còn, gọi tay được nếu cần.
@@ -718,10 +819,19 @@ function snav() {
     const n = items.length;
     const d = vid ? items.filter(x => x.vstatus === 'approved').length
       : items.filter(x => x.status === 'approved').length;
+    // HAI CON SỐ, HAI CHẶNG KHÁC NHAU: đã có ảnh/video chưa (tiến độ RENDER) và
+    // đã duyệt chưa (tiến độ DUYỆT). Trước đây thanh bên chỉ có số duyệt, nên
+    // scene render xong sạch vẫn hiện 0% — nhìn như chưa làm gì.
+    const co = vid ? items.filter(x => x.video).length
+      : items.filter(x => x.image).length;
     const pct = n ? Math.round(d * 100 / n) : 0;
-    return `<a onclick="jumpScene('${sc.id}')" id="nv-${sc.id}" class="${n && d === n ? 'full' : ''}">
-  <span class="r1"><span class="sv">${esc(sc.id)}</span><span class="sp">${n ? pct + '%' : '—'}</span></span>
-  <span class="bar"><i style="width:${pct}%"></i></span></a>`;
+    const pctCo = n ? Math.round(co * 100 / n) : 0;
+    return `<a onclick="jumpScene('${sc.id}')" id="nv-${sc.id}" class="${n && d === n ? 'full' : ''}"
+  title="${sc.id}: ${co}/${n} ${vid ? 'shot đã có video' : 'SF đã có ảnh'} · ${d}/${n} đã duyệt">
+  <span class="r1"><span class="sv">${esc(sc.id)}</span>
+    <span class="si ${n && co === n ? 'du' : ''}">${n ? pctCo + '%' : '—'}</span>
+    <span class="sp">${n ? pct + '%' : '—'}</span></span>
+  <span class="bar"><u style="width:${pctCo}%"></u><i style="width:${pct}%"></i></span></a>`;
   }).join('');
   // Dòng tổng "x% — d/n đã duyệt" ở đáy thanh bên đã bỏ 2026-08-09 theo yêu cầu user.
   // Tiêu đề "START FRAME"/"VIDEO" trên đầu thanh bên đã bỏ 2026-08-09: tab đang
@@ -881,7 +991,6 @@ function render() {
   $('#vfilter').style.display = VIEW === 'script' ? '' : 'none';
   $('#vfilter').className = $('#vfilter').value === 'all' ? '' : 'act';
   if (VIEW !== 'script') $('#vbulk').style.display = 'none';
-  $('#runall').style.display = '';
   // Dòng chú thích dài dưới thanh công cụ (#hint) đã BỎ 2026-08-09 theo yêu cầu user.
   if (VIEW === 'script') { renderScript(); snav(); return }
   const fl = $('#filter').value;
@@ -911,16 +1020,20 @@ function render() {
   <span class="sfdens ${nsf && coanh === nsf ? 'ok' : ''}"
     title="${coanh}/${nsf} SF của scene này đã có ảnh">${coanh}/${nsf}</span>
   ${sc.id !== 'REF' ? autoBtn(sc) : ''}
+  ${nutTask(sc, list)}
   <button class="sm" onclick="tickScene('${sc.id}')"
     title="Tích mọi thẻ đang hiện của scene này để 'Tạo lại theo lô'">☑ Chọn hết</button>
+  <button class="sm ok-b" onclick="duyetScene('${sc.id}',1)"
+    title="Đánh dấu ĐÃ DUYỆT cho mọi thẻ ĐÃ CÓ ẢNH của scene này. Thẻ chưa có ảnh bỏ qua.">✓✓ Duyệt hết</button>
+  <button class="sm" onclick="duyetScene('${sc.id}',0)"
+    title="Bỏ duyệt mọi thẻ ĐÃ DUYỆT của scene này — đưa chúng về 'chờ duyệt' để sửa/tạo lại.">↺ Bỏ duyệt</button>
   <button class="sm" onclick="addSF('${sc.id}')">+ SF</button>
   <button class="sm bad-b" onclick="delScene('${sc.id}')">Xóa scene</button></div>
   <div class="grid"></div>`;
     const g = el.querySelector('.grid');
-    // Nút "SF từ ảnh" nằm ở HEADER, không phải trong lưới: đặt trong lưới thì grid
-    // kéo nó cao bằng cả hàng thẻ SF, chiếm nguyên một ô cho một cái nút.
-    el.querySelector('.scene-h').insertBefore(
-      pasteBox(sc), el.querySelector('.scene-h .bad-b'));
+    // Nút "＋ SF từ ảnh" đã gỡ khỏi header 2026-08-12 (user chốt: không dùng).
+    // Hàm pasteBox() vẫn giữ — kéo–thả ảnh thẳng vào ô ảnh của thẻ vẫn chạy,
+    // chỉ mất lối tạo THẺ MỚI từ ảnh.
     if (sc.id === 'REF') {
       // NHÓM THEO NHÂN VẬT: portrait là thẻ chính, các bản trang phục (_FULL)
       // thành dải ảnh nhỏ bên trong thẻ đó — bấm ảnh nhỏ để phóng to,
@@ -934,10 +1047,6 @@ function render() {
       ports.forEach(pf => {
         const ch = who(pf.id), kids = byChar[ch] || [];
         delete byChar[ch];
-        // Thẻ trang phục nào đang có ảnh treo trong hộp chờ thì MỞ NHÓM RA.
-        // Dải ảnh chờ vẽ trên thẻ con, mà thẻ con mặc định bị ẩn — để nguyên thì
-        // ảnh vẫn vô hình đúng như lúc chưa có dải.
-        if (kids.some(k => coAnhCho(k.id))) WROPEN[ch] = true;
         const d = card(sc, pf);
         if (kids.length) {
           const strip = document.createElement('div');
@@ -992,8 +1101,16 @@ async function toggleAuto(id) {
 function autoBtn(sc) {
   const on = AUTO.hasOwnProperty(sc.id);
   const st = AUTO[sc.id] || {};
-  const lab = on ? (st.img && st.vid ? `⏳ ${st.img[0]}/${st.img[1]} ảnh · ${st.vid[0]}/${st.vid[1]} video`
-    : '⏳ đang quét…') : '▶ Chạy hết';
+  // TỰ ĐẾM KHI SERVER CHƯA KỊP TRẢ SỐ. Số liệu này do vòng quét nền ghi ra, mà
+  // vòng đó chạy theo nhịp riêng — bản cũ hiện "⏳ đang quét…" cho tới lượt quét
+  // kế tiếp, nên bấm xong nhìn như bấm hụt. Dữ liệu để đếm đã nằm sẵn ở đây.
+  const _ni = sc.sfs.length, _mi = sc.sfs.filter(f => !f.image).length;
+  const _nv = (sc.shots || []).length, _mv = (sc.shots || []).filter(s => !s.video).length;
+  const lab = on
+    ? (st.img && st.vid
+      ? `⏳ ${st.img[0]}/${st.img[1]} ảnh · ${st.vid[0]}/${st.vid[1]} video`
+      : `⏳ ${_ni - _mi}/${_ni} ảnh · ${_nv - _mv}/${_nv} video`)
+    : '▶ Chạy hết';
   const tip = on ? 'Đang tự chạy scene này. Bấm để dừng (việc đã xếp hàng vẫn chạy nốt).'
     : 'Tự tạo mọi ảnh SF còn thiếu của scene, ảnh xong tới đâu đẩy video tới đó, '
     + 'cái nào lỗi tự bắn lại. Xong cả scene thì tự tắt.';
@@ -1060,6 +1177,45 @@ function veAutoVid() {
   b.style.color = AVON ? 'var(--acc)' : '';
   b.style.borderColor = AVON ? 'var(--acc)' : '';
 }
+// "▶ Chạy tuần tự" ĐÃ BỎ 2026-08-12 (user chốt). Nó chạy TỪNG ẢNH MỘT — mỗi
+// ảnh một tin nhắn, không gửi luatchung, không gom lô — nên vừa chậm vừa cho ảnh
+// mất neo bối cảnh. Thay bằng "▶▶ Chạy hết phim" (auto chia task 10 ảnh cùng địa
+// điểm) và các nút T1/T2 để chạy tay từng task.
+
+// Nút "bố" của các nút "Chạy hết" từng scene: bật auto cho MỌI scene còn thiếu
+// ảnh. Bấm lần nữa để tắt hết. Bỏ REF — thẻ nhân vật/đạo cụ là bản neo, user tự
+// chọn tự duyệt từng cái chứ không giao cho máy quét.
+async function chayHetPhim() {
+  const dangBat = Object.keys(AUTO || {}).length;
+  if (dangBat) {
+    if (!await hoi(`Tắt "Chạy hết" ở ${dangBat} scene?\n\nViệc đã xếp vào hàng chờ vẫn chạy nốt.`,
+      { dong: 'Tắt hết' })) return;
+    const r = await (await fetch('/api/auto?op=offall', { method: 'POST' })).json();
+    AUTO = r.auto || {}; render();
+    $('#runstatus').textContent = 'đã tắt auto ở mọi scene';
+    setTimeout(() => $('#runstatus').textContent = '', 5000);
+    return;
+  }
+  const thieu = DATA.scenes.filter(s => s.id !== 'REF' && s.sfs.some(f => !f.image));
+  const n = thieu.reduce((s, sc) => s + sc.sfs.filter(f => !f.image).length, 0);
+  if (!thieu.length) { bao('Mọi scene đã đủ ảnh — không có gì để chạy.'); return }
+  if (!await hoi(`Chạy hết ${n} ảnh còn thiếu của ${thieu.length} scene?\n\n`
+    + `Board tự chia task ≤10 ảnh cùng địa điểm rồi đẩy lần lượt vào hàng chờ,\n`
+    + `lỗi thì tự bắn lại, xong scene nào tự tắt scene đó.\n\n`
+    + `Thẻ đã có ảnh và scene REF được bỏ qua.`, { dong: 'Chạy hết phim' })) return;
+  const r = await (await fetch('/api/auto?op=onall', { method: 'POST' })).json();
+  AUTO = r.auto || {}; render();
+  $('#runstatus').textContent = `đã bật auto cho ${r.so} scene: ${(r.scenes || []).join(', ')}`;
+  setTimeout(() => $('#runstatus').textContent = '', 9000);
+}
+
+function veChayHetPhim() {
+  const b = $('#allbtn'); if (!b) return;
+  const n = Object.keys(AUTO || {}).length;
+  b.textContent = n ? `■ Dừng auto (${n} scene)` : '▶▶ Chạy hết phim';
+  b.classList.toggle('on', !!n);
+}
+
 async function toggleAutoVid() {
   const r = await (await fetch('/api/auto-video?on=' + (AVON ? '0' : '1'), { method: 'POST' })).json();
   AVON = !!r.on; veAutoVid();
@@ -1687,6 +1843,90 @@ async function huyHang() {
 }
 /* Chọn hết trong PHẠM VI MỘT SCENE — lô chạy theo địa điểm nên chọn cả scene là
    thao tác hay dùng nhất; tickHet() quét cả trang thì rộng quá. */
+// ---- CHỌN NHANH THEO TASK -------------------------------------------------
+// Một lượt gửi quá nhiều ảnh thì ChatGPT hay bỏ sót và lẫn mặt, nên thực tế cứ
+// ~10 ảnh một tin là vừa. Chia sẵn thành từng khối 10 để khỏi phải tích tay
+// từng thẻ rồi đếm nhẩm; phần dư dồn vào task cuối.
+const TASK_CO = 10;
+
+// Hai luật khi chia:
+//   1. CHỈ THẺ CHƯA CÓ ẢNH. Nút này để TẠO, mà thẻ đã có ảnh thì board bỏ qua
+//      khi chạy — chia theo tổng số thì "T1 (10)" thực chất gửi 3 ảnh.
+//   2. MỘT TASK = MỘT ĐỊA ĐIỂM. Một tin nhắn chỉ mang được một khối `luatchung`,
+//      nên lô lẫn hai địa điểm bị board CHẶN THẲNG. Đã đo trên phim này: S12 có
+//      2 địa điểm, S15 có 2 — chia thuần theo thứ tự là hai scene đó bấm phát
+//      nào chặn phát ấy.
+function taskCua(list) {
+  const con = list.filter(f => !f.image);
+  const theoBg = new Map();
+  for (const f of con) {
+    const bg = (f.refs || {}).bg || '';
+    if (!theoBg.has(bg)) theoBg.set(bg, []);
+    theoBg.get(bg).push(f);
+  }
+  // CẮT ĐÚNG 10, DƯ BAO NHIÊU THÀNH TASK CUỐI. Không dồn phần dư ngược lên:
+  // đã thử và sai — 14 thẻ dồn thành MỘT task 14 ảnh, phá đúng cái trần 10 sinh
+  // ra để tránh ChatGPT lẫn mặt và bỏ sót ảnh. Thà một task 4 ảnh.
+  const ra = [];
+  for (const nhom of theoBg.values())
+    for (let i = 0; i < nhom.length; i += TASK_CO) ra.push(nhom.slice(i, i + TASK_CO));
+  return ra;
+}
+
+// Danh sách task của mỗi scene, chốt NGAY LÚC VẼ NÚT. Tính lại lúc bấm là sai:
+// bộ lọc trên header có thể đang giấu bớt thẻ, và giữa hai thời điểm có thể vừa
+// có ảnh mới về — nút ghi "10" mà tích ra 7 thẻ thì không ai hiểu vì sao.
+let TASKS = {};
+
+function nutTask(sc, list) {
+  const ts = taskCua(list);
+  TASKS[sc.id] = ts.map(ds => ds.map(f => f.id));
+  // HIỆN CẢ KHI CHỈ CÓ MỘT TASK. Trước đây ẩn đi cho gọn, nhưng thành ra scene
+  // này có T scene kia không, và không ai đoán được vì sao — mà lý do (10 thẻ
+  // là ranh giới) chẳng hiện ở đâu cả.
+  if (!ts.length) return '';
+  return ts.map((ds, i) =>
+    `<button class="sm" onclick="tickTask('${sc.id}',${i})"
+       title="Tích ${ds.length} thẻ chưa có ảnh: ${ds.slice(0, 4).map(f => f.id).join(', ')}${ds.length > 4 ? '…' : ''}"
+     >T${i + 1}<i class="tn">${ds.length}</i></button>`).join('');
+}
+
+function tickTask(sid, idx) {
+  const ds = (TASKS[sid] || [])[idx] || [];
+  if (!ds.length) { bao('Task này không còn thẻ nào chưa có ảnh.'); return }
+  TICK.clear();                        // chọn task là chọn ĐÚNG task đó, không cộng dồn
+  ds.forEach(id => TICK.add(id));
+  document.querySelectorAll('input[data-tick]').forEach(e => { e.checked = TICK.has(e.dataset.tick) });
+  veLoBar();
+  $('#runstatus').textContent = `Task ${idx + 1}: đã chọn ${ds.length} thẻ của ${sid}`;
+  setTimeout(() => $('#runstatus').textContent = '', 4000);
+}
+
+// bat=1 duyệt hết · bat=0 bỏ duyệt hết. Một hàm cho cả hai chiều — hai hàm gần
+// giống nhau là chỗ để lệch nhau về sau.
+async function duyetScene(sid, bat) {
+  const r = DATA.scenes.find(s => s.id === sid);
+  if (!r) return;
+  const ds = bat ? r.sfs.filter(f => f.image && f.status !== 'approved')
+                 : r.sfs.filter(f => f.status === 'approved');
+  if (!ds.length) {
+    bao(bat ? `Scene ${sid} không còn thẻ nào để duyệt (chưa có ảnh, hoặc đã duyệt hết).`
+            : `Scene ${sid} không có thẻ nào đang ở trạng thái đã duyệt.`);
+    return;
+  }
+  const ok = bat
+    ? await hoi(`Đánh dấu ĐÃ DUYỆT cho ${ds.length} thẻ của ${sid}?\n\n`
+      + `Ảnh đã duyệt là bản chốt: board sẽ không ghi đè, không tạo lại.`, { dong: 'Duyệt hết' })
+    : await hoi(`Bỏ duyệt ${ds.length} thẻ của ${sid}?\n\n`
+      + `Chúng về 'chờ duyệt'. Ảnh KHÔNG bị xoá — chỉ mất lớp khoá chống ghi đè,\n`
+      + `nên từ giờ board được phép tạo lại đè lên chúng.`, { dong: 'Bỏ duyệt' });
+  if (!ok) return;
+  ds.forEach(f => f.status = bat ? 'approved' : 'proposed');
+  save(); render();
+  $('#runstatus').textContent = `${bat ? 'đã duyệt' : 'đã bỏ duyệt'} ${ds.length} thẻ của ${sid}`;
+  setTimeout(() => $('#runstatus').textContent = '', 5000);
+}
+
 function tickScene(sid) {
   const sec = document.getElementById('sc-' + sid);
   if (!sec) return;
@@ -1724,65 +1964,10 @@ async function loChay() {
   }
 }
 
-// ---------------------------------------------------------------- hộp chờ
-// Lượt LỆCH (ChatGPT trả 9 ảnh cho 10 prompt) không được ghép tự động — ảnh đã
-// tải về nằm trong cho-phan-loai/turn-XXXX/. Dải này là ĐƯỜNG RA DUY NHẤT của
-// chúng: hiện ngay trên thẻ đang báo lỗi, bấm một cái là ảnh vào thẻ.
-// Thiếu nó thì thông báo "bấm chọn ngay trên thẻ" chỉ vào chỗ không tồn tại và
-// cả lượt đã tiêu tiền nằm chết trên đĩa.
-let LUOT = {};              // {turn: meta}
-let LUOT_DANG_TAI = false;
-let PLCHO = -1;             // số ảnh treo lần poll trước; -1 = chưa nạp lần nào
-
-function coAnhCho(id) {     // thẻ này có ảnh nào đang treo trong hộp chờ không
-  for (const lo of Object.values(LUOT))
-    for (const a of (lo.anh || []))
-      if (!a.gan && a.du_kien === id) return true;
-  return false;
-}
-
-function luotCanXem() {     // số lượt mà các thẻ đang lỗi nhắc tới
-  const ra = new Set();
-  for (const j of Object.values(JOBS)) {
-    if (j.state !== 'error') continue;
-    const m = /lượt (\d+)/.exec(j.msg || '');
-    if (m) ra.add(+m[1]);
-  }
-  return ra;
-}
-
-async function napLuot() {
-  if (LUOT_DANG_TAI) return;
-  LUOT_DANG_TAI = true;
-  try {
-    const r = await (await fetch('/api/luot')).json();
-    LUOT = {};
-    for (const m of (r.luot || [])) LUOT[m.turn] = m;
-  } catch (e) { /* board tắt giữa chừng — vòng poll sau thử lại */ }
-  finally { LUOT_DANG_TAI = false }
-}
-
-// HAI ĐƯỜNG TÌM, không phải một. Bám mỗi JOBS thì restart board là mất sạch:
-// JOBS sống trong RAM, còn ảnh treo thì nằm trên đĩa hàng tuần. Đường thứ hai
-// đọc `du_kien` — ô thứ k của lượt LẼ RA là SF thứ k — nên thẻ vẫn tự tìm thấy
-// ảnh của nó sau khi board khởi động lại.
-function luotStrip(f, job) {
-  const ra = [];
-  const m = job.state === 'error' ? /lượt (\d+)/.exec(job.msg || '') : null;
-  for (const lo of Object.values(LUOT)) {
-    for (const a of (lo.anh || [])) {
-      if (a.gan) continue;
-      if ((m && +m[1] === lo.turn) || a.du_kien === f.id) ra.push([lo, a]);
-    }
-  }
-  if (!ra.length) return '';
-  const turns = [...new Set(ra.map(([lo]) => lo.turn))].join(' · ');
-  return `<div class="plstrip"><span class="pllab">🗂 lượt ${turns} — ${ra.length} ảnh
-    đã tải về nhưng chưa gắn. Bấm ảnh để đưa vào <b>${esc(f.id)}</b>:</span>
-    ${ra.map(([lo, a]) => `<img src="${a.url}?w=200" loading="lazy" decoding="async"
-      title="ảnh #${String(a.o).padStart(2, '0')} của lượt ${lo.turn}${a.du_kien ? ' · dự kiến ' + a.du_kien : ''} — bấm để gắn vào ${f.id}"
-      data-pl="${lo.turn}:${a.o}">`).join('')}</div>`;
-}
+// DẢI ẢNH CHỜ ĐÃ BỎ 2026-08-12 (user chốt). Lượt lệch giờ ghép thẳng theo thứ
+// tự — về bao nhiêu ghép bấy nhiêu — nên không còn ảnh nào nằm chờ user bấm.
+// Backend vẫn giữ hộp chờ (cho-phan-loai/) làm nơi ảnh hạ cánh và làm bản lưu,
+// cùng route /api/gan-anh để gắn tay khi cần; chỉ giao diện là bỏ.
 
 function card(sc, f) {
   const _bu = bgUsers(sc), _rank = sfRank(f, _bu), _otag = sfOrderTag(f, _bu);
@@ -1833,8 +2018,10 @@ function card(sc, f) {
  ${f.ai_done ? `<div class="aidone"><span>🤖 ${esc(f.ai_done)}</span>
    <span class="x" data-a="donex" title="Xong việc này rồi — xoá dòng báo để ghi yêu cầu mới">✕ dọn</span></div>`: ''}
    </div>
-   ${job.state === 'error' ? `<div class="err">⚠ ${esc(job.msg)}</div>` : ''}
-   ${luotStrip(f, job)}
+   ${/* `nhe` = cảnh báo nhẹ (lượt về thiếu ảnh nên thẻ này chưa có ảnh). Nó vẫn
+        nằm ở ngăn kéo Hàng đợi và hộp 🐞, nhưng KHÔNG dán dải đỏ lên thẻ: thẻ
+        trống đã tự nói lên điều đó, thêm dải nữa chỉ làm bảng đầy cảnh báo. */''}
+   ${job.state === 'error' && !job.nhe ? `<div class="err">⚠ ${esc(job.msg)}</div>` : ''}
    <div class="acts">
  <button class="sm pri" data-a="gen" ${running ? 'disabled' : ''}>${f.image ? 'Tạo lại' : 'Tạo ảnh'}</button>
  <button class="sm ok-b" data-a="approved">✓</button>
@@ -1842,6 +2029,8 @@ function card(sc, f) {
  <button class="sm bad-b" data-a="rejected">✕</button>
  <span style="flex:1"></span>
  ${f.image ? `<a class="sm dl" href="${f.image}?dl=1&name=${encodeURIComponent(f.id)}" download="${f.id}.png" title="Tải ảnh về máy">⬇</a>` : ''}
+ ${f.image ? `<button class="sm" data-a="delimg"
+   title="Xoá ẢNH của thẻ này (cả dãy bản) — GIỮ NGUYÊN thẻ, prompt và ref. Thẻ về trạng thái chưa có ảnh để tạo lại.">🧹</button>` : ''}
  <button class="sm ai ${f.ai_request ? 'on' : ''}" data-a="ai" title="Ghi rõ vấn đề ở ô ghi chú rồi bấm — mục này vào danh sách yêu cầu AI ở header">${f.ai_request ? '✓ đã gửi AI' : '🤖 Yêu cầu AI'}</button>
  <button class="sm bad-b" data-a="del">🗑</button>
    </div>`;
@@ -1897,15 +2086,6 @@ function card(sc, f) {
   d.querySelectorAll('[data-v]').forEach(el => el.onclick = async e => {
     e.stopPropagation();
     await fetch(`/api/pick-version?sf=${encodeURIComponent(f.id)}&file=${encodeURIComponent(el.dataset.v)}`, { method: 'POST' });
-    await load();
-  });
-  d.querySelectorAll('[data-pl]').forEach(el => el.onclick = async e => {
-    e.stopPropagation();
-    const [t, o] = el.dataset.pl.split(':');
-    const r = await (await fetch(`/api/gan-anh?sf=${encodeURIComponent(f.id)}&turn=${t}&o=${o}`,
-      { method: 'POST' })).json();
-    if (!r.ok) { bao(r.err || 'Không gắn được'); return }
-    await napLuot();
     await load();
   });
   d.querySelectorAll('[data-vdel]').forEach(el => el.onclick = async e => {
@@ -1982,6 +2162,22 @@ async function act(sc, f, a, n) {
     n = Math.max(1, Math.min(+n || 1, 4));
     JOBS[f.id] = { state: 'running', msg: n > 1 ? `đang tạo 0/${n} bản…` : 'khởi động…' }; render();
     await fetch(`/api/generate?sf=${encodeURIComponent(f.id)}&n=${n}`, { method: 'POST' }); return
+  }
+  // XOÁ ẢNH, GIỮ THẺ — khác hẳn nút 🗑 (xoá cả thẻ khỏi kịch bản). Cần khi ảnh
+  // ra không ưng: dọn sạch rồi tạo lại, prompt và ref vẫn nguyên.
+  if (a === 'delimg') {
+    const nv = (f.versions || []).length;
+    if (!await hoi(`Xoá ẢNH của ${f.id}?\n\n`
+      + `· xoá ảnh đang dùng${nv > 1 ? ` và cả ${nv} bản trong dãy bản` : ''}\n`
+      + `· GIỮ NGUYÊN thẻ, prompt, ref, ghi chú\n`
+      + (f.status === 'approved' ? '\n⚠ Thẻ này ĐÃ DUYỆT — xoá là mất bản đã chốt.\n' : '')
+      + `\nKhông khôi phục được.`, { bad: true, dong: 'Xoá ảnh' })) return;
+    await fetch('/api/delete-files?sf=' + encodeURIComponent(f.id), { method: 'POST' });
+    JOBS[f.id] && delete JOBS[f.id];
+    await load();
+    $('#runstatus').textContent = `đã xoá ảnh của ${f.id}`;
+    setTimeout(() => $('#runstatus').textContent = '', 5000);
+    return;
   }
   if (a === 'del') {
     if (!await hoi('Xóa ' + f.id + ' (kèm mọi ảnh & phiên bản)?', { bad: true })) return;

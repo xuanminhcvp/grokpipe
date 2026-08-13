@@ -88,6 +88,11 @@ def _gio_24(h: str, p: str | None, ap: str | None) -> str:
 # ẢNH GỐC TUYỆT ĐỐI KHÔNG BỊ ĐỘNG TỚI — nhiều ảnh trong assets/ là bản user đã
 # duyệt. Bản tạm nằm ngoài project và luôn là JPEG, nên phép đối chiếu theo tên
 # file phải so PHẦN TÊN (bỏ đuôi) — 'SF-M-FOYER.png' và 'SF-M-FOYER.jpg' là một.
+# Số lượt UP CẢ LOẠT ref trước khi kết luận tài khoản hết hạn mức đính tệp.
+# Giữa hai lượt là một lần TẢI LẠI TRANG — không up bù từng ảnh thiếu, vì dán
+# thêm file vào một composer đang kẹt thì lần nào cũng trượt.
+_LAN_DINH_REF = 2
+
 _REF_TRAN_KB = 1200          # nặng hơn mức này thì mới thu nhỏ
 _REF_CANH_MAX = 1600         # cạnh dài tối đa của bản tạm
 _REF_TAM = os.path.join(tempfile.gettempdir(), "grokpipe-ref-nhe")
@@ -679,9 +684,8 @@ class ChatGPTSession:
         # chỉ còn những ref CHƯA từng gửi vào chat này. Bỏ qua chúng vì "chat cũ"
         # là để nhân vật mới của lô này không có ảnh nào để bám, và model sẽ tự
         # bịa ra một người khác — sai câm, không có thông báo nào.
-        if attach_paths:
-            if not self._dinh_ref(attach_paths):
-                return [], ("" if moi else chat_url), {"loi_text": "", "da_gui": False}
+        if attach_paths and not self._dinh_ref_ben_bi(attach_paths):
+            return [], ("" if moi else chat_url), {"loi_text": "", "da_gui": False}
 
         # CHỤP ẢNH CŨ SAU KHI ĐÍNH REF, không phải trước.
         #
@@ -972,7 +976,11 @@ class ChatGPTSession:
         # KHÔNG cắt bớt, kể cả lô một ảnh trả về hai bản. Bản cũ lấy "id cuối" cho
         # lô một ảnh — đúng phần lớn lần, nhưng khi sai thì sai câm. Giao cả lượt
         # lên board: đủ đúng số thì board ghép, lệch thì vào Chờ phân loại.
-        return moi_src, page.url, {"loi_text": loi_text, "da_gui": True}
+        return moi_src, page.url, {"loi_text": loi_text, "da_gui": True,
+                                   # Tài khoản vừa chạm trần đính tệp trong chính
+                                   # lượt này (xem `_dinh_ref`) — board dùng để cho
+                                   # nó nghỉ ngay, khỏi phí lô sau.
+                                   "nghi_den": getattr(self, "_nghi_upload_den", "")}
 
     def _gui(self) -> bool:
         def _da_roi_o_soan() -> bool:
@@ -1013,9 +1021,33 @@ class ChatGPTSession:
             self._o_soan().click(timeout=15000)
             self.page.keyboard.press("Enter")
             time.sleep(1.5)
-            return _da_roi_o_soan()
-        except Exception:
-            return False
+            if _da_roi_o_soan():
+                return True
+            loi = ""
+        except Exception as e:
+            loi = str(e)[:90]
+        # KHÔNG IM LẶNG KHI THẤT BẠI. Trả False suông thì bên trên chỉ biết "không
+        # có ảnh" và báo nhầm thành "ChatGPT không trả ảnh" — user đi tìm lỗi nhận
+        # diện ảnh trong khi bệnh nằm ở cú bấm gửi. Chụp lại đúng hiện trạng ô
+        # soạn và nút gửi để lần sau nhìn log là biết.
+        try:
+            ht = self.page.evaluate(
+                """() => ({
+                    o_soan: [...document.querySelectorAll('#prompt-textarea')].map(e => ({
+                        an: e.getAttribute('aria-hidden'),
+                        w: Math.round(e.getBoundingClientRect().width),
+                        chu: (e.innerText || '').trim().length})),
+                    nut_gui: [...document.querySelectorAll("button[data-testid='send-button']")]
+                        .map(e => ({w: Math.round(e.getBoundingClientRect().width),
+                                    tat: e.disabled || e.getAttribute('aria-disabled')})),
+                    nut_stop: document.querySelectorAll("button[data-testid='stop-button']").length,
+                    url: location.href.slice(0, 60)})""")
+        except Exception as e2:
+            ht = f"(không đọc được: {str(e2)[:50]})"
+        self.logger.warning(
+            "KHÔNG GỬI ĐƯỢC tin — draft vẫn nằm trong ô soạn, ChatGPT chưa nhận gì "
+            "(không tốn lượt). %s Hiện trạng: %s", f"Lỗi: {loi}." if loi else "", ht)
+        return False
 
     def _het_luot_upload(self) -> str | None:
         """Trang có đang báo HẾT LƯỢT ĐÍNH TỆP không?
@@ -1046,6 +1078,40 @@ class ChatGPTSession:
             "ChatGPT hết lượt đính tệp (upload) "
             + (f"— mở lại lúc {gio}" if gio else "— không đọc được giờ mở lại")
             + f" {nhan}")
+
+    def _dinh_ref_ben_bi(self, attach_paths: list[str]) -> bool:
+        """Up CẢ LOẠT ref, thiếu thì TẢI LẠI TRANG và up lại cả loạt.
+
+        Tối đa `_LAN_DINH_REF` lượt. Hết mà vẫn thiếu → ném lỗi kèm
+        `[NGHI-DEN:+120]`: up thiếu dai dẳng gần như luôn là hết hạn mức đính
+        tệp, và ChatGPT nhiều khi nuốt file im lặng không hiện banner nào. Board
+        đọc nhãn đó và cho tài khoản nghỉ 2 tiếng thay vì xếp lại hàng cho chính
+        nó rồi đốt tiếp lô sau.
+
+        KHÔNG up bù từng ảnh thiếu: dán thêm file vào một composer đang kẹt thì
+        lần nào cũng trượt. Trang mới thì sạch.
+        """
+        for lan in range(1, _LAN_DINH_REF + 1):
+            if self._dinh_ref(attach_paths):
+                return True
+            if lan >= _LAN_DINH_REF:
+                break
+            self.logger.warning("đính ref thiếu ở lượt %d/%d — tải lại trang rồi "
+                                "up LẠI CẢ LOẠT", lan, _LAN_DINH_REF)
+            try:
+                self.page.reload(wait_until="domcontentloaded")
+                time.sleep(3)
+                self._o_soan()                  # chờ ô soạn dựng lại
+            except Exception as e:
+                self.logger.warning("tải lại trang hỏng: %s", str(e)[:70])
+        self.logger.warning(
+            "up ref thất bại cả %d lượt (mỗi lượt up cả loạt, có tải lại trang) "
+            "— coi như HẾT HẠN MỨC ĐÍNH TỆP, cho tài khoản nghỉ 2 tiếng.",
+            _LAN_DINH_REF)
+        raise RuntimeError(
+            f"ChatGPT không đính nổi {len(attach_paths)} ảnh ref sau "
+            f"{_LAN_DINH_REF} lượt up cả loạt (có tải lại trang) — gần như chắc "
+            f"đã hết hạn mức đính tệp. [NGHI-DEN:+120]")
 
     def _dinh_ref(self, attach_paths: list[str]) -> bool:
         """Đính ảnh tham chiếu và XÁC MINH đủ. False = thiếu, KHÔNG được tạo ảnh.
@@ -1092,8 +1158,20 @@ class ChatGPTSession:
             co = _ten_da_len()
             if not co:
                 return None
-            def _goc(x):        # bỏ đuôi: bản tạm là .jpg, ảnh gốc có thể .png
-                return os.path.splitext(os.path.basename(x))[0].lower()
+
+            def _goc(x):
+                """Tên để SO SÁNH — bỏ đuôi và bỏ hậu tố ChatGPT tự thêm.
+
+                ChatGPT đổi tên file trùng khi đính: `REF_SANHTIEC_DEM.jpg` lên
+                thành `REF_SANHTIEC_DEM(5).jpg`, `REF_VANESSA_PORTRAIT.png` thành
+                `REF_VANESSA_PORTRAIT(20260812-095057).png`. So nguyên văn thì
+                KHÔNG BAO GIỜ khớp: board thấy "thiếu 9/10", up bù, ChatGPT thêm
+                (6), lại không khớp — ba vòng up bù rồi huỷ lượt, trong khi trên
+                màn hình 9 ảnh nằm đủ cả. Đúng ca 2026-08-12.
+                Bỏ đuôi vì bản tạm là .jpg còn ảnh gốc có thể .png.
+                """
+                ten = os.path.splitext(os.path.basename(x))[0]
+                return re.sub(r"\([^()]*\)\s*$", "", ten).strip().lower()
             con = [_goc(x) for x in co]
             lack = []
             for path in attach_paths:
@@ -1154,33 +1232,45 @@ class ChatGPTSession:
         finp.set_input_files(attach_paths)              # 1 phát cả loạt
         n_att = _wait(want, 8 + 3 * total)
 
-        for _ in range(3):
-            if n_att >= want:
-                break
-            # KIỂM TRẦN UPLOAD TRƯỚC KHI UP BÙ. Hết lượt đính tệp thì up bù chỉ
-            # là ba vòng chờ vô ích (~30s) rồi báo "thiếu ref" — một lỗi nói sai
-            # nguyên nhân, và board sẽ xếp lại hàng cho chính tài khoản đang bị
-            # chặn. Ném sớm để board cho tài khoản nghỉ tới giờ mở lại.
-            self._chan_neu_het_upload()
-            lack = _which_missing(base_shapes)
-            if not lack:                                # đếm lệch nhưng ghép đủ
-                break
+        # ĐỌC BANNER NGAY SAU KHI UP, KỂ CẢ KHI UP ĐỦ.
+        #
+        # Đo trên UI thật 2026-08-12: ChatGPT KHÔNG chặn trước — nó cho up xong
+        # rồi mới hiện "You've added all your available file uploads until 7:05
+        # PM". Nghĩa là lượt này vẫn có đủ ref và phải được chạy tiếp, nhưng tài
+        # khoản đã chạm trần: lượt SAU up sẽ trắng tay.
+        # (Vì vậy kiểm TRƯỚC khi up là vô nghĩa — chat trắng chưa up gì thì chưa
+        # có banner nào để đọc.)
+        # Ghi mốc lại đây; `generate_lo` gắn vào `ghi["nghi_den"]` để board cho
+        # tài khoản nghỉ NGAY SAU khi lượt này xong, không phí thêm lô nào.
+        self._nghi_upload_den = ""
+        _gio_het = self._het_luot_upload()
+        if _gio_het is not None and n_att >= want:
+            self._nghi_upload_den = _gio_het or "+60"
             self.logger.warning(
-                f"upload ref thiếu {len(lack)}/{total} — up bù ĐÚNG ảnh thiếu: "
-                + ", ".join(m.split('/')[-1] for m in lack))
-            try:
-                finp.set_input_files(lack)
-            except Exception as e:
-                self.logger.warning(f"up bù lỗi: {str(e)[:60]}")
-            n_att = _wait(want, 6 + 3 * len(lack))
+                "ChatGPT báo HẾT LƯỢT ĐÍNH TỆP %s — lượt này đã đủ ref nên vẫn "
+                "chạy tiếp; xong lượt sẽ cho tài khoản nghỉ.",
+                f"tới {_gio_het}" if _gio_het else "(không rõ giờ)")
 
+        # KHÔNG UP BÙ TỪNG ẢNH THIẾU (user chốt 2026-08-12).
+        #
+        # Up bù dán thêm file vào một ô soạn đang hỏng: sau một lần up trượt,
+        # composer của ChatGPT hay kẹt nửa vời (thumbnail treo, nút gỡ file không
+        # mọc) nên mọi cú up tiếp theo vào đúng ô đó đều trượt nốt — ba vòng chờ
+        # ~30 giây rồi vẫn thiếu. Đường đúng là TẢI LẠI TRANG rồi up LẠI CẢ LOẠT,
+        # do `_dinh_ref_ben_bi` lo.
         still = _which_missing(base_shapes)
         if still:
-            self._chan_neu_het_upload()      # chặn muộn: banner mọc sau lượt up bù
-            self.logger.warning(
-                "upload ref THIẾU sau khi up bù: "
-                + ", ".join(m.split('/')[-1] for m in still)
-                + " — hủy lượt, KHÔNG tạo ảnh khi thiếu tham chiếu")
+            self._chan_neu_het_upload()      # banner có thể mọc ngay sau cú up
+            # UP THIẾU DAI DẲNG = ĐIỂN HÌNH CỦA HẾT HẠN MỨC ĐÍNH TỆP (user chốt
+            # 2026-08-12). ChatGPT không phải lúc nào cũng hiện banner: nhiều lần
+            # nó im lặng nuốt file, và triệu chứng duy nhất là up mãi không đủ.
+            #
+            # Bản cũ chỉ trả False — board coi là lỗi của LƯỢT, xếp lại hàng cho
+            # CHÍNH tài khoản đang bị chặn, và cứ thế đốt hết lô này tới lô khác.
+            # Giờ ném kèm `[NGHI-DEN:+120]` để board cho nó nghỉ 2 tiếng rồi mới
+            # đưa lại vào vòng chạy — trong lúc đó việc chảy sang tài khoản khác.
+            self.logger.warning("upload ref thiếu %d/%d: %s", len(still), total,
+                                ", ".join(m.split('/')[-1] for m in still))
             return False
         self.logger.info(f"đã đính đủ {total} ảnh tham chiếu")
         time.sleep(1.5)

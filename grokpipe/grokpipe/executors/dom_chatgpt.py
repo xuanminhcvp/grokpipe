@@ -267,7 +267,21 @@ JS_MOC_TURN_TRO_LY = r"""() => Math.max(-1, ...[...document.querySelectorAll(
                 )].map(e => Number((e.getAttribute('data-testid') || '')
                     .match(/conversation-turn-(\d+)/)?.[1] || -1)))"""
 
-JS_TEN_DA_LEN = r"""() => [...document.querySelectorAll('button[aria-label]')]
-                        .map(e => ((e.getAttribute('aria-label') || '')
-                             .match(/([^\s:\\/]+\.(?:png|jpe?g|webp))\s*$/i) || [])[1])
-                        .filter(Boolean)"""
+# Tên các file ĐANG ĐÍNH trong ô soạn.
+#
+# ƯU TIÊN NÚT NẰM TRONG <form> — đó là thẻ đính kèm của tin SẮP gửi. Nút ngoài
+# form (`Open image 3 of 9: …`) là ảnh của tin ĐÃ GỬI: đếm cả chúng thì tab dùng
+# lại một chat cũ sẽ báo "đã đính đủ" trong khi ô soạn trống trơn.
+# Lọc theo vị trí trong DOM chứ không theo chữ "Remove file": chữ đó dịch theo
+# ngôn ngữ giao diện, vị trí thì không.
+# Tên trả về CÒN NGUYÊN hậu tố ChatGPT tự thêm — `REF_X(5).jpg`; bên gọi phải
+# chuẩn hoá trước khi so (xem `_thieu_theo_ten`).
+JS_TEN_DA_LEN = r"""() => {
+    const lay = els => els
+        .map(e => ((e.getAttribute('aria-label') || '')
+             .match(/([^\s:\\/]+\.(?:png|jpe?g|webp))\s*$/i) || [])[1])
+        .filter(Boolean);
+    const trongForm = lay([...document.querySelectorAll('form button[aria-label]')]);
+    if (trongForm.length) return trongForm;
+    return lay([...document.querySelectorAll('button[aria-label]')]);
+}"""
