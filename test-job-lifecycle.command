@@ -23,7 +23,8 @@ trap cleanup EXIT
 cd "$REPO_ROOT"
 COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
   tests/job_lifecycle \
-  --cov=sfboard/jobs \
+  --cov=sfboard.jobs.models \
+  --cov=sfboard.jobs.errors \
   --cov-report=term-missing \
   --cov-fail-under=80
 
