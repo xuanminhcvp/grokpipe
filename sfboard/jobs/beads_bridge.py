@@ -54,13 +54,18 @@ class BridgeHealth:
     last_sync_at: str | None
     last_error: str
     ok: bool
+    total_created: int = 0
+    total_updated: int = 0
 
     def as_dict(self) -> dict[str, object]:
+        """Stable projection: `created`/`updated` are cumulative lifetime counters."""
         return {
             "mode": self.mode,
             "pending": self.pending,
-            "created": self.created,
-            "updated": self.updated,
+            "created": self.total_created,
+            "updated": self.total_updated,
+            "created_now": self.created,
+            "updated_now": self.updated,
             "last_sync_at": self.last_sync_at,
             "last_error": self.last_error,
             "ok": self.ok,
@@ -340,6 +345,8 @@ class BeadsBridge:
             last_sync_at=health.get("last_sync_at"),
             last_error=self._sanitize(last_error),
             ok=ok,
+            total_created=_count(health.get("created")),
+            total_updated=_count(health.get("updated")),
         )
 
     def _join(self, errors: Sequence[str]) -> str:
@@ -407,6 +414,10 @@ def _issue_id(stdout: str) -> str:
     if not isinstance(issue_id, str) or not issue_id:
         raise BridgeError("bd create returned no issue id")
     return issue_id
+
+
+def _count(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
 
 
 def _mapping(value: object) -> Mapping[str, object]:
