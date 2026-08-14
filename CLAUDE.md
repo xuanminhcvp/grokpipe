@@ -5,6 +5,16 @@ Repo này sản xuất phim drama ngắn bằng pipeline hai chặng:
 
 Đừng ask question, suy nghĩ hướng nào tốt nhất rồi làm theo thôi, user bận không có thời gian trả lời question đâu
 
+## Lifecycle job ảnh/video
+
+Khi task liên quan `JOBS`, queue, state, retry, cancel/stop, account assignment,
+auto/worker/watchdog hoặc job API/UI, bắt buộc đọc
+[`docs/JOB-LIFECYCLE-README.md`](docs/JOB-LIFECYCLE-README.md) trước.
+
+Làm theo chuỗi: README → tài liệu được route → symbol/writer bằng Serena nếu khả
+dụng → regression test → fix đúng owner → full verification gate. Không tạo thêm
+writer, retry hoặc re-enqueue authority.
+
 ## ⛔ LUẬT CỨNG
 
 Không tự ý sửa skill, chỉ sửa khi user bảo sửa. 
