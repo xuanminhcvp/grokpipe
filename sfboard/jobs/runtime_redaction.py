@@ -30,15 +30,38 @@ _CREDENTIAL_KEYS = frozenset(
         "dsn",
     }
 )
-_PAYLOAD_KEY_PARTS = frozenset(
-    {"prompt", "body", "request", "response", "base64", "media", "image", "video"}
+_PAYLOAD_KEYS = frozenset(
+    {
+        "prompt",
+        "body",
+        "request",
+        "response",
+        "rawrequest",
+        "rawresponse",
+        "requestbody",
+        "responsebody",
+        "base64",
+        "imagebase64",
+        "mediabase64",
+        "media",
+        "mediapath",
+        "mediaurl",
+        "image",
+        "imagepath",
+        "imageurl",
+        "video",
+        "videopath",
+        "videourl",
+    }
 )
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"<>]+")
 _ABSOLUTE_PATH = re.compile(r"(?<![:/A-Za-z0-9])/(?:[^\s'\"<>:,]+(?:/[^\s'\"<>:,]+)*)")
+_PATH_PREFIX = re.compile(r"(?<=path:)/(?:[^\s'\"<>:,]+(?:/[^\s'\"<>:,]+)*)", re.I)
 _BEARER = re.compile(r"(?i)\bbearer\s+[^\s,;]+")
 _SECRET_ASSIGNMENT = re.compile(
-    r"(?i)\b(authorization|session(?:id)?|cookie|api[_-]?key|access[_-]?token|"
-    r"refresh[_-]?token|token|password|passwd|secret|dsn)\s*=\s*[^\s,;]+"
+    r"(?i)\b(authorization|proxy[-_ ]?authorization|session(?:id)?|cookie|api[_-]?key|"
+    r"access[_-]?token|refresh[_-]?token|token|password|passwd|secret|dsn)\s*(?:=|:)\s*"
+    r"(?:basic\s+)?[^\s,;]+"
 )
 
 
@@ -86,6 +109,9 @@ def _redact_text(value: str, repo_root: Path) -> str:
     sanitized = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=<redacted>", sanitized)
     if Path(sanitized).is_absolute():
         return _sanitize_absolute_path(sanitized, repo_root)
+    sanitized = _PATH_PREFIX.sub(
+        lambda match: _sanitize_absolute_path(match.group(0), repo_root), sanitized
+    )
     return _ABSOLUTE_PATH.sub(
         lambda match: _sanitize_absolute_path(match.group(0), repo_root), sanitized
     )
@@ -122,8 +148,10 @@ def _normalize_key(key: str) -> str:
 
 
 def _is_credential_key(key: str) -> bool:
-    return key in _CREDENTIAL_KEYS or key.endswith(("token", "secret", "password", "credential"))
+    return key in _CREDENTIAL_KEYS or key.endswith(
+        ("token", "secret", "password", "credential", "apikey", "authorization", "cookie")
+    )
 
 
 def _is_payload_key(key: str) -> bool:
-    return any(part in key for part in _PAYLOAD_KEY_PARTS)
+    return key in _PAYLOAD_KEYS or key.endswith(("prompt", "body")) or "base64" in key

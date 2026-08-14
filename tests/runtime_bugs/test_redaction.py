@@ -96,3 +96,51 @@ def test_redactor_sanitizes_absolute_paths_embedded_in_stacktrace(tmp_path):
     assert "/private/worker/profile.py" not in redacted["exception"]["stacktrace"]
     assert "sfboard/worker.py" in redacted["exception"]["stacktrace"]
     assert "profile.py" in redacted["exception"]["stacktrace"]
+
+
+def test_redactor_scrubs_structured_header_credentials_and_text_canaries(tmp_path):
+    event = valid_event(
+        message="Authorization: Basic basic-secret; password: password-secret; Cookie: foo=cookie-secret"
+    )
+    event["exception"]["context"] = {
+        "headers": {
+            "X-API-Key": "x-api-secret",
+            "OPENAI_API_KEY": "openai-secret",
+            "Set-Cookie": "session=cookie-secret",
+            "Proxy-Authorization": "Basic proxy-secret",
+        }
+    }
+
+    redacted = redact_event(event, repo_root=tmp_path)
+
+    assert redacted["exception"]["context"]["headers"] == {
+        "X-API-Key": "<redacted>",
+        "OPENAI_API_KEY": "<redacted>",
+        "Set-Cookie": "<redacted>",
+        "Proxy-Authorization": "<redacted>",
+    }
+    assert "secret" not in json.dumps(redacted)
+
+
+def test_redactor_sanitizes_path_prefixes_and_preserves_safe_metadata(tmp_path):
+    repo_file = tmp_path / "project" / "private.py"
+    repo_file.parent.mkdir()
+    repo_file.touch()
+    event = valid_event(message=f"path:{repo_file} path:/Users/alice/outside.py")
+    event["exception"]["stacktrace"] = (
+        f"path:{repo_file}\npath:/Users/alice/outside.py"
+    )
+    event["runtime"].update(
+        {"request_id": "request-123", "response_status": 500, "image_count": 2}
+    )
+
+    redacted = redact_event(event, repo_root=tmp_path)
+
+    assert f"path:{repo_file}" not in redacted["exception"]["message"]
+    assert "path:project/private.py" in redacted["exception"]["message"]
+    assert "path:outside.py" in redacted["exception"]["message"]
+    assert "path:project/private.py" in redacted["exception"]["stacktrace"]
+    assert "path:outside.py" in redacted["exception"]["stacktrace"]
+    assert redacted["runtime"]["request_id"] == "request-123"
+    assert redacted["runtime"]["response_status"] == 500
+    assert redacted["runtime"]["image_count"] == 2
