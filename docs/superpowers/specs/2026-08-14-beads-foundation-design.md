@@ -44,7 +44,8 @@ brew install beads
 ```
 
 Không dùng `curl | bash` trong implementation. Sau cài đặt bắt buộc ghi lại
-`bd version`, chạy `bd doctor` và xác minh executable được resolve từ Homebrew.
+`bd version`, xác minh executable được resolve từ Homebrew và chạy các kiểm tra
+được hỗ trợ cho embedded workspace.
 
 Beads là CLI cài một lần ở cấp máy; source repo không được clone vào project.
 
@@ -105,7 +106,9 @@ Thực hiện theo thứ tự:
 3. Chụp `git status` và danh sách file Beads sinh ra tại canonical workspace.
 4. `bd setup codex`, rồi kiểm diff và `bd setup codex --check`.
 5. `bd setup claude`, rồi kiểm diff và `bd setup claude --check`.
-6. `bd doctor` và `bd hooks list` để phát hiện setup thiếu/stale.
+6. `bd hooks list`, `bd where`, `bd config get agent.profile`, kiểm `sync.remote`
+   absent và JSON `bd ready --json` để xác minh embedded workspace. Không dùng
+   aggregate `bd doctor` làm gate: Beads 1.2.1 embedded không hỗ trợ check này.
 
 Setup chính chủ dùng managed marker. Chỉ section nằm giữa marker Beads được phép
 cập nhật; mọi nội dung có sẵn trong `AGENTS.md` và `CLAUDE.md` phải giữ byte-for-byte
@@ -171,7 +174,8 @@ Không tự claim hoặc tự đóng năm bug khi seed.
 
 ## Failure và rollback
 
-- `bd` không chạy: không sửa tay database; giữ nguyên repo và đọc `bd doctor`.
+- `bd` không chạy: không sửa tay database; giữ nguyên repo và chạy các kiểm tra
+  embedded được hỗ trợ (`bd where`, config, `bd ready --json`) để khoanh vùng.
 - Setup agent làm đổi nội dung ngoài managed marker: khôi phục chỉ diff do setup và
   dừng triển khai để điều tra.
 - Hook làm hỏng commit/push: dùng `bd hooks list`, gỡ hook Beads bằng command chính
@@ -182,7 +186,10 @@ Không tự claim hoặc tự đóng năm bug khi seed.
 
 ## Verification
 
-- `bd version` và `bd doctor` exit 0.
+- `bd version` exit 0; với embedded Beads 1.2.1, không yêu cầu aggregate `bd doctor`
+  exit 0. Thay vào đó, `bd where` phải resolve shared embedded workspace,
+  `agent.profile` phải là `conservative`, `sync.remote` phải absent và
+  `bd ready --json` phải parse được.
 - `ast-grep --version` báo `0.45.1`; hai smoke search tìm match và `git diff`
   chứng minh không file nào bị rewrite.
 - `bd setup codex --check` báo current; `.claude/settings.json` vẫn có đúng một

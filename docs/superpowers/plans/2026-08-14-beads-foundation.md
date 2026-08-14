@@ -166,9 +166,9 @@ Run:
 ```bash
 bd init --quiet --skip-agents
 bd config set agent.profile conservative
-bd config get sync.remote
-# Nếu key tồn tại:
-bd config unset sync.remote
+if bd config list | rg -q '^[[:space:]]*sync\\.remote[[:space:]]*='; then
+  bd config unset sync.remote
+fi
 ```
 
 Expected: linked worktree resolve embedded `.beads/` local chung ở checkout canonical
@@ -238,15 +238,17 @@ Run:
 ```bash
 bd version
 ast-grep --version
-bd doctor
 bd hooks list
+bd where
 bd config get agent.profile
+! bd config list | rg -q '^[[:space:]]*sync\\.remote[[:space:]]*='
 bd prime
 bd ready --json
 ```
 
-Expected: doctor có thể yêu cầu embedded-compatible checks thay aggregate doctor; profile
-hoạt động là `conservative`; header Claude `profile:minimal` là managed static metadata;
+Expected: `bd doctor` aggregate không được dùng làm gate vì Beads 1.2.1 embedded không
+hỗ trợ nó. `bd where` resolve shared embedded workspace, profile hoạt động là
+`conservative`, `sync.remote` absent; header Claude `profile:minimal` là managed static metadata;
 prime in workflow context và có thể chứa upstream remote examples, nhưng policy ngoài
 marker phủ định chúng; ready returns parseable JSON. `sync.remote` phải absent. Nếu Claude
 check báo stale chỉ vì key này absent dù managed block unchanged, giữ nguyên marker và xác
@@ -307,7 +309,7 @@ Expected: a non-empty Beads ID such as `grokpipe-a1b2`.
 Run:
 
 ```bash
-bd create "Cancel member resolves physical LO queue identity" -t bug -p 1 --parent "$epic_id" --description "Current expected failure: tests/job_lifecycle/test_cancel_characterization.py::CancelCharacterizationTest::test_member_only_jobs_can_resolve_physical_group_queue_identity. A member job may be queued physically as LO:<members>; cancel must resolve and invalidate that queue identity without reviving remaining work incorrectly." --acceptance "Remove only this expectedFailure decorator; observe red before implementation; targeted test and full lifecycle gate pass; xfailed count decreases from 5 to 4; no new queue/JOBS writer." --json
+bd create "Cancel member resolves physical LO queue identity" -t bug -p 1 --parent "$epic_id" --add-label runtime --add-label job-lifecycle --description "Current behavior: tests/job_lifecycle/test_cancel_characterization.py::CancelCharacterizationTest::test_member_only_jobs_can_resolve_physical_group_queue_identity is an expected failure because a member queued in LO:<members> cannot resolve the physical queue identity and stale work can remain. Expected behavior (D13, D23): cancellation is bound to job_id; an atomic CANCELLED transition means stale queue tokens cannot lease or revive that job. Dependency/migration phase: Phase 8 Cancel, safe stop and emergency stop, after the Phase 4 Scheduler/lease abstraction; Phase 0-1 production authority remains legacy JOBS, PriorityQueue, worker, retry and auto." --acceptance "Remove only this @unittest.expectedFailure decorator; run the targeted test without it and observe red before implementation; after the minimal fix the same targeted test is green; the full lifecycle gate is green; the xfailed baseline decreases exactly one from 5 to 4; do not add a queue/JOBS writer." --json
 ```
 
 Expected: one open, unclaimed child bug.
@@ -317,7 +319,7 @@ Expected: one open, unclaimed child bug.
 Run:
 
 ```bash
-bd create "Auto-video blocks queued and running duplicates" -t bug -p 1 --parent "$epic_id" --description "Current expected failure: tests/job_lifecycle/test_auto_characterization.py::AutoCharacterizationTest::test_auto_video_blocks_both_running_and_queued. Auto-video must not enqueue a second logical run while the shot is already queued or running." --acceptance "Remove only this expectedFailure decorator; prove red then green; full gate passes; xfailed count decreases by one; no second re-enqueue authority." --json
+bd create "Auto-video blocks queued and running duplicates" -t bug -p 1 --parent "$epic_id" --add-label runtime --add-label job-lifecycle --description "Current behavior: tests/job_lifecycle/test_auto_characterization.py::AutoCharacterizationTest::test_auto_video_blocks_both_running_and_queued is an expected failure because auto-video can enqueue a second logical run while the shot is queued or running. Expected behavior (D07, D12): each active job has at most one queue entry/worker lease; auto is a producer, not a retry controller, and must not create a new run for an active or failed-unacknowledged asset. Dependency/migration phase: Phase 3 Producer commands and idempotency, dependent on the Phase 2 JobStore/JobManager shadow foundation; Phase 0-1 production authority remains legacy JOBS, PriorityQueue, worker, retry and auto." --acceptance "Remove only this @unittest.expectedFailure decorator; run the targeted test without it and observe red before implementation; after the minimal fix the same targeted test is green; the full lifecycle gate is green; the xfailed baseline decreases exactly one from 5 to 4; do not create a second re-enqueue authority." --json
 ```
 
 - [ ] **Step 4: Create the stop-barrier race child bug**
@@ -325,7 +327,7 @@ bd create "Auto-video blocks queued and running duplicates" -t bug -p 1 --parent
 Run:
 
 ```bash
-bd create "Auto producer obeys the retry stop-generation barrier" -t bug -p 1 --parent "$epic_id" --description "Current expected failure: tests/job_lifecycle/test_auto_characterization.py::AutoCharacterizationTest::test_auto_producer_observes_same_stop_barrier_as_retry_timer. Stop-all must prevent both retry timers and auto producers from enqueueing stale work." --acceptance "Remove only this expectedFailure decorator; reproduce the race deterministically; targeted and full gates pass; terminal/cancelled jobs are not resurrected." --json
+bd create "Auto producer obeys the retry stop-generation barrier" -t bug -p 1 --parent "$epic_id" --add-label runtime --add-label job-lifecycle --description "Current behavior: tests/job_lifecycle/test_auto_characterization.py::AutoCharacterizationTest::test_auto_producer_observes_same_stop_barrier_as_retry_timer is an expected failure because an auto snapshot or retry timer can enqueue stale work after stop-all. Expected behavior (D15, D23): controlled stop blocks new producers, and queue tokens/worker leases carry an expected version so stale work is discarded without reviving a cancelled run. Dependency/migration phase: Phase 8 Cancel, safe stop and emergency stop, after the Phase 4 Scheduler/lease abstraction; Phase 0-1 production authority remains legacy JOBS, PriorityQueue, worker, retry and auto." --acceptance "Remove only this @unittest.expectedFailure decorator; run the targeted test without it and observe red before implementation; after the minimal fix the same targeted test is green; the full lifecycle gate is green; the xfailed baseline decreases exactly one from 5 to 4; terminal or cancelled jobs are not resurrected and no producer gains retry authority." --json
 ```
 
 - [ ] **Step 5: Create the multi-copy identity child bug**
@@ -333,7 +335,7 @@ bd create "Auto producer obeys the retry stop-generation barrier" -t bug -p 1 --
 Run:
 
 ```bash
-bd create "Multi-copy enqueue assigns distinct job identities" -t bug -p 1 --parent "$epic_id" --description "Current expected failure: tests/job_lifecycle/test_auto_characterization.py::AutoCharacterizationTest::test_multi_copy_enqueue_uses_distinct_job_identity_per_copy. Every requested copy needs distinct logical job/execution identity instead of aliasing state and retry history." --acceptance "Remove only this expectedFailure decorator; prove identity collision red then green; full gate passes; asset ID is not reused as Job/Execution/Attempt ID." --json
+bd create "Multi-copy enqueue assigns distinct job identities" -t bug -p 1 --parent "$epic_id" --add-label runtime --add-label job-lifecycle --description "Current behavior: tests/job_lifecycle/test_auto_characterization.py::AutoCharacterizationTest::test_multi_copy_enqueue_uses_distinct_job_identity_per_copy is an expected failure because requested copies alias one logical identity, state and retry history. Expected behavior (D01, D03): asset_id, job_id, attempt_id and batch_id are distinct; every requested copy is an independent child job/output with its own success, failure and account history. Dependency/migration phase: Phase 3 Producer commands and idempotency, dependent on Phase 1 identity models and the Phase 2 JobStore/JobManager shadow foundation; Phase 0-1 production authority remains legacy JOBS, PriorityQueue, worker, retry and auto." --acceptance "Remove only this @unittest.expectedFailure decorator; run the targeted test without it and observe red before implementation; after the minimal fix the same targeted test is green; the full lifecycle gate is green; the xfailed baseline decreases exactly one from 5 to 4; asset_id is never reused as a Job, Execution or Attempt ID." --json
 ```
 
 - [ ] **Step 6: Create the forced-account retry child bug**
@@ -341,7 +343,7 @@ bd create "Multi-copy enqueue assigns distinct job identities" -t bug -p 1 --par
 Run:
 
 ```bash
-bd create "Forced-account constraint survives every retry item" -t bug -p 1 --parent "$epic_id" --description "Current expected failure: tests/job_lifecycle/test_account_characterization.py::AccountCharacterizationTest::test_forced_account_constraint_is_carried_by_every_retry_item. A forced account must remain a job constraint across retries unless explicit fallback policy allows otherwise." --acceptance "Remove only this expectedFailure decorator; prove retry loses the constraint before fix; targeted and full gates pass; account rotation cannot silently override forced assignment." --json
+bd create "Forced-account constraint survives every retry item" -t bug -p 1 --parent "$epic_id" --add-label runtime --add-label job-lifecycle --description "Current behavior: tests/job_lifecycle/test_account_characterization.py::AccountCharacterizationTest::test_forced_account_constraint_is_carried_by_every_retry_item is an expected failure because a forced account can be lost when retry returns to the common queue. Expected behavior (D18): forced means every retry remains constrained to that account; when it is unavailable the job waits in RETRY_WAIT or fails, unless the user explicitly selected an allow-fallback policy. Dependency/migration phase: Phase 5 Attempt and AccountAllocator, after the Phase 4 Scheduler/lease abstraction; Phase 0-1 production authority remains legacy JOBS, PriorityQueue, worker, retry and auto." --acceptance "Remove only this @unittest.expectedFailure decorator; run the targeted test without it and observe red before implementation; after the minimal fix the same targeted test is green; the full lifecycle gate is green; the xfailed baseline decreases exactly one from 5 to 4; account rotation cannot silently override the forced assignment." --json
 ```
 
 - [ ] **Step 7: Verify graph count, status and ownership**
@@ -350,11 +352,38 @@ Run:
 
 ```bash
 bd show "$epic_id" --json
-bd list --json
+bd list --json > /tmp/beads-foundation-graph.json
 bd ready --json
+./.venv/bin/python3 - <<PY
+import json
+
+epic_id = "${epic_id}"
+children = {
+    "Cancel member resolves physical LO queue identity": ("D13, D23", "Phase 8", "5 to 4"),
+    "Auto-video blocks queued and running duplicates": ("D07, D12", "Phase 3", "5 to 4"),
+    "Auto producer obeys the retry stop-generation barrier": ("D15, D23", "Phase 8", "5 to 4"),
+    "Multi-copy enqueue assigns distinct job identities": ("D01, D03", "Phase 3", "5 to 4"),
+    "Forced-account constraint survives every retry item": ("D18", "Phase 5", "5 to 4"),
+}
+issues = json.load(open("/tmp/beads-foundation-graph.json"))
+assert len([i for i in issues if i["id"] == epic_id]) == 1
+selected = [i for i in issues if i.get("parent") == epic_id]
+assert len(selected) == 5
+for issue in selected:
+    decision, phase, xfailed = children[issue["title"]]
+    assert issue["status"] == "open" and issue["priority"] == 1 and issue["issue_type"] == "bug"
+    assert not issue.get("assignee") and issue["parent"] == epic_id
+    assert set(issue.get("labels") or []) == {"runtime", "job-lifecycle"}
+    assert all(needle in issue["description"] for needle in ("Current behavior:", "Expected behavior", decision, "Dependency/migration phase:", phase, "Phase 0-1 production authority remains legacy"))
+    assert all(needle in issue["acceptance_criteria"] for needle in ("Remove only this @unittest.expectedFailure decorator", "observe red before implementation", "same targeted test is green", "full lifecycle gate is green", "xfailed baseline decreases exactly one", xfailed))
+PY
+test "$(bd list --no-labels --json | ./.venv/bin/python3 -c 'import json,sys; print(len([i for i in json.load(sys.stdin) if i.get("parent") == "'"$epic_id"'"]))')" -eq 0
 ```
 
-Expected: exactly one matching epic and five matching children; every child is open and unclaimed; descriptions and acceptance criteria are non-empty.
+Expected: exactly one matching epic and five children. Every child is open, unassigned,
+P1 and type bug under that epic; its label set is exactly `runtime` and `job-lifecycle`;
+the required current/expected/dependency semantics and red-green/full-gate/exact-one-xfailed
+acceptance phrases are asserted, rather than merely non-empty.
 
 ### Task 4: Complete the foundation verification
 
@@ -370,14 +399,18 @@ Expected: exactly one matching epic and five matching children; every child is o
 Run:
 
 ```bash
-bd doctor
+bd where
 bd setup codex --check
 bd setup claude --check
 bd config get agent.profile
+! bd config list | rg -q '^[[:space:]]*sync\\.remote[[:space:]]*='
 bd prime
 ```
 
-Expected: all checks current/healthy, ast-grep `0.45.1` and profile `conservative`.
+Expected: `bd where` resolves the shared embedded workspace; Codex check is current;
+Claude stale caused only by absent `sync.remote` is an accepted Beads 1.2.1 caveat and
+does not authorize rewriting the managed marker; profile is `conservative`; `bd prime`
+returns context. Aggregate `bd doctor` is unsupported in embedded mode and is not a gate.
 
 - [ ] **Step 2: Prove JSON commands are machine-readable**
 
