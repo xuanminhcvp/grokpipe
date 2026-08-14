@@ -368,6 +368,8 @@ ACC_LOCK = threading.RLock()
 WORKERS: dict[tuple, threading.Thread] = {}   # (port, kind) -> luồng thợ
 
 _CHROME_BIN = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# Bó .app — `open -g` nhận app bundle chứ không nhận binary bên trong.
+_CHROME_APP = "/Applications/Google Chrome.app"
 _KIND_URL = {"img": "https://chatgpt.com/", "vid": "https://grok.com/"}
 _KIND_NAME = {"img": "ChatGPT (ảnh)", "vid": "Grok (video)"}
 
@@ -515,16 +517,45 @@ _LOW_RAM_FLAGS = [
 
 
 def _launch_chrome(a: dict) -> bool:
-    """Mở cửa sổ Chrome cho tài khoản này (kèm tab đệm about:blank)."""
+    """Mở cửa sổ Chrome cho tài khoản này (kèm tab đệm about:blank).
+
+    MỞ Ở PHÍA SAU, KHÔNG CƯỚP FOCUS (user chốt 2026-08-14). Gọi thẳng binary thì
+    macOS coi là khởi động app và bật cửa sổ lên trước mặt — trước đây hiếm nên
+    chịu được, nhưng từ lúc có luật xoay vòng thì mỗi lỗi là một lần mở cửa sổ,
+    và user đang gõ ở app khác sẽ mất chữ liên tục.
+
+    PHẢI CÓ CẢ `-g` LẪN `-j`, `-g` MỘT MÌNH KHÔNG ĐỦ.
+    `-g` chỉ chặn activate khi app KHỞI ĐỘNG. Chrome cá nhân của user gần như
+    luôn đang chạy, nên `open -n` không phải là khởi động app mà là thêm một
+    tiến trình vào app đang active — và cửa sổ mới vẫn nhảy lên trước mặt. Đo
+    thật 2026-08-14: đưa Finder lên foreground rồi mở bằng `-g -n` → foreground
+    đổi sang Google Chrome. Thêm `-j` (launch hidden) thì Finder giữ nguyên,
+    lặp lại hai lần đều vậy.
+    `-n` buộc tạo instance mới; thiếu nó thì cờ debug rơi vào cửa sổ có sẵn.
+
+    Cửa sổ vẫn mở thật, chỉ là bị GIẤU: Cmd+Tab hoặc bấm Dock là thấy. Đã đo
+    Chrome ẩn KHÔNG bị bóp hiệu năng — `visibilityState` vẫn `visible`, timer
+    100ms × 10 chạy đúng 1,01s, không hề bị throttle như tab nền.
+
+    `_kill_chrome` vẫn tìm được tiến trình: `open` chỉ là bệ phóng rồi thoát,
+    còn tiến trình Chrome thật vẫn mang đủ cờ `--remote-debugging-port=<port>`.
+    """
     import subprocess
     if not os.path.exists(_CHROME_BIN):
         return False
     profile = os.path.abspath(os.path.expanduser(a["profile"]))
     os.makedirs(profile, exist_ok=True)
-    subprocess.Popen([_CHROME_BIN, f"--remote-debugging-port={a['port']}",
-                      f"--user-data-dir={profile}", *_LOW_RAM_FLAGS,
-                      "about:blank", _KIND_URL[a["kind"]]],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    co = [f"--remote-debugging-port={a['port']}", f"--user-data-dir={profile}",
+          *_LOW_RAM_FLAGS, "about:blank", _KIND_URL[a["kind"]]]
+    try:
+        subprocess.Popen(["open", "-g", "-j", "-n", "-a", _CHROME_APP, "--args", *co],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        # `open` hỏng (thiếu app bundle, quyền lạ) thì vẫn phải mở được Chrome —
+        # thà nhảy lên màn hình còn hơn board đứng im không có cửa sổ nào.
+        _LOG.warning("mở Chrome nền không được (%s) — mở kiểu thường.", str(e)[:60])
+        subprocess.Popen([_CHROME_BIN, *co],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return True
 
 
@@ -692,30 +723,72 @@ def _is_quota_error(e: Exception) -> bool:
     ))
 
 
-# ---- NGHỈ TỚI GIỜ (hết lượt có hạn) -------------------------------------
-# ChatGPT chặn ĐÍNH TỆP theo giờ và nói thẳng giờ mở lại ("…until 3:45 PM").
-# image_chatgpt.py nhét giờ đó vào chuỗi lỗi dưới dạng nhãn máy đọc
-# `[NGHI-DEN:HH:MM]` (hoặc `[NGHI-DEN:+<phút>]` khi không đọc được giờ).
-# Ở đây đổi nhãn thành mốc thời gian: tài khoản nghỉ tới đúng mốc rồi TỰ chạy
-# lại, không bắt user nhớ bấm 'Thử lại'.
-_RE_NGHI = re.compile(r"\[NGHI-DEN:(?:(\d{1,2}):(\d{2})|\+(\d+))\]")
-NGHI_BU = 60          # nghỉ thêm 60s sau giờ ChatGPT ghi, cho chắc
+# ---- LỖI DỮ LIỆU: ĐỔI CHROME BAO NHIÊU LẦN CŨNG VÔ ÍCH ---------------------
+# Board xoay vòng Chrome cho MỌI lỗi render (user chốt 2026-08-14), nhưng lỗi
+# nằm trong sf-board.json thì xoay là quay tít vô nghĩa: ref chưa pick ảnh, shot
+# chưa có prompt, SF trỏ vào id đã chết. Đúng loại vừa gây ra 148 việc lỗi cùng
+# một câu "thẻ địa điểm CHƯA CÓ ẢNH (picked)" — cho chúng thử lại vô hạn là đốt
+# sạch hạn mức của mọi tài khoản trong khi không ảnh nào có thể ra.
+_LOI_DU_LIEU = (
+    "chưa có ảnh", "chua co anh", "chưa có prompt", "chua co prompt",
+    "không tìm thấy", "khong tim thay", "thiếu ref", "thieu ref",
+    "đã huỷ", "đã dừng", "chưa chạy",
+)
 
 
-def _moc_nghi(e: Exception) -> float:
-    """Mốc epoch được phép chạy lại; 0 = lỗi này không kèm hẹn giờ."""
-    m = _RE_NGHI.search(str(e))
-    if not m:
-        return 0.0
-    now = time.time()
-    if m.group(3):
-        return now + int(m.group(3)) * 60
-    gio, phut = int(m.group(1)), int(m.group(2))
-    t = time.localtime(now)
-    moc = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, gio, phut, 0, 0, 0, -1))
-    if moc < now - 60:          # giờ đã trôi qua → mốc của ngày mai
-        moc += 86400
-    return moc + NGHI_BU
+def _loi_du_lieu(e: Exception) -> bool:
+    """Lỗi ở dữ liệu board, không phải ở Chrome — báo ngay, đừng xoay tài khoản."""
+    m = str(e).lower()
+    return any(k in m for k in _LOI_DU_LIEU)
+
+
+# Lỗi gốc → MỘT CÂU NGẮN đọc là hiểu. Thông báo thật của Playwright/ChatGPT dài
+# vài dòng, có ngoặc lồng ngoặc; cắt cứng 60 ký tự thì ra những dòng cụt kiểu
+# "…sau 2 lượt up cả loạt (có )" — vừa xấu vừa không nói được điều gì.
+# THỨ TỰ CÓ Ý NGHĨA: khớp từ trên xuống, nên NGUYÊN NHÂN phải đứng trước
+# TRIỆU CHỨNG. "Target crashed" luôn đi kèm câu "không bấm được ô soạn" — để
+# "ô soạn" lên trước thì mọi cú tab sập đều bị ghi thành "không bấm được ô
+# nhập", giấu mất việc máy đang hết RAM.
+_LOI_GON = [
+    ("target crashed", "tab Chrome sập (máy hết RAM)"),
+    ("page crashed", "tab Chrome sập (máy hết RAM)"),
+    ("has been closed", "cửa sổ Chrome đã đóng"),
+    ("target closed", "cửa sổ Chrome đã đóng"),
+    ("không đính nổi", "không đính được ảnh ref"),
+    ("hết hạn mức đính tệp", "hết lượt đính ảnh"),
+    ("plan limit", "hết lượt tạo ảnh (giới hạn gói)"),
+    ("limit reached", "hết lượt tạo ảnh"),
+    ("you've reached", "hết lượt tạo ảnh"),
+    ("rate limit", "bị chặn tốc độ"),
+    ("hết lượt", "hết lượt tạo ảnh"),
+    ("ô soạn", "không bấm được ô nhập"),
+    ("connect_over_cdp", "không nối được Chrome"),
+    ("không nối được", "không nối được Chrome"),
+    ("cloudflare", "Cloudflare chặn"),
+    ("conversation-turn", "không đọc được câu trả lời"),
+    ("không trả ảnh", "ChatGPT không trả ảnh"),
+    ("err_quic", "mạng lỗi (QUIC)"),
+    ("timeout", "chờ quá lâu"),
+]
+
+
+def _loi_gon(e) -> str:
+    """Câu ngắn mô tả lỗi, để ghi log và hiện lên thẻ."""
+    m = str(e).lower()
+    for khoa, gon in _LOI_GON:
+        if khoa in m:
+            return gon
+    return (str(e).split("\n")[0].strip() or "lỗi không rõ")[:70]
+
+
+# ---- KHÔNG CÒN "NGHỈ TỚI GIỜ" (bỏ 2026-08-14) ---------------------------
+# ChatGPT chặn đính tệp theo giờ và nói thẳng giờ mở lại ("…until 3:45 PM");
+# board từng đọc mốc đó rồi cho tài khoản nghỉ tới đúng lúc ấy. Đã bỏ: user chốt
+# mọi lỗi đều xoay sang tài khoản kế tiếp, không treo ai ngoài vòng. Tài khoản
+# cạn lượt vẫn được vào vòng — nó lỗi lại thì xoay tiếp, rẻ hơn nhiều so với
+# đứng ngoài mấy tiếng trong khi ChatGPT có thể mở lượt sớm hơn giờ nó nói.
+# `image_chatgpt.py` vẫn gắn nhãn `[NGHI-DEN:…]` vào chuỗi lỗi; board giờ chỉ
+# ghi log cho biết, không hành động theo.
 
 
 def _is_dead_session_error(e: Exception) -> bool:
@@ -942,6 +1015,23 @@ JOBS.__class__.khi_loi = staticmethod(
     lambda ident, msg: _LOG.warning("việc %s LỖI: %s", ident, msg[:500]))
 
 
+def _ten_tk(endpoint: str) -> str:
+    """Tên đọc được của một cửa sổ: 'gpt-5' thay cho 'http://localhost:9226'.
+
+    Log cũ in nguyên endpoint — đọc lướt không ra tài khoản nào, mà cổng thì
+    phải nhẩm mới khớp được với bảng Tài khoản.
+    """
+    try:
+        port = int((endpoint or ":0").rsplit(":", 1)[1])
+    except Exception:
+        return endpoint or "?"
+    with ACC_LOCK:
+        a = next((x for x in ACCOUNTS if x["port"] == port), None)
+    if not a:
+        return f":{port}"
+    return f"{a['ten']} ({a['id']})" if a.get("ten") else a["id"]
+
+
 def _nhan_tk() -> str:
     """'gpt-4 :9225' của luồng thợ đang chạy — rỗng nếu không ở trong luồng thợ."""
     ep = getattr(_TL, "endpoint", "") or ""
@@ -953,7 +1043,12 @@ def _nhan_tk() -> str:
         return ""
     with ACC_LOCK:
         a = next((x for x in ACCOUNTS if x["port"] == port), None)
-    return f"{a['id']} :{port}" if a else f":{port}"
+    if not a:
+        return f":{port}"
+    # Có tên riêng thì hiện KÈM mã, không thay: user đọc tên để biết tài khoản
+    # nào, còn mã là thứ khớp được với tên thư mục profile và log cũ.
+    return (f"{a['ten']} · {a['id']} :{port}" if a.get("ten")
+            else f"{a['id']} :{port}")
 
 
 def _dan_nhan_tk(msg: str) -> str:
@@ -986,46 +1081,19 @@ def _mark_dead(endpoint: str, reason: str, kind: str = "img", den: float = 0.0):
     with _DEAD_LOCK:
         DEAD[endpoint] = reason
         if den:
-            DEAD_DEN[endpoint] = den
+            # Giữ hẹn XA hơn: hai thợ cùng một cổng ngã liên tiếp thì cú sau
+            # không được rút ngắn kỳ nghỉ cú trước vừa đặt.
+            DEAD_DEN[endpoint] = max(den, DEAD_DEN.get(endpoint, 0.0))
         else:
             DEAD_DEN.pop(endpoint, None)
         alive = [e for e in pool if e not in DEAD]
-    _LOG.warning("%s ở %s — còn %d/%d tài khoản %s chạy được",
-                 reason, endpoint, len(alive), len(pool),
+    _LOG.warning("%s: %s — còn %d/%d tài khoản %s chạy được",
+                 _ten_tk(endpoint), reason, len(alive), len(pool),
                  "Grok" if kind == "vid" else "ChatGPT")
-    # HẾT HẠN MỨC → ĐÓNG CỬA SỔ CHROME **VÀ** TẮT TÀI KHOẢN.
-    #
-    # Cửa sổ đang nghỉ không nhận việc nào mà vẫn ngốn 0,5–1,5 GB, trong khi board
-    # bật thêm một tài khoản khác cho đủ số — "giữ 3" hoá ra 3 cửa sổ làm việc
-    # cộng mấy cửa sổ nằm không. Đúng thứ làm máy 16GB chạm trần rồi Chrome bị hệ
-    # điều hành thu hồi ("Error code: 5").
-    #
-    # Tắt hẳn (không chỉ đánh dấu chết) vì nếu để `enabled` thì supervisor vẫn đẻ
-    # thợ cho nó, thợ chết ngay ở bước nối CDP rồi tài khoản lại vào diện chết —
-    # quay vòng vô ích.
-    #
-    # HẾT GIỜ NGHỈ **KHÔNG** TỰ MỞ LẠI (user chốt 2026-08-12): tài khoản chỉ trở
-    # thành DỰ BỊ SẴN SÀNG. Chừng nào một tài khoản khác bị chặn và board thiếu
-    # người, `_giu_du_tai_khoan()` mới bật nó lên và mở Chrome lúc đó. Mở sẵn một
-    # cửa sổ để nằm không là đúng thứ vừa gây ra sự cố trên.
-    if str(reason).startswith("hết lượt"):
-        try:
-            with ACC_LOCK:
-                a = next((x for x in ACCOUNTS if _ep(x) == endpoint), None)
-                if a:
-                    a["enabled"] = False
-                    a["auto_off"] = True      # board tắt, không phải user
-            _kill_chrome(int((endpoint or ":0").rsplit(":", 1)[1] or 0))
-            if a:
-                _save_accounts()
-            _LOG.info("đóng cửa sổ Chrome và tắt %s trong lúc nghỉ — trả RAM cho máy; "
-                      "hết giờ nghỉ nó nằm chờ làm dự bị", endpoint)
-            # Bù MỘT tài khoản khác để việc còn chảy. Chỉ ở đây, không phải vòng
-            # định kỳ — user tắt tay thì board không được tự ý thế chỗ.
-            if kind == "img":
-                _bu_tai_khoan_bi_chan(tru=endpoint)
-        except Exception as e:
-            _LOG.warning("không đóng được Chrome của %s: %s", endpoint, str(e)[:60])
+    # KHÔNG CÒN NHÁNH "HẾT LƯỢT" Ở ĐÂY (bỏ 2026-08-14 cùng cơ chế nghỉ).
+    # Tài khoản cạn lượt giờ đi chung đường với mọi lỗi khác: `_xoay_chrome()`
+    # tắt nó và bật cái kế tiếp trong vòng ngay lập tức. Không còn "nghỉ tới
+    # HH:MM", không còn "dự bị chờ bù người".
 
 
 def _dang_nghi(endpoint: str) -> float:
@@ -1079,6 +1147,34 @@ def _tk_dang_chay() -> list:
                 if a["kind"] == "img" and a["enabled"] and not DEAD.get(_ep(a))]
 
 
+# Sổ đếm việc ĐANG CHẠY trên từng cửa sổ: endpoint -> số thợ đang làm.
+#
+# JOBS không trả lời được câu hỏi này: nhãn tài khoản chỉ được dán vào thông báo
+# LỖI, còn việc đang chạy thì chỉ mang "[tk 2/3]" — không truy ra cổng nào. Mà
+# đó đúng là câu hỏi phải trả lời trước khi đóng một cửa sổ.
+BAN: dict[str, int] = {}
+_BAN_LOCK = threading.Lock()
+
+
+def _ban_vao(endpoint: str) -> None:
+    with _BAN_LOCK:
+        BAN[endpoint] = BAN.get(endpoint, 0) + 1
+
+
+def _ban_ra(endpoint: str) -> None:
+    with _BAN_LOCK:
+        n = BAN.get(endpoint, 0) - 1
+        if n > 0:
+            BAN[endpoint] = n
+        else:
+            BAN.pop(endpoint, None)
+
+
+def _dang_ban(endpoint: str) -> int:
+    with _BAN_LOCK:
+        return BAN.get(endpoint, 0)
+
+
 def _giu_du_tai_khoan() -> None:
     """Giữ số tài khoản ảnh KHÔNG VƯỢT trần user đặt. Chỉ tắt bớt, không bật thêm.
 
@@ -1087,16 +1183,28 @@ def _giu_du_tai_khoan() -> None:
     thêm — user tắt tay một cửa sổ là có lý do (để dành, chưa đăng nhập, biết nó
     sắp hết lượt), board đi bật cái khác thế vào là cãi lại ý user.
 
-    Ngoại lệ duy nhất nằm ở chỗ khác: tài khoản bị CHATGPT CHẶN thì board bù một
-    cái để việc còn chảy — xem `_bu_tai_khoan_bi_chan()`.
+    Ngoại lệ duy nhất nằm ở `_xoay_chrome()`: cửa sổ lỗi thì board TẮT nó và BẬT
+    cái kế tiếp trong vòng — đổi danh tính, không đổi số lượng, nên trần vẫn giữ.
     """
     muon = _so_tk_doc()
     song = _tk_dang_chay()
     if len(song) <= muon:
         return
-    # Tắt từ CUỐI danh sách lên: tài khoản đầu thường là cái user dùng lâu nhất
-    # và đã đăng nhập chắc chắn.
-    for a in list(reversed(song))[:len(song) - muon]:
+    # TẮT CÁI ĐANG RẢNH TRƯỚC — tắt tài khoản đang vẽ dở là giết luôn lượt đó.
+    #
+    # Bắt được 10:26:41 ngày 2026-08-14: vòng này tắt gpt-8 đúng lúc ChatGPT vừa
+    # trả đủ 10/10 ảnh và board đang tải về. Chrome bị đóng giữa chừng nên cả 10
+    # ảnh mất sạch ("Target page… has been closed"), lượt coi như đốt bỏ — trong
+    # khi tắt một cửa sổ đang nằm không thì chẳng mất gì.
+    #
+    # Trong nhóm cùng trạng thái vẫn giữ luật cũ: tắt từ CUỐI danh sách lên, vì
+    # tài khoản đầu thường là cái user dùng lâu nhất và đã đăng nhập chắc chắn.
+    xep_tat = sorted(reversed(song), key=lambda a: _dang_ban(_ep(a)))
+    for a in xep_tat[:len(song) - muon]:
+        if _dang_ban(_ep(a)):
+            _LOG.info("vượt trần %d tài khoản nhưng %s đang chạy việc — "
+                      "để nó làm nốt, vòng sau tính lại.", muon, a["id"])
+            continue
         with ACC_LOCK:
             a["enabled"] = False
             a["auto_off"] = True
@@ -1105,60 +1213,165 @@ def _giu_du_tai_khoan() -> None:
     _save_accounts()
 
 
-def _bu_tai_khoan_bi_chan(tru: str = "") -> None:
-    """Một tài khoản vừa bị ChatGPT chặn → bật MỘT tài khoản khác thế chỗ.
-
-    Chỉ gọi từ nhánh xử lý hết hạn mức, KHÔNG gọi định kỳ. Đây là khác biệt then
-    chốt với việc user tự tắt: chặn là chuyện board gây ra và board phải lo, còn
-    user tắt là ý user và phải được tôn trọng.
-
-    Chỉ bù khi chưa chạm trần, và ưu tiên tài khoản do chính board tắt trước đó.
-    """
-    muon = _so_tk_doc()
-    if len(_tk_dang_chay()) >= muon:
-        return
-    with ACC_LOCK:
-        du_bi = sorted((a for a in ACCOUNTS
-                        if a["kind"] == "img" and not a["enabled"]
-                        and not DEAD.get(_ep(a)) and _ep(a) != tru),
-                       key=lambda a: 0 if a.get("auto_off") else 1)
-    if not du_bi:
-        _LOG.info("không còn tài khoản dự bị nào để bù — chạy tiếp với %d tài khoản",
-                  len(_tk_dang_chay()))
-        return
-    a = du_bi[0]
-    with ACC_LOCK:
-        a["enabled"] = True
-        a.pop("auto_off", None)
-    if not _endpoint_alive(_ep(a)):
-        _launch_chrome(a)
-    _save_accounts()
-    _LOG.info("bù cho tài khoản vừa bị chặn: BẬT %s (:%s)", a["id"], a["port"])
-
-
-def _mo_chrome_du_phong(kind: str, tru: str = "") -> int:
-    """Bật Chrome cho các tài khoản CÙNG LOẠI đang bật mà cửa sổ chưa mở.
-
-    Gọi khi một tài khoản vừa bị chặn: việc đã được chuyển sang tài khoản khác,
-    nhưng tài khoản khác chỉ nhận được việc nếu cửa sổ Chrome của nó đang chạy.
-    Chỉ mở tài khoản user ĐÃ BẬT — không tự thêm tài khoản mới, không đụng tới
-    trần RAM mà user tự đặt bằng danh sách tài khoản."""
-    with ACC_LOCK:
-        accs = [dict(a) for a in ACCOUNTS if a["enabled"] and a["kind"] == kind]
-    n = 0
-    for a in accs:
-        ep = _ep(a)
-        if ep == tru or DEAD.get(ep) or _endpoint_alive(ep):
-            continue
-        if _launch_chrome(a):
-            n += 1
-            _LOG.info("mở Chrome cho tài khoản %s (:%s) để chạy tiếp.", a["id"], a["port"])
-    return n
-
-
 def _alive_count(kind: str = "img") -> int:
     with _DEAD_LOCK:
         return len([e for e in _pool(kind) if e not in DEAD])
+
+
+# ───────────────────────────── XOAY VÒNG CHROME ──────────────────────────────
+# User chốt 2026-08-14: CỨ LỖI LÀ ĐỔI CHROME. Không phân biệt lỗi nặng nhẹ, không
+# đếm số lần — việc được thử lại mãi tới khi ra ảnh, chỉ "Dừng tất cả" mới cắt.
+#
+# Lý do: hỏng ở khâu render gần như luôn là hỏng ở MỘT cửa sổ Chrome cụ thể
+# (selector trượt vì giao diện A/B, CDP "sống nửa vời" — HTTP còn trả lời mà
+# WebSocket đã treo, tab ngốn RAM tới mức renderer bị thu hồi). Cùng một prompt
+# chạy sang cửa sổ khác thì ra ảnh ngay. Xoay vòng liên tục nên tự tìm ra cửa sổ
+# nào đang vẽ ngon, thay vì đứng lại ở cái đầu tiên bị hỏng.
+#
+# Chrome bị tắt hẳn chứ không chỉ đánh dấu chết: profile nằm trên đĩa nên phiên
+# đăng nhập không mất, mà tắt–mở là cách DUY NHẤT dọn được một CDP đã treo.
+#
+# XOAY THEO VÒNG TRÒN QUA CẢ DANH SÁCH (user chốt 2026-08-14, bỏ hẹn giờ nghỉ):
+# tk 1 lỗi → sang 2, 2 lỗi → sang 3, 3 lỗi mà 4 đang chạy → nhảy sang 5, tới cuối
+# danh sách thì quay về đầu. Mọi cửa sổ đều có lượt, không cửa sổ nào bị loại.
+#
+# SỐ CỬA SỔ MỞ CÙNG LÚC KHÔNG ĐỔI — tắt cái hỏng TRƯỚC rồi mới bật cái kế tiếp.
+# Xoay vòng là đổi DANH TÍNH tài khoản đang chạy, không phải mở thêm cửa sổ; trần
+# RAM user đặt (mục Tài khoản) vì thế vẫn nguyên.
+
+
+def _ke_tiep_trong(ds: list, endpoint: str) -> dict | None:
+    """Phần thuần của `_tk_ke_tiep` — KHÔNG tự lấy khoá, nhận sẵn danh sách.
+
+    Tách ra để `_xoay_chrome()` chọn–tắt–bật trong CÙNG một khối `ACC_LOCK`.
+    Chọn ngoài khoá rồi mới vào khoá để sửa là một cửa sổ đua: hai tài khoản
+    KHÁC NHAU cùng ngã sẽ cùng nhìn thấy một "người kế tiếp", cùng tắt mình,
+    mà chỉ một cái được bật — số cửa sổ đang chạy tụt dần sau mỗi cơn lỗi chùm.
+    """
+    if len(ds) < 2:
+        return None
+    i = next((k for k, a in enumerate(ds) if _ep(a) == endpoint), -1)
+    for b in range(1, len(ds) + 1):
+        a = ds[(i + b) % len(ds)]
+        if _ep(a) == endpoint or a.get("enabled"):
+            continue            # chính nó, hoặc đang chạy → nhường, đi tiếp
+        # KHÔNG lọc theo "đang nghỉ vì hết lượt" nữa — user chốt bỏ hẳn cơ chế
+        # nghỉ (2026-08-14). Tài khoản cạn lượt vẫn được vào vòng: nó lỗi lại
+        # thì xoay tiếp, rẻ hơn nhiều so với treo nó ngoài vòng mấy tiếng đồng
+        # hồ trong khi ChatGPT có thể mở lượt sớm hơn giờ nó nói.
+        return a
+    return None
+
+
+def _tk_ke_tiep(endpoint: str, kind: str) -> dict | None:
+    """Tài khoản kế tiếp trong vòng, tính từ `endpoint`, BỎ QUA cái đang chạy.
+
+    Trả None khi mọi tài khoản khác đều đang chạy — lúc đó không bật thêm ai,
+    việc cứ chảy sang các cửa sổ đang mở.
+    """
+    with ACC_LOCK:
+        return _ke_tiep_trong([dict(a) for a in ACCOUNTS if a["kind"] == kind],
+                              endpoint)
+
+
+def _xoay_chrome(endpoint: str, kind: str, ly_do: str) -> None:
+    """Tắt cửa sổ vừa lỗi, bật cửa sổ KẾ TIẾP trong vòng, đẩy việc sang đó.
+
+    Không hẹn giờ nghỉ: tài khoản vừa lỗi được TẮT hẳn nên rơi khỏi `_pool()`
+    và thợ của nó tự thoát. Đường về của nó là vòng xoay — cái sau lỗi thì tới
+    lượt nó được bật lại. `auto_off` chỉ còn là dấu vết "board tắt, không phải
+    user tắt" — hiện lên giao diện, không còn cơ chế nào đọc để quyết định.
+    """
+    port = int((endpoint or ":0").rsplit(":", 1)[1] or 0)
+    # CHỌN — TẮT — BẬT TRONG MỘT KHỐI KHOÁ, không tách ra ba nhịp.
+    #
+    # Hai chốt chống đua nằm cả ở đây:
+    #  · cùng một tài khoản ngã nhiều lần (nhiều tab) → thợ sau thấy `enabled`
+    #    đã tắt là biết có người xoay rồi, bỏ lượt. Không có chốt này thì board
+    #    bật hai–ba cửa sổ thay cho một, vọt qua trần RAM, rồi
+    #    `_giu_du_tai_khoan()` tắt bớt từ cuối danh sách và giết đúng tài khoản
+    #    đang chạy tốt (bắt được 09:57:49 ngày 2026-08-14: gpt-3 ngã hai lần
+    #    cùng giây → bật cả gpt-4 lẫn gpt-5 → gpt-10 đang vẽ dở bị tắt ngang).
+    #  · hai tài khoản KHÁC NHAU cùng ngã → nếu chọn "người kế tiếp" ngoài khoá
+    #    rồi mới vào khoá để sửa, cả hai cùng nhắm một người, cùng tắt mình, mà
+    #    chỉ một cái được bật — số cửa sổ đang chạy tụt dần sau mỗi cơn lỗi chùm.
+    with ACC_LOCK:
+        cu = next((x for x in ACCOUNTS if _ep(x) == endpoint), None)
+        if cu is not None and not cu.get("enabled"):
+            _LOG.info("%s: tab khác đã xoay rồi, bỏ qua lượt này.",
+                      _ten_tk(endpoint))
+            return
+        ke = _ke_tiep_trong([dict(a) for a in ACCOUNTS if a["kind"] == kind],
+                            endpoint)
+        if ke is not None:
+            if cu:
+                cu["enabled"] = False
+                cu["auto_off"] = True
+            moi = next((x for x in ACCOUNTS if _ep(x) == _ep(ke)), None)
+            if moi:
+                moi["enabled"] = True
+                moi.pop("auto_off", None)
+    if ke is None:
+        # Cửa sổ duy nhất (hoặc mọi cái khác đang chạy): tắt–mở lại chính nó.
+        # Tắt–mở vẫn có giá trị — đó là cách duy nhất dọn một CDP đã treo.
+        with _DEAD_LOCK:
+            if str(DEAD.get(endpoint, "")).startswith("đổi cửa sổ"):
+                return          # thợ khác trên cùng cửa sổ vừa xoay xong
+        _mark_dead(endpoint, f"đổi cửa sổ ({ly_do})", kind, time.time() + 20)
+        try:
+            _kill_chrome(port)
+        except Exception as e:
+            _LOG.warning("%s: không đóng được Chrome — %s", _ten_tk(endpoint), _loi_gon(e))
+        if _alive_count(kind) == 0:
+            with ACC_LOCK:
+                a = next((dict(x) for x in ACCOUNTS if _ep(x) == endpoint), None)
+            if a:
+                _launch_chrome(a)
+                with _DEAD_LOCK:
+                    DEAD.pop(endpoint, None)
+                    DEAD_DEN.pop(endpoint, None)
+                _LOG.info("%s: không còn cửa sổ nào khác, mở lại để chạy tiếp.", _ten_tk(endpoint))
+        else:
+            _LOG.info("%s lỗi (%s) — mọi tài khoản khác đang bận, việc dồn "
+                      "sang chúng.", _ten_tk(endpoint), ly_do)
+        return
+
+    # Tắt/bật đã làm xong trong khối khoá trên; còn lại là phần chậm (đóng–mở
+    # Chrome, ghi đĩa) — cố ý để NGOÀI khoá, đừng giữ ACC_LOCK qua 5 giây chờ
+    # cổng nhả, mọi luồng khác sẽ nghẽn theo.
+    with _DEAD_LOCK:
+        DEAD.pop(endpoint, None)        # tắt rồi thì không cần dấu chết nữa
+        DEAD_DEN.pop(endpoint, None)
+    try:
+        _kill_chrome(port)
+    except Exception as e:
+        _LOG.warning("%s: không đóng được Chrome — %s", _ten_tk(endpoint), _loi_gon(e))
+    if not _endpoint_alive(_ep(ke)):
+        _launch_chrome(ke)
+    _save_accounts()
+    _LOG.warning("XOAY: %s lỗi (%s) → tắt, chuyển sang %s.",
+                 _ten_tk(endpoint), ly_do, _ten_tk(_ep(ke)))
+
+
+def _xep_lai_sau(kind: str, item: tuple, giay: float) -> None:
+    """Xếp lại việc sau `giay` giây, trừ khi user đã bấm 'Dừng tất cả'.
+
+    CÓ GIÃN CÁCH, không xếp lại tức thì: thử lại vô hạn mà bắn liền tay thì một
+    việc hỏng vì dữ liệu quay vòng vài lần mỗi giây, ngập log và chiếm chỗ của
+    việc chạy được. `dung_gen` soi ở thời điểm BẮN chứ không phải lúc hẹn — user
+    bấm dừng trong lúc chờ thì việc này biến mất theo.
+    """
+    gen = dung_gen()
+    Q = IMG_QUEUE if kind == "img" else VID_QUEUE
+
+    def _ban():
+        if dung_gen() != gen or _bi_huy(item[1]):
+            return
+        _xep(Q, item)
+
+    t = threading.Timer(max(1.0, giay), _ban)
+    t.daemon = True
+    t.start()
 
 
 def _acct_label() -> str:
@@ -1213,6 +1426,9 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
         # 2026-08-12 với lô SF-S22 — log có hai dòng "đã gửi lô 4 khung" cách
         # nhau 2 giây, ngay sau một dòng "đã xếp lại (lần 1)".
         _dat_job(ident, {"state": "running", "msg": "đang khởi động…"})
+        # Ghi sổ NGAY khi nhận việc, gỡ ở `finally` — để `_giu_du_tai_khoan()`
+        # biết cửa sổ này đang bận mà đừng đóng ngang.
+        _ban_vao(endpoint)
         # Chrome đã bị đóng/mở lại từ lần chạy trước (ngủ khi rảnh, user tắt-bật,
         # supervisor hồi sinh)? Nhả sạch Playwright của luồng này rồi nối lại từ
         # đầu — nếu không, mọi job sẽ chết ở bước mở tab.
@@ -1260,36 +1476,39 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                              ident, endpoint,
                              _anh_chup_may(int((endpoint or ":0").rsplit(":", 1)[1] or 0)),
                              str(e)[:120])
-            fatal = _is_quota_error(e) or (
-                _is_dead_session_error(e) and not _endpoint_alive(endpoint))
-            if fatal:
-                reason = "hết lượt" if _is_quota_error(e) else "cửa sổ Chrome đã đóng"
-                # Chặn CÓ HẸN GIỜ (hết lượt đính tệp): cho tài khoản nghỉ tới
-                # đúng giờ mở lại rồi tự sống lại, đồng thời bảo đảm còn Chrome
-                # khác đang mở để chạy tiếp phần việc còn lại.
-                den = _moc_nghi(e)
-                if den:
-                    reason = ("hết lượt đính tệp — nghỉ tới "
-                              + time.strftime("%H:%M", time.localtime(den)))
-                _mark_dead(endpoint, reason, kind, den)
-                _release_tl()
-                if den:
-                    _mo_chrome_du_phong(kind, tru=endpoint)
-                stop = True
-                if tries < len(_pool(kind)) and _alive_count(kind) > 0:
-                    _dat_job(ident, {"state": "running",
-                                     "msg": f"{reason} → chuyển sang tài khoản khác…"})
-                    _xep(QUEUE, (kind, ident, tries + 1, manual))
-                else:
-                    _dat_job(ident, {"state": "error",
-                                     "msg": f"{reason}; không còn tài khoản nào khả dụng"})
-            else:
-                _dat_job(ident, {"state": "error", "msg": str(e)[:300]})
+            # MỌI LỖI ĐỀU XOAY SANG TÀI KHOẢN KẾ TIẾP (user chốt 2026-08-14).
+            # Không phân loại nặng nhẹ, không đếm số lần, không có lỗi nào
+            # "dừng tại chỗ" — chỉ "Dừng tất cả" mới cắt được.
+            #
+            # Gồm cả "cửa sổ Chrome đã đóng" (tab chết cũng là cửa sổ hỏng) và
+            # cả HẾT LƯỢT — user chốt bỏ hẳn cơ chế cho tài khoản nghỉ. Trước
+            # đây hai ca này đi đường riêng và tài khoản bị treo khỏi vòng: cái
+            # thì vĩnh viễn, cái thì tới giờ ChatGPT hẹn (có khi 4 tiếng). Giờ
+            # cả hai xoay như mọi lỗi khác — tài khoản cạn lượt sẽ lỗi lại ở
+            # vòng sau và tự xoay tiếp, không cần ai canh đồng hồ.
+            #
+            # Giãn cách tăng dần tới trần 3 phút. KHÔNG phải giới hạn số lần
+            # (vẫn vô hạn), chỉ là cái phanh: xoay qua một tài khoản chưa đăng
+            # nhập thì lỗi bật lại tức thì, không phanh là quay hết cả danh sách
+            # trong vài giây và mở–đóng chục cửa sổ Chrome.
+            cho = min(20 + 20 * tries, 180)
+            _xoay_chrome(endpoint, kind, _loi_gon(e))
+            _release_tl()
+            stop = True
+            # Lỗi nằm trong sf-board.json thì đổi cửa sổ không chữa được — vẫn
+            # xoay theo đúng luật, nhưng nói thẳng trên thẻ để khỏi ngồi đợi một
+            # việc không bao giờ ra ảnh.
+            ghi_chu = " ⚠ lỗi DỮ LIỆU — đổi cửa sổ không chữa được" if _loi_du_lieu(e) else ""
+            _dat_job(ident, {"state": "running",
+                             "msg": f"{_loi_gon(e)} → đổi tài khoản, thử lại "
+                                    f"sau {cho}s (lần {tries + 1}){ghi_chu}"})
+            _xep_lai_sau(kind, (kind, ident, tries + 1, manual), cho)
         finally:
+            _ban_ra(endpoint)
             if tu_hang:                 # việc lấy từ CHO_RIENG không qua queue
                 QUEUE.task_done()
         if stop:
-            _LOG.warning("Thợ %s (%s) dừng.", endpoint, kind)
+            _LOG.info("%s: ngừng nhận việc.", _ten_tk(endpoint))
             return
 
 
@@ -1420,11 +1639,16 @@ def _gac_hang_doi():
                         can_xep.append("LO:" + ",".join(xs[i:i + TRAN_MAY_TU_GOM]))
 
             for k in can_xep:
-                if cuu.get(k, 0) >= 3:
+                # Trần nới 3 → 12 (2026-08-14) cho hợp với luật thử-lại-vô-hạn.
+                # KHÔNG bỏ hẳn: đây là guard cho lỗi hàng đợi, không phải cho
+                # lỗi render. Bỏ trần thì một việc mồ côi do bug sẽ quay vòng
+                # lặng lẽ mãi mãi, không ai thấy — đúng thứ trần này sinh ra để
+                # phơi bày.
+                if cuu.get(k, 0) >= 12:
                     for x in k[3:].split(","):
                         if x:
                             JOBS[x] = {"state": "error",
-                                       "msg": "rơi khỏi hàng đợi 3 lần — bấm chạy lại"}
+                                       "msg": "rơi khỏi hàng đợi 12 lần — bấm chạy lại"}
                     continue
                 cuu[k] = cuu.get(k, 0) + 1
                 _xep(IMG_QUEUE, ("img", k, 0, False))
@@ -1459,18 +1683,20 @@ def _supervisor():
                     with _DEAD_LOCK:
                         DEAD.pop(ep, None)
                     _LOG.info("Chrome %s đã mở lại — hồi sinh tài khoản.", ep)
-                # Hết giờ nghỉ → gỡ dấu chặn, tài khoản thành DỰ BỊ SẴN SÀNG.
-                # KHÔNG mở Chrome ở đây (user chốt 2026-08-12): mở một cửa sổ để
-                # nằm không là phí RAM. Nó chỉ được bật khi board thật sự thiếu
-                # người — lúc một tài khoản khác bị chặn — và `_giu_du_tai_khoan()`
-                # sẽ mở Chrome ngay lúc bật.
+                # Hết kỳ chặn ngắn của `_xoay_chrome()` → gỡ dấu, cho chạy lại.
                 _den = _dang_nghi(ep)
                 if _den and time.time() >= _den:
+                    _ly = DEAD.get(ep) or ""
                     with _DEAD_LOCK:
                         DEAD.pop(ep, None)
                         DEAD_DEN.pop(ep, None)
-                    _LOG.info("Tài khoản %s đã hết giờ nghỉ — sẵn sàng làm dự bị "
-                              "(chưa mở Chrome, chờ tới lúc cần bù người).", a["id"])
+                    # Chỉ còn một ca vào được đây: "đổi cửa sổ" khi KHÔNG có ai
+                    # để xoay sang (cửa sổ duy nhất). Board vừa tắt nó, phải mở
+                    # lại thì mới có người làm.
+                    if _ly.startswith("đổi cửa sổ") and not _endpoint_alive(ep):
+                        _launch_chrome(a)
+                        _LOG.info("mở lại cửa sổ %s (:%s) — không có tài khoản "
+                                  "nào khác để xoay sang.", a["id"], a["port"])
                 if DEAD.get(ep):
                     continue
                 kinds = [a["kind"]]
@@ -1539,7 +1765,7 @@ AUTO_PERIOD = 20                 # giây mỗi vòng quét
 # ngồi nhìn "⏳ đang quét…" tới 20 giây mới thấy số — mà trong 20 giây đó cũng
 # chưa việc nào vào hàng đợi, trông như bấm hụt.
 _AUTO_WAKE = threading.Event()
-AUTO_MAX_TRY = 40                # số lần bắn lại tối đa cho một ident
+AUTO_MAX_TRY = 0                 # 0 = KHÔNG GIỚI HẠN (user chốt 2026-08-14)
 AUTO_COOLDOWN = 6                # số vòng phải chờ trước khi bắn lại cùng ident (~2 phút)
 
 
@@ -1552,7 +1778,10 @@ def _auto_allow(st: dict, ident: str, cyc: int, ghi: bool = True) -> bool:
     task chưa tới lượt đã ăn sẵn một cooldown 6 vòng (~2 phút) — auto bò từng
     task một, chậm gấp mấy lần mà nhìn log không ra vì sao.
     """
-    if st["try"].get(ident, 0) >= AUTO_MAX_TRY:
+    # AUTO_MAX_TRY = 0 → thử lại mãi. Việc chỉ dừng khi user bấm "Dừng tất cả"
+    # (vét hàng đợi + tăng thế hệ dừng) hoặc khi lỗi thuộc loại dữ liệu, mà lỗi
+    # dữ liệu đã bị chặn ngay ở `_worker` nên không quay lại đây.
+    if AUTO_MAX_TRY and st["try"].get(ident, 0) >= AUTO_MAX_TRY:
         return False
     if cyc - st["last"].get(ident, -999) < AUTO_COOLDOWN:
         return False
@@ -2111,9 +2340,18 @@ def _cong_master(master: str | None, data: dict | None = None) -> str:
     if not _la_the_dia_diem(f):
         return f"thẻ gốc {master} thiếu luatchung (không phải thẻ địa điểm)"
     
-    if not f.get("picked"):
-        return f"thẻ địa điểm {master} CHƯA CÓ ẢNH (picked)"
-    
+    # KIỂM ĐÚNG PHÉP MÀ BÊN XẾP VIỆC DÙNG: `find_file()`, tức có ảnh trong
+    # `assets/` hay không — KHÔNG chỉ đọc `picked`.
+    #
+    # Hai phép kiểm lệch nhau là một vòng lặp vô tận (bắt được 2026-08-14 với
+    # 148 việc lỗi cùng một câu): `_auto_scene` xếp việc theo `find_file()` nên
+    # thấy ảnh và cho chạy, còn cổng này đọc `picked` nên chặn — auto xếp lại,
+    # cổng chặn lại, mãi mãi. Ảnh nằm trong `assets/` mà `picked` rỗng là chuyện
+    # bình thường: ảnh user tự dán vào là bản chuẩn tuyệt đối và không đi qua
+    # đường chọn bản bao giờ.
+    if not f.get("picked") and not BOARD.find_file(master):
+        return f"thẻ địa điểm {master} CHƯA CÓ ẢNH"
+
     return ""
 
 
@@ -2720,16 +2958,18 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
                                       nen_dung=lambda: any(i in DUNG_RIENG for i, _ in viec))
 
     port = int((getattr(_TL, "endpoint", "") or ":0").rsplit(":", 1)[1] or 0)
-    # TÀI KHOẢN VỪA CHẠM TRẦN ĐÍNH TỆP trong chính lượt này. ChatGPT cho up xong
-    # rồi mới báo, nên lượt này vẫn đủ ref và đã chạy tới nơi — chỉ cần cho tài
-    # khoản nghỉ NGAY, đừng để nó nhận thêm lô nào rồi mới phát hiện trắng tay.
+    # TÀI KHOẢN VỪA CHẠM TRẦN ĐÍNH TỆP trong chính lượt này — CHỈ GHI NHẬN.
+    #
+    # Bỏ đánh dấu nghỉ (user chốt 2026-08-14): không còn treo tài khoản tới giờ
+    # ChatGPT hẹn. Cũng KHÔNG xoay cửa sổ ngay tại đây — chỗ này đứng TRƯỚC bước
+    # tải ảnh về, đóng Chrome bây giờ là giết đúng loạt ảnh vừa vẽ xong (đã mất
+    # một lô 10 ảnh kiểu đó lúc 10:26 ngày 2026-08-14). Cứ để lượt này tải nốt;
+    # lô sau tài khoản này lỗi thì `_worker` xoay theo đường thường.
     _nghi = (ghi.get("nghi_den") or "").strip()
     if _nghi:
-        _den = _moc_nghi(RuntimeError(f"[NGHI-DEN:{_nghi}]"))
-        _mark_dead(_TL.endpoint, "hết lượt đính tệp — nghỉ tới "
-                   + (time.strftime("%H:%M", time.localtime(_den)) if _den else _nghi),
-                   "img", _den)
-        _mo_chrome_du_phong("img", tru=_TL.endpoint)
+        _LOG.warning("%s chạm trần đính tệp (ChatGPT hẹn %s) — vẫn tải nốt lượt "
+                     "này, lô sau lỗi sẽ tự xoay sang tài khoản khác.",
+                     _TL.endpoint, _nghi)
     # KHÔNG lưu chat_url nữa (bỏ 2026-08-12): lần sau lại chat trắng.
 
     # TẢI HẾT VỀ TRƯỚC KHI PHÁN. Kể cả lượt thiếu, thừa, hay trả kèm chữ — ảnh
@@ -3897,6 +4137,20 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, "acct": acc}); return
             if not acc:
                 self._json({"ok": False, "err": "không thấy tài khoản"}, 404); return
+            if op == "ten":
+                # TÊN GỌI RIÊNG, KHÔNG ĐỘNG VÀO `id`. `id` là khoá kỹ thuật: nó
+                # nằm trong log, trong nhãn dán vào thông báo lỗi, và trong tên
+                # thư mục profile. Đổi nó là làm đứt mọi dấu vết cũ. `ten` chỉ
+                # để user nhận ra tài khoản nào là tài khoản nào.
+                t = (q.get("v", [""])[0] or "").strip()[:40]
+                with ACC_LOCK:
+                    if t:
+                        acc["ten"] = t
+                    else:
+                        acc.pop("ten", None)     # xoá trắng = trả về tên mặc định
+                _save_accounts()
+                _LOG.info("Tài khoản %s: đặt tên '%s'.", acc["id"], t or "(bỏ tên)")
+                self._json({"ok": True, "ten": t}); return
             if op == "tabs":
                 n = max(1, min(MAX_TABS, int(q.get("n", ["1"])[0] or 1)))
                 with ACC_LOCK:
@@ -3939,7 +4193,7 @@ class Handler(BaseHTTPRequestHandler):
                 with _DEAD_LOCK:
                     DEAD.pop(_ep(acc), None)
                     DEAD_DEN.pop(_ep(acc), None)
-                # Board đóng cửa sổ Chrome khi cho tài khoản nghỉ (trả RAM), nên
+                # Board đóng cửa sổ Chrome mỗi khi xoay khỏi một tài khoản, nên
                 # gỡ dấu chết thôi là chưa đủ — thợ mới sẽ chết ngay ở bước nối
                 # CDP và tài khoản lại vào diện chết, vòng vo mà user không hiểu.
                 if acc["enabled"] and not _endpoint_alive(_ep(acc)):

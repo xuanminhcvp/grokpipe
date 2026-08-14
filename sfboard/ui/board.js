@@ -537,9 +537,16 @@ addEventListener('error', e => {
   veLoi();
 });
 addEventListener('unhandledrejection', e => {
+  const raw = String((e.reason && (e.reason.stack || e.reason.message)) || e.reason);
+  // "Failed to fetch" = board vừa tắt/khởi động lại, vòng poll sau tự nối lại.
+  // Không phải bug, mà mỗi lần restart nó đẻ ra cả chục dòng kèm stack trỏ vào
+  // chrome-extension:// — thứ chẳng liên quan gì tới board, đọc chỉ tổ rối.
+  if (/failed to fetch|networkerror|load failed/i.test(raw)) return;
   LOI.push({
     n: 0, luc: new Date().toTimeString().slice(0, 8), muc: 'UI', nguon: 'promise',
-    text: String((e.reason && (e.reason.stack || e.reason.message)) || e.reason).slice(0, 500)
+    // Chỉ giữ DÒNG ĐẦU: stack nhiều tầng đẩy mọi lỗi khác ra khỏi hộp, mà dòng
+    // đầu đã đủ để biết hỏng ở đâu.
+    text: raw.split('\n')[0].slice(0, 200)
   });
   veLoi();
 });
@@ -617,7 +624,17 @@ async function loiXoa() {
 }
 
 // ---------------------------------------------------------------- accounts
-let ACCT_OPEN = false, ACCT_TIMER = null;
+let ACCT_OPEN = false, ACCT_TIMER = null, ACCT_TAB = 'img';
+function acctTab(k) {
+  ACCT_TAB = k;
+  $('#atab-img').classList.toggle('on', k === 'img');
+  $('#atab-vid').classList.toggle('on', k === 'vid');
+  // Trần "tối đa N" chỉ đếm tài khoản ẢNH (_so_tk_doc bên board), nên chỉ hiện
+  // ở tab ChatGPT — để nó nằm cạnh danh sách Grok là nói dối người đọc.
+  $('#sotkwrap').style.display = k === 'img' ? 'flex' : 'none';
+  $('#acctadd').textContent = k === 'img' ? '+ ChatGPT' : '+ Grok';
+  pollAccts();
+}
 function toggleAccts() {
   ACCT_OPEN = !ACCT_OPEN;
   $('#acctpanel').style.display = ACCT_OPEN ? 'block' : 'none';
@@ -642,7 +659,14 @@ async function pollAccts() {
     if (_o && document.activeElement !== _o) {
       fetch('/api/so-tk').then(x => x.json()).then(d => { if (document.activeElement !== _o) _o.value = d.so });
     }
-    const rows = (r.accounts || []).map(a => {
+    // Đếm trên TOÀN BỘ danh sách rồi mới lọc — số trên tab phải là số thật của
+    // loại đó, không phải số của cái đang hiện.
+    const tat = r.accounts || [];
+    const dem = k => tat.filter(a => a.kind === k).length;
+    const dem_on = k => tat.filter(a => a.kind === k && a.enabled).length;
+    $('#atab-img').innerHTML = `ChatGPT <span class="an">${dem_on('img')}/${dem('img')}</span>`;
+    $('#atab-vid').innerHTML = `Grok <span class="an">${dem_on('vid')}/${dem('vid')}</span>`;
+    const rows = tat.filter(a => a.kind === ACCT_TAB).map(a => {
       const dot = !a.enabled ? '⚫' : a.dead ? '🌙' : a.chrome ? '🟢' : '🟡';
       const kind = a.kind === 'img' ? 'ChatGPT · ảnh' : 'Grok · video';
       // NGHỈ TỚI MẤY GIỜ — ChatGPT có nói giờ mở lại trong thông báo chặn, board
@@ -664,15 +688,22 @@ async function pollAccts() {
       // còn việc gì cho nút đó nữa.
       const st = !a.enabled
         ? (a.auto_off
-          ? '<span style="color:var(--tx2)">💤 dự bị — board tự bật khi cần bù người</span>'
+          ? '<span style="color:var(--tx2)">⚫ tắt — chờ tới lượt trong vòng xoay</span>'
           : '<span style="color:var(--tx2)">⚫ tắt</span>')
         : a.dead ? `<span style="color:var(--bad)">${esc(a.dead)}</span>${_nghi}`
           : !a.chrome ? '<span style="color:var(--warn)">🟡 đang mở Chrome…</span>'
             : a.worker ? '<span style="color:var(--ok)">🟢 đang chạy</span>'
               : '<span style="color:var(--tx2)">🟡 chờ thợ…</span>';
       return `<div class="acctrow">
-    <span>${dot}</span><b>${esc(a.id)}</b>
-    <span class="ak">${kind}</span>
+    <span>${dot}</span>
+    ${/* TÊN GỌI RIÊNG do user đặt (email, gói, ghi chú…). Bỏ trống thì ô hiện
+         chính `id` làm gợi ý. `id` KHÔNG đổi theo: nó nằm trong log và trong
+         tên thư mục profile, đổi là đứt hết dấu vết cũ — nên nó vẫn được in ra
+         ở cột kế bên để đối chiếu với log. */''}
+    <input class="aten" value="${esc(a.ten || '')}" placeholder="${esc(a.id)}" maxlength="40"
+           title="Tên gọi riêng để bạn dễ nhận ra tài khoản — ví dụ email hoặc gói đang dùng.&#10;Bỏ trống để quay về tên mặc định.&#10;Mã ${esc(a.id)} không đổi: log và thư mục profile vẫn dùng nó."
+           onchange="acctTen(${a.port},this.value)">
+    <span class="ak" title="${kind} — mã dùng trong log">${esc(a.id)}</span>
     <span class="ap">:${a.port}</span>
     <span class="as">${st}</span>
     <span class="ad" title="Số bản tài khoản này làm XONG hôm nay, và kỷ lục cao nhất từng đạt${a.ky_luc_ngay ? ' (ngày ' + esc(a.ky_luc_ngay) + ')' : ''}.&#10;ChatGPT/Grok không công bố trần mỗi ngày — cứ chạy tới lúc bị chặn thì con số 'cao nhất' chính là trần thật.">hôm nay <b style="color:var(--acc)">${a.hom_nay || 0}</b>${a.ky_luc ? ` · cao nhất <b style="color:var(--tx)">${a.ky_luc}</b>` : ''}</span>
@@ -692,8 +723,17 @@ async function pollAccts() {
       <button class="bad-b" title="Xóa hẳn tài khoản này khỏi danh sách (dữ liệu đăng nhập trong profile Chrome vẫn giữ)" onclick="acctDel('${esc(a.id)}',${a.port},${a.enabled})">🗑</button>
     </span>
   </div>`});
-    $('#acctrows').innerHTML = rows.join('') || '<span class="hint">chưa có tài khoản nào</span>';
+    // ĐANG GÕ THÌ ĐỪNG VẼ LẠI. Vòng poll 4 giây thay sạch innerHTML, nên nó
+    // nuốt luôn chữ user đang gõ dở trong ô tên (và cả ô số tab). Chỉ hoãn một
+    // nhịp, vòng sau vẽ bình thường.
+    if ($('#acctrows').contains(document.activeElement)) return;
+    $('#acctrows').innerHTML = rows.join('')
+      || `<span class="hint">chưa có tài khoản ${ACCT_TAB === 'img' ? 'ChatGPT' : 'Grok'} nào</span>`;
   } catch (e) { }
+}
+async function acctTen(port, v) {
+  await fetch(`/api/acct?op=ten&port=${port}&v=${encodeURIComponent(v)}`, { method: 'POST' });
+  setTimeout(pollAccts, 400);
 }
 async function acctTabs(port, n) {
   await fetch(`/api/acct?op=tabs&port=${port}&n=${n}`, { method: 'POST' });

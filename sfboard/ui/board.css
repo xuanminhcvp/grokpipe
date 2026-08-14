@@ -2295,8 +2295,81 @@ button.auto-b.on {
    dùng chung đúng một khung cột. */
 #acctrows {
   display: grid;
-  grid-template-columns: 16px 62px 104px 56px minmax(150px, 1fr) auto auto auto;
+  /* Cột 2 = ô đặt tên (user gõ), cột 3 = mã `id` cố định để đối chiếu với log.
+     Cột "ChatGPT · ảnh" cũ đã bỏ — dải tab phía trên đã nói loại tài khoản. */
+  grid-template-columns: 16px minmax(150px, 230px) 62px 56px minmax(150px, 1fr) auto auto auto;
   gap: 3px 10px
+}
+
+/* Ô ĐẶT TÊN — trông như chữ thường, chỉ hiện ra là ô nhập khi rê chuột hoặc gõ.
+   Vẽ nó thành ô input đầy đủ viền thì cả bảng đầy khung, nặng mắt. */
+.aten {
+  font: inherit;
+  font-weight: 700;
+  color: var(--tx);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  width: 100%;
+  min-width: 0
+}
+
+.aten::placeholder {
+  color: var(--tx2);
+  font-weight: 700;
+  opacity: .75
+}
+
+.aten:hover {
+  border-color: var(--line)
+}
+
+.aten:focus {
+  outline: 0;
+  border-color: var(--acc);
+  background: var(--panel2)
+}
+
+/* DẢI TAB ChatGPT / Grok trong bảng tài khoản. */
+#accttabs {
+  display: flex;
+  gap: 2px;
+  background: var(--panel2);
+  border-radius: 8px;
+  padding: 2px
+}
+
+.atab {
+  border: 0;
+  background: transparent;
+  color: var(--tx2);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 3px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px
+}
+
+.atab:hover {
+  color: var(--tx)
+}
+
+.atab.on {
+  background: var(--panel);
+  color: var(--tx);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12)
+}
+
+/* Số "đang bật / tổng" — chữ nhỏ hơn nhãn để đọc ra là phụ chú, không phải tên. */
+.atab .an {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: .7;
+  font-variant-numeric: tabular-nums
 }
 
 .acctrow {
@@ -2355,7 +2428,10 @@ button.auto-b.on {
    cột sau tụt lên một bậc. */
 @media (max-width:980px) {
   #acctrows {
-    grid-template-columns: 16px 62px 0 0 minmax(120px, 1fr) 0 auto auto;
+    /* Khung hẹp: giữ ô TÊN (cột 2) rộng vừa đủ đọc, giấu mã · cổng · bộ đếm.
+       Cột giấu để 0 chứ không display:none — phần tử biến mất khỏi layout thì
+       mọi cột sau tụt lên một bậc. */
+    grid-template-columns: 16px minmax(96px, 132px) 0 0 minmax(120px, 1fr) 0 auto auto;
     gap: 3px 7px
   }
 

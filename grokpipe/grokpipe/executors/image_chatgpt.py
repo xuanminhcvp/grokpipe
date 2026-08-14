@@ -58,9 +58,13 @@ from .dom_chatgpt import (      # noqa: F401
 # Trần này chặn ở bước upload, tức ta chưa đốt lượt tạo ảnh nào. Trước đây board
 # chỉ thấy "upload ref THIẾU" → coi là lỗi thường, xếp lại hàng và tài khoản đó
 # thử lại mãi cho tới khi hết lượt thử, trong khi nó CHẮC CHẮN không up được gì
-# cho tới giờ ghi trên màn hình. Vì vậy phải nhận ra chữ này và ném lên board
-# kèm ĐÚNG GIỜ MỞ LẠI, để board cho tài khoản nghỉ tới giờ đó rồi chạy tiếp bằng
-# tài khoản khác.
+# cho tới giờ ghi trên màn hình. Vì vậy phải nhận ra chữ này và ném lên board,
+# kèm cả giờ mở lại nếu đọc được.
+#
+# Board TỪNG dùng giờ đó để cho tài khoản nghỉ tới đúng lúc ấy; bỏ 2026-08-14.
+# Giờ nó xoay sang tài khoản kế tiếp ngay, và giờ mở lại chỉ còn là thông tin
+# ghi vào log. Việc nhận ra chữ này vẫn cần y như cũ: thiếu nó thì board coi là
+# lỗi thường và để chính cửa sổ đang bị chặn thử lại mãi.
 #
 # Nhãn máy đọc `[NGHI-DEN:HH:MM]` (24h) nằm trong chuỗi lỗi — sfboard.py bắt bằng
 # regex. Không đổi định dạng nhãn này ở một đầu mà quên đầu kia.
@@ -1084,9 +1088,12 @@ class ChatGPTSession:
 
         Tối đa `_LAN_DINH_REF` lượt. Hết mà vẫn thiếu → ném lỗi kèm
         `[NGHI-DEN:+120]`: up thiếu dai dẳng gần như luôn là hết hạn mức đính
-        tệp, và ChatGPT nhiều khi nuốt file im lặng không hiện banner nào. Board
-        đọc nhãn đó và cho tài khoản nghỉ 2 tiếng thay vì xếp lại hàng cho chính
-        nó rồi đốt tiếp lô sau.
+        tệp, và ChatGPT nhiều khi nuốt file im lặng không hiện banner nào.
+
+        NHÃN ĐÓ GIỜ CHỈ CÒN LÀ GHI CHÚ. Board từng đọc nó để cho tài khoản nghỉ
+        2 tiếng; bỏ 2026-08-14 cùng cả cơ chế nghỉ. Giờ mọi lỗi đều xoay sang
+        tài khoản kế tiếp trong vòng, nên cái cần ở đây vẫn y nguyên: ném lỗi
+        để board đừng xếp lại hàng cho chính cửa sổ vừa hỏng rồi đốt tiếp lô sau.
 
         KHÔNG up bù từng ảnh thiếu: dán thêm file vào một composer đang kẹt thì
         lần nào cũng trượt. Trang mới thì sạch.
@@ -1096,8 +1103,8 @@ class ChatGPTSession:
                 return True
             if lan >= _LAN_DINH_REF:
                 break
-            self.logger.warning("đính ref thiếu ở lượt %d/%d — tải lại trang rồi "
-                                "up LẠI CẢ LOẠT", lan, _LAN_DINH_REF)
+            self.logger.warning("lượt %d/%d hỏng — tải lại trang, up lại cả loạt",
+                                lan, _LAN_DINH_REF)
             try:
                 self.page.reload(wait_until="domcontentloaded")
                 time.sleep(3)
@@ -1105,13 +1112,15 @@ class ChatGPTSession:
             except Exception as e:
                 self.logger.warning("tải lại trang hỏng: %s", str(e)[:70])
         self.logger.warning(
-            "up ref thất bại cả %d lượt (mỗi lượt up cả loạt, có tải lại trang) "
-            "— coi như HẾT HẠN MỨC ĐÍNH TỆP, cho tài khoản nghỉ 2 tiếng.",
+            "up ref hỏng cả %d lượt — coi như hết lượt đính ảnh, đổi tài khoản.",
             _LAN_DINH_REF)
+        # CÂU LỖI NGẮN, THÔNG TIN NẶNG ĐẶT SAU. Board cắt bớt khi hiện lên thẻ,
+        # nên phần đầu phải tự nó đủ nghĩa — bản cũ bị cắt ngang thành
+        # "…sau 2 lượt up cả loạt (có )", đọc không ra vấn đề gì.
         raise RuntimeError(
-            f"ChatGPT không đính nổi {len(attach_paths)} ảnh ref sau "
-            f"{_LAN_DINH_REF} lượt up cả loạt (có tải lại trang) — gần như chắc "
-            f"đã hết hạn mức đính tệp. [NGHI-DEN:+120]")
+            f"ChatGPT không đính nổi {len(attach_paths)} ảnh ref — gần như chắc "
+            f"đã hết hạn mức đính tệp (đã thử {_LAN_DINH_REF} lượt, có tải lại "
+            f"trang). [NGHI-DEN:+120]")
 
     def _dinh_ref(self, attach_paths: list[str]) -> bool:
         """Đính ảnh tham chiếu và XÁC MINH đủ. False = thiếu, KHÔNG được tạo ảnh.
@@ -1248,7 +1257,7 @@ class ChatGPTSession:
             self._nghi_upload_den = _gio_het or "+60"
             self.logger.warning(
                 "ChatGPT báo HẾT LƯỢT ĐÍNH TỆP %s — lượt này đã đủ ref nên vẫn "
-                "chạy tiếp; xong lượt sẽ cho tài khoản nghỉ.",
+                "chạy tiếp; lô sau tài khoản này lỗi thì board xoay sang cái khác.",
                 f"tới {_gio_het}" if _gio_het else "(không rõ giờ)")
 
         # KHÔNG UP BÙ TỪNG ẢNH THIẾU (user chốt 2026-08-12).
@@ -1267,10 +1276,17 @@ class ChatGPTSession:
             #
             # Bản cũ chỉ trả False — board coi là lỗi của LƯỢT, xếp lại hàng cho
             # CHÍNH tài khoản đang bị chặn, và cứ thế đốt hết lô này tới lô khác.
-            # Giờ ném kèm `[NGHI-DEN:+120]` để board cho nó nghỉ 2 tiếng rồi mới
-            # đưa lại vào vòng chạy — trong lúc đó việc chảy sang tài khoản khác.
-            self.logger.warning("upload ref thiếu %d/%d: %s", len(still), total,
-                                ", ".join(m.split('/')[-1] for m in still))
+            # Cái phải tránh vẫn là đó. Việc "cho nghỉ 2 tiếng" thì bỏ rồi
+            # (2026-08-14): `_dinh_ref_ben_bi` ném lỗi, board xoay sang tài khoản
+            # kế tiếp trong vòng, và cửa sổ này ra khỏi lượt ngay lập tức.
+            # LIỆT KÊ TỐI ĐA 3 TÊN. Cả 11 tên trên một dòng đẩy mọi thông tin
+            # khác ra khỏi tầm mắt, mà tên nào thiếu thì gần như không đổi cách
+            # xử lý — điều cần biết là THIẾU BAO NHIÊU.
+            _ten = [m.split('/')[-1] for m in still]
+            self.logger.warning(
+                "thiếu %d/%d ảnh ref: %s", len(still), total,
+                ", ".join(_ten[:3]) + (f" …và {len(_ten) - 3} cái nữa"
+                                       if len(_ten) > 3 else ""))
             return False
         self.logger.info(f"đã đính đủ {total} ảnh tham chiếu")
         time.sleep(1.5)

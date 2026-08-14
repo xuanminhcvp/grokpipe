@@ -119,12 +119,19 @@
       style="display:none;margin:8px 0;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card,#fff)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
         <b>Tài khoản Chrome</b>
-        <label style="display:flex;align-items:center;gap:5px;font-size:12.5px"
-          title="TRẦN số tài khoản ChatGPT chạy đồng thời — chạy ít hơn cũng được, board chỉ tắt bớt khi VƯỢT.&#10;Bạn tắt tay một tài khoản thì board KHÔNG tự bật cái khác thế vào; cần thì tự bật.&#10;Ngoại lệ: tài khoản bị ChatGPT chặn hạn mức sẽ được bù một cái khác để việc còn chảy.&#10;Khác 'tab': tab là nhiều việc trong CÙNG một tài khoản, chung một hạn mức.">tối đa
+        <!-- HAI LOẠI TÀI KHOẢN, HAI TAB. Trộn chung một bảng thì cột "hôm nay ·
+             cao nhất" của Grok (video, hạn mức khác hẳn) nằm cạnh của ChatGPT
+             và đọc như cùng một thang đo. Trần "tối đa N" cũng chỉ áp cho
+             ChatGPT, để nó cạnh hàng Grok là mời hiểu nhầm. -->
+        <div id="accttabs">
+          <button class="atab on" onclick="acctTab('img')" id="atab-img">ChatGPT</button>
+          <button class="atab" onclick="acctTab('vid')" id="atab-vid">Grok</button>
+        </div>
+        <label id="sotkwrap" style="display:flex;align-items:center;gap:5px;font-size:12.5px"
+          title="TRẦN số tài khoản ChatGPT chạy đồng thời — chạy ít hơn cũng được, board chỉ tắt bớt khi VƯỢT.&#10;Board không tắt tài khoản đang chạy việc dở: nó chờ việc xong rồi mới tính lại.&#10;Cửa sổ lỗi thì board TẮT nó và BẬT cái kế tiếp trong vòng — đổi danh tính, không đổi số lượng.&#10;Khác 'tab': tab là nhiều việc trong CÙNG một tài khoản, chung một hạn mức.">tối đa
           <input type="number" min="1" max="12" id="sotk" style="width:48px"
             onchange="datSoTK(this.value)"> tài khoản</label>
-        <button onclick="acctAdd('img')">+ ChatGPT</button>
-        <button onclick="acctAdd('vid')">+ Grok</button>
+        <button id="acctadd" onclick="acctAdd(ACCT_TAB)">+ ChatGPT</button>
         <span class="hint">Bật = mở Chrome + đưa vào vòng chạy · Tắt = đóng Chrome + ngừng dùng · login thì bạn tự làm
           trong cửa sổ</span>
       </div>
