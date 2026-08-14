@@ -806,6 +806,46 @@ _LY_DO_HUY = ("đã huỷ", "đã dừng", "chưa chạy")
 # Cùng một lỗi phải lặp đủ số lần này mới được ghi sổ.
 LAP_MOI_GHI = 3
 
+# Cờ huỷ mà việc vẫn 'đang chạy' quá ngần này giây thì coi là vi phạm bất biến.
+# Phải lớn hơn một nhịp người gác (30s) để không bắt nhầm cửa sổ đua lúc thợ vừa
+# nhấc việc: cờ được đánh và việc được nhấc gần như cùng lúc là chuyện bình thường.
+CHO_HUY_TOI_DA = 90
+
+
+def _soat_co_huy(da_huy, jobs, thay_tu: dict, da_bao: set, bay_gio=None) -> list:
+    """Ident nào vừa mang cờ huỷ vừa 'đang chạy' đủ lâu để coi là VI PHẠM?
+
+    Trả về `[(ident, số giây)]` cần ghi sổ; mỗi ident chỉ trả MỘT lần cho tới khi
+    tình trạng tự hết. `thay_tu` và `da_bao` là bộ nhớ của người gác, hàm này cập
+    nhật tại chỗ để cả hai bên nhìn cùng một sự thật.
+
+    KHÔNG gọi `bi_huy()` ở đây: hàm đó ĂN cờ khi đọc, người gác gọi vào là cướp
+    mất cờ của thợ và làm hỏng chính cơ chế huỷ mà nó đang canh."""
+    bay_gio = time.time() if bay_gio is None else bay_gio
+    sai = {k for k in da_huy if (jobs.get(k) or {}).get("state") == "running"}
+    for k in list(thay_tu):
+        if k not in sai:                 # đã tự hết — quên đi, cho báo lại lần sau
+            thay_tu.pop(k, None)
+            da_bao.discard(k)
+    can_bao = []
+    for k in sorted(sai):
+        lau = int(bay_gio - thay_tu.setdefault(k, bay_gio))
+        if lau < CHO_HUY_TOI_DA or k in da_bao:
+            continue                     # còn trong cửa sổ đua lúc thợ nhấc việc
+        da_bao.add(k)
+        can_bao.append((k, lau))
+    return can_bao
+
+
+def _loai_viec(ident: str) -> str:
+    """'vid' hay 'img' — đọc SỔ SHOT của board, không đoán theo tiền tố tên.
+
+    Chỉ dùng để gắn nhãn cho sổ lỗi; đọc hỏng thì trả '' chứ không được ném."""
+    try:
+        return "vid" if BOARD.get_shot(ident)[0] is not None else "img"
+    except Exception:                                # noqa: BLE001
+        return ""
+
 
 def _ly_do_loi(e: Exception) -> str:
     """Lỗi render → reason code cho sổ lỗi runtime. Hàm thuần, không ghi state."""
@@ -1736,6 +1776,8 @@ def _gac_hang_doi():
     họ bấm lại. Có trần 3 lần cho mỗi ident để một lô hỏng thật không quay vòng
     mãi mãi."""
     cuu: dict[str, int] = {}
+    huy_ma_chay: dict[str, float] = {}   # ident sai bất biến -> lúc đầu tiên thấy
+    da_bao_huy: set[str] = set()         # đã ghi sổ rồi, đừng ghi lại mỗi 30s
     gen_truoc = dung_gen()
     while True:
         time.sleep(30)
@@ -1771,6 +1813,34 @@ def _gac_hang_doi():
             with HUY_LOCK:
                 da_huy = set(DA_HUY)
             mo_coi = [k for k in mo_coi if k not in da_huy]
+
+            # ── CHỐT BẤT BIẾN: CỜ HUỶ PHẢI ĐƯỢC TÔN TRỌNG ────────────────
+            # `/api/huy` và `/api/huy-viec` đều TỪ CHỐI huỷ việc đang chạy, nên
+            # không đường nào hợp lệ đưa một ident vừa mang cờ huỷ vừa mang nhãn
+            # 'running'. Thấy cả hai cùng lúc và KÉO DÀI là thợ đã không soi được
+            # cờ — đúng triệu chứng "bấm dừng rồi mà nó vẫn chạy, credit vẫn trừ".
+            #
+            # CHỈ ĐỌC bản sao `da_huy`, KHÔNG gọi `bi_huy()`: hàm đó ĂN cờ khi
+            # đọc, người gác gọi vào là cướp mất cờ của thợ và làm hỏng chính cơ
+            # chế huỷ mà nó đang canh.
+            for k, lau in _soat_co_huy(da_huy, JOBS, huy_ma_chay, da_bao_huy):
+                _LOG.warning("việc %s mang cờ huỷ nhưng vẫn 'đang chạy' sau %ds", k, lau)
+                report_runtime_bug({
+                    "reason_code": "INVARIANT_VIOLATION",
+                    "category": "cancel_not_honoured",
+                    "severity": "ERROR",
+                    "job": {"job_id": k, "kind": _loai_viec(k), "phase": "cancel_watchdog"},
+                    # Số giây để Ở ĐÂY, không nhét vào message: message đi vào
+                    # fingerprint, mỗi mốc giây khác nhau là một Bead khác nhau.
+                    "runtime": {"giu_lau_giay": lau},
+                    "exception": {
+                        "type": "CancelNotHonoured",
+                        "message": "ident mang cờ huỷ nhưng vẫn ở trạng thái running",
+                        "source_file": "sfboard/sfboard.py",
+                        "source_function": "_gac_hang_doi",
+                        "source_line": 0,
+                    },
+                })
 
             # TÁCH VIỆC VIDEO RA TRƯỚC KHI GOM LÔ.
             #
