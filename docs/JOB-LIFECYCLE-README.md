@@ -64,16 +64,26 @@ Superpowers workflow:
 
 ## Verification
 
+Cài dependency test một lần cho worktree:
+
 ```bash
-./.venv/bin/python3 -m unittest discover -s tests/job_lifecycle -p 'test_*.py'
-./.venv/bin/python3 -m py_compile \
-  sfboard/hangdoi.py sfboard/sfboard.py \
-  sfboard/jobs/__init__.py sfboard/jobs/models.py sfboard/jobs/errors.py
+./.venv/bin/python3 -m pip install -r requirements-test.txt
 ```
 
-Kết quả Phase 0–1 hiện tại: 35 tests, 30 pass và đúng 5 `expectedFailure`.
-Một expected failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator
-ở phase sửa lỗi tương ứng và sau khi đã xác minh target behavior.
+Sau mỗi thay đổi lifecycle, chạy gate chuẩn:
+
+```bash
+./test-job-lifecycle.command
+```
+
+Gate này chạy toàn bộ lifecycle tests, yêu cầu coverage `sfboard/jobs` tối thiểu
+80%, rồi compile legacy runtime và domain package. Nó không mở browser, gọi provider
+hoặc tiêu credit.
+
+Kết quả Phase 0–1 hiện tại: 35 tests, 30 pass và đúng 5 `xfailed`. Một expected
+failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
+phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
+expected failure mới chỉ để làm gate xanh.
 
 ## File map
 
