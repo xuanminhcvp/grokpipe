@@ -1487,6 +1487,48 @@ def _so_tab_theo_viec(a: dict, k: str) -> int:
     return so_tab if k == a.get("kind") else 1
 
 
+def _cho_ngoi_con_dung(endpoint: str, kind: str, slot: int) -> bool:
+    """Supervisor còn muốn một thợ ngồi ở chỗ này không?
+
+    Dùng CHUNG một phép tính với supervisor, nên hạ số tab trên giao diện là thợ
+    thừa tự thấy mình dôi ra và nghỉ — không phải khởi động lại board. Trước đây
+    vòng dọn của supervisor chỉ XOÁ KHOÁ khỏi sổ `WORKERS`, mà `_worker` chỉ tự
+    thoát khi tài khoản rời pool hoặc bị đánh dấu chết: luồng thừa cứ chạy tiếp,
+    giữ nguyên tab của nó."""
+    a = next((x for x in ACCOUNTS if _ep(x) == endpoint and x.get("enabled")), None)
+    if a is None:
+        return False
+    kinds = [a["kind"]]
+    if a["kind"] == "img" and not any(x["kind"] == "vid" and x["enabled"] for x in ACCOUNTS):
+        kinds.append("vid")             # chưa có tài khoản Grok → kiêm nhiệm
+    if kind not in kinds:
+        return False
+    return slot < _so_tab_theo_viec(a, kind)
+
+
+def _dong_tab_cho_ngoi(slot: int) -> None:
+    """Đóng tab riêng của chỗ ngồi này khi thợ nghỉ vì dôi ra.
+
+    HAI CHỐT AN TOÀN, thiếu cái nào cũng mất phiên đăng nhập:
+      · `slot >= 1` — tab của slot 0 thường là tab DUY NHẤT của cửa sổ;
+      · cửa sổ phải còn tab khác — đóng tab cuối là tắt luôn Chrome.
+    Đó cũng là lý do `_release_tl` không bao giờ đóng tab. Nhưng ở đây không
+    đóng thì tab thừa nằm lại ăn RAM tới tận lần mở lại Chrome."""
+    if slot < 1:
+        return
+    for s in (getattr(_TL, "sess", None), getattr(_TL, "gsess", None)):
+        pg = getattr(s, "page", None)
+        if pg is None:
+            continue
+        try:
+            if pg.is_closed() or len(pg.context.pages) <= 1:
+                continue
+            pg.evaluate("n => { window.name = n }", "")      # nhả dấu chỗ ngồi
+            pg.close()
+        except Exception:                                    # noqa: BLE001
+            pass
+
+
 def _quyet_xep_lai(ident: str, gen: int) -> str:
     """Tới giờ bắn — việc này còn được xếp lại không? `xep` · `dung` · `huy`.
 
@@ -1575,6 +1617,13 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
     QUEUE = IMG_QUEUE if kind == "img" else VID_QUEUE
     while True:
         if endpoint not in _pool(kind) or DEAD.get(endpoint):
+            _release_tl()
+            return
+        # Soi Ở ĐẦU VÒNG, tức GIỮA hai việc — không bao giờ bỏ dở việc đang chạy.
+        if not _cho_ngoi_con_dung(endpoint, kind, slot):
+            _LOG.info("%s: chỗ ngồi %s·%d dôi ra (số tab đã hạ) — thợ nghỉ, đóng tab.",
+                      _ten_tk(endpoint), kind, slot)
+            _dong_tab_cho_ngoi(slot)
             _release_tl()
             return
         # VIỆC GIAO ĐÍCH DANH ĐI TRƯỚC: lô của địa điểm mà chat nằm ở tài khoản
