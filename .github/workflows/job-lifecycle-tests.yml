@@ -1,0 +1,53 @@
+name: Job lifecycle tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.14"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-test.txt
+
+      - name: Run lifecycle tests and coverage
+        env:
+          COVERAGE_FILE: ${{ runner.temp }}/job-lifecycle-${{ matrix.python-version }}.coverage
+        run: >-
+          python -m pytest tests/job_lifecycle
+          --cov=sfboard/jobs
+          --cov-report=term-missing
+          --cov-fail-under=80
+
+      - name: Compile legacy and domain modules
+        run: >-
+          python -m py_compile
+          sfboard/hangdoi.py
+          sfboard/sfboard.py
+          sfboard/jobs/__init__.py
+          sfboard/jobs/models.py
+          sfboard/jobs/errors.py
