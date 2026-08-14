@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 
@@ -27,6 +28,9 @@ REQUIRED_TOP_LEVEL = frozenset(
         "exception",
     }
 )
+RFC3339_UTC = re.compile(
+    r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)\Z"
+)
 
 
 def validate_runtime_bug_event(value: Mapping[str, object]) -> dict[str, object]:
@@ -38,7 +42,12 @@ def validate_runtime_bug_event(value: Mapping[str, object]) -> dict[str, object]
 
     try:
         UUID(str(event["event_id"]))
-        datetime.fromisoformat(str(event["occurred_at"]).replace("Z", "+00:00"))
+        occurred_at = event["occurred_at"]
+        if not isinstance(occurred_at, str) or not RFC3339_UTC.fullmatch(occurred_at):
+            raise ValueError("occurred_at must be RFC3339 UTC")
+        parsed_occurred_at = datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+        if parsed_occurred_at.utcoffset() != timedelta(0):
+            raise ValueError("occurred_at must use UTC")
     except (TypeError, ValueError) as exc:
         raise RuntimeBugValidationError("event_id and occurred_at must be valid") from exc
 
@@ -54,9 +63,13 @@ def validate_runtime_bug_event(value: Mapping[str, object]) -> dict[str, object]
 
 def canonical_json(event: Mapping[str, object]) -> str:
     """Serialize a validated runtime bug event deterministically."""
-    return json.dumps(
-        validate_runtime_bug_event(event),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+    try:
+        return json.dumps(
+            validate_runtime_bug_event(event),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as exc:
+        raise RuntimeBugValidationError("runtime event must be canonical JSON") from exc

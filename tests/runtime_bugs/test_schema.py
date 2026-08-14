@@ -52,3 +52,52 @@ def test_canonical_json_is_sorted_compact_and_preserves_unicode():
         '"reason_code":"unexpected_error","runtime":{"worker":"local"},'
         '"schema_version":1,"severity":"ERROR"}'
     )
+
+
+@pytest.mark.parametrize(
+    "occurred_at",
+    [
+        "2026-08-14",
+        "2026-08-14T01:02:03",
+        "2026-08-14T01:02:03+07:00",
+    ],
+)
+def test_schema_rejects_non_utc_or_incomplete_rfc3339_timestamp(occurred_at):
+    event = valid_event()
+    event["occurred_at"] = occurred_at
+
+    with pytest.raises(RuntimeBugValidationError):
+        validate_runtime_bug_event(event)
+
+
+@pytest.mark.parametrize("occurred_at", ["2026-08-14T01:02:03Z", "2026-08-14T01:02:03+00:00"])
+def test_schema_accepts_rfc3339_utc_timestamp(occurred_at):
+    event = valid_event()
+    event["occurred_at"] = occurred_at
+
+    assert validate_runtime_bug_event(event)["occurred_at"] == occurred_at
+
+
+def test_schema_rejects_invalid_uuid_with_canonical_validation_error():
+    event = valid_event()
+    event["event_id"] = "not-a-uuid"
+
+    with pytest.raises(RuntimeBugValidationError):
+        validate_runtime_bug_event(event)
+
+
+def test_schema_rejects_boolean_schema_version():
+    event = valid_event()
+    event["schema_version"] = True
+
+    with pytest.raises(RuntimeBugValidationError):
+        validate_runtime_bug_event(event)
+
+
+@pytest.mark.parametrize("non_finite", [float("nan"), float("inf"), float("-inf")])
+def test_canonical_json_rejects_non_finite_numbers(non_finite):
+    event = valid_event()
+    event["exception"]["value"] = non_finite
+
+    with pytest.raises(RuntimeBugValidationError):
+        canonical_json(event)
