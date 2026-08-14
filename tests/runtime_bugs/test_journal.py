@@ -6,6 +6,7 @@ import pytest
 from loguru import logger
 
 from sfboard.jobs.runtime_journal import (
+    JOURNAL_LOGGER,
     RuntimeBugJournal,
     default_journal_path,
     iter_events,
@@ -47,14 +48,14 @@ def journal(tmp_path):
 
 def test_sink_is_created_with_the_exact_required_options(tmp_path, monkeypatch):
     captured = {}
-    original_add = logger.add
+    original_add = JOURNAL_LOGGER.add
 
     def spy(sink, **kwargs):
         captured["sink"] = sink
         captured.update(kwargs)
         return original_add(sink, **kwargs)
 
-    monkeypatch.setattr(logger, "add", spy)
+    monkeypatch.setattr(JOURNAL_LOGGER, "add", spy)
     made = RuntimeBugJournal(tmp_path / "events.jsonl", repo_root=tmp_path)
     made.close()
 
@@ -161,17 +162,31 @@ def test_reader_surfaces_malformed_complete_line_as_health_error(tmp_path):
 
 def test_close_removes_only_its_own_handler(tmp_path):
     other = tmp_path / "other.log"
-    other_id = logger.add(str(other), format="{message}", filter=lambda record: True)
+    other_id = JOURNAL_LOGGER.add(str(other), format="{message}", filter=lambda record: True)
     try:
         made = RuntimeBugJournal(tmp_path / "events.jsonl", repo_root=tmp_path)
         made.record(valid_event())
         made.close()
         made.close()
 
-        logger.info("still alive")
+        JOURNAL_LOGGER.info("still alive")
         assert "still alive" in other.read_text(encoding="utf-8")
     finally:
-        logger.remove(other_id)
+        JOURNAL_LOGGER.remove(other_id)
+
+
+def test_journal_uses_a_private_core_so_the_default_stderr_sink_stays_quiet(tmp_path, capsys):
+    shared = tmp_path / "shared.log"
+    shared_id = logger.add(str(shared), format="{message}", filter=lambda record: True)
+    made = RuntimeBugJournal(tmp_path / "events.jsonl", repo_root=tmp_path)
+    try:
+        made.record(valid_event())
+    finally:
+        made.close()
+        logger.remove(shared_id)
+
+    assert shared.read_text(encoding="utf-8") == ""
+    assert "worker died" not in capsys.readouterr().err
 
 
 def test_journal_paths_order_rotated_segments_before_the_live_file(tmp_path):

@@ -85,6 +85,32 @@ failure biến thành unexpected success cũng phải được giải thích: ch
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
 
+## Sổ lỗi runtime (`.grokpipe/runtime-bugs/`)
+
+Lỗi NẶNG của thợ ảnh/video được ghi thành JSONL đã lọc bí mật, nằm ngoài Git, đọc
+lại được sau khi board restart. Không có prompt, cookie, token, DSN, base64, ảnh
+hay video trong đó.
+
+```bash
+python -m sfboard.jobs.bugtool --root . status
+python -m sfboard.jobs.bugtool --root . list
+python -m sfboard.jobs.bugtool --root . show <event-id>
+python -m sfboard.jobs.bugtool --root . sync
+```
+
+- `status`, `list`, `show` **chỉ đọc** — không sửa sổ, không gọi `bd`.
+- `sync` là lệnh **thủ công và chỉ chạy cục bộ**. Nó chỉ gọi `bd` khi
+  `.grokpipe/runtime-bugs/config.json` ghi rõ `{"mode": "auto-create"}`; mặc định là
+  `journal-only`, tức Beads không bao giờ bị đụng tới. Không có remote sync,
+  không có provider, không có GitHub Issue.
+- Bridge chỉ **tạo mới hoặc cập nhật** một Bead cho mỗi fingerprint, và mở lại
+  Bead đã đóng nếu lỗi tái phát. Nó không claim, không gán người, không đóng,
+  không đổi priority.
+- Quay về `journal-only` là rollback đủ: sự kiện vẫn được ghi, chỉ ngừng phần Beads.
+- `/api/chan-doan` có thêm khối `bug_bridge` (mode · pending · last_sync_at ·
+  last_error · created · updated) để nhìn nhanh trên board.
+- AI **chỉ điều tra khi user mở/nhắc một Bead**, không tự đi lục sổ lỗi rồi sửa.
+
 ## File map
 
 - [Decisions](JOB-LIFECYCLE-DECISIONS.md): expected behavior đã được duyệt.
