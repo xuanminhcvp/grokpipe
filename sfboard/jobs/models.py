@@ -232,3 +232,53 @@ class Attempt:
                 raise ValueError("finished attempt cần finished_at và outcome")
         elif self.finished_at is not None or self.outcome is not None:
             raise ValueError("attempt chưa finished không được có terminal fields")
+
+
+class EventActor(str, Enum):
+    API = "api"
+    AUTO = "auto"
+    MANAGER = "manager"
+    SCHEDULER = "scheduler"
+    WORKER = "worker"
+    USER = "user"
+    RECOVERY = "recovery"
+
+
+@dataclass(frozen=True)
+class JobEvent:
+    event_id: UUID
+    job_id: JobId
+    actor: EventActor
+    event_type: str
+    reason_code: str
+    from_state: Optional[JobState] = None
+    to_state: Optional[JobState] = None
+    attempt_id: Optional[AttemptId] = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.event_id, UUID) or not isinstance(self.job_id, JobId):
+            raise TypeError("event_id/job_id không đúng typed identity")
+        if not isinstance(self.actor, EventActor):
+            raise TypeError("actor phải dùng EventActor")
+        if not self.event_type or not self.reason_code:
+            raise ValueError("event_type/reason_code không được rỗng")
+        if (self.from_state is None) != (self.to_state is None):
+            raise ValueError("transition event cần cả from_state và to_state")
+
+
+@dataclass(frozen=True)
+class AccountLease:
+    lease_id: str
+    account_id: str
+    attempt_id: AttemptId
+    slot: int
+    acquired_at: datetime
+    expires_at: datetime
+
+    def __post_init__(self) -> None:
+        if not self.lease_id or not self.account_id or self.slot < 0:
+            raise ValueError("account lease không hợp lệ")
+        if not isinstance(self.attempt_id, AttemptId):
+            raise TypeError("attempt_id phải dùng AttemptId")
+        if self.expires_at <= self.acquired_at:
+            raise ValueError("lease expiry phải sau acquired_at")

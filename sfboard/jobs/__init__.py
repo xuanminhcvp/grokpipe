@@ -1,6 +1,7 @@
 """Domain primitives for the target image/video job lifecycle."""
 
 from .models import (
+    AccountLease,
     AssetId,
     Attempt,
     AttemptId,
@@ -13,14 +14,18 @@ from .models import (
     Execution,
     ExecutionId,
     ExecutionState,
+    EventActor,
     Job,
     JobId,
     JobKind,
     JobOrigin,
     JobState,
+    JobEvent,
 )
+from .errors import ErrorClass, ErrorFact
 
 __all__ = [
+    "AccountLease",
     "AssetId",
     "Attempt",
     "AttemptId",
@@ -33,9 +38,13 @@ __all__ = [
     "Execution",
     "ExecutionId",
     "ExecutionState",
+    "ErrorClass",
+    "ErrorFact",
+    "EventActor",
     "Job",
     "JobId",
     "JobKind",
     "JobOrigin",
+    "JobEvent",
     "JobState",
 ]
