@@ -1,7 +1,7 @@
 # Beads Foundation Design
 
 Ngày: 2026-08-14
-Trạng thái: Thiết kế hội thoại đã duyệt, chờ người dùng duyệt written spec
+Trạng thái: Written spec đã được người dùng duyệt
 
 ## Mục tiêu
 

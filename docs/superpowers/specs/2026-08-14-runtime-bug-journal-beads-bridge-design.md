@@ -1,7 +1,7 @@
 # Runtime Bug Journal and Beads Bridge Design
 
 Ngày: 2026-08-14
-Trạng thái: Thiết kế hội thoại đã duyệt, chờ người dùng duyệt written spec
+Trạng thái: Written spec và amendment Loguru đã được người dùng duyệt
 Phụ thuộc: `2026-08-14-beads-foundation-design.md` đã triển khai và verification xanh
 
 ## Mục tiêu
@@ -26,10 +26,37 @@ liên quan mà không cần người dùng tự đóng vai tester.
   re-enqueue authority.
 - Không tự sửa code, commit, push hoặc đóng Bead.
 - Không gửi dữ liệu tới Sentry, OpenTelemetry hoặc dịch vụ cloud.
+- Không thay toàn bộ Python `logging`, không gỡ handler hiện tại và không đổi
+  behavior của `LOI_SO`/hộp 🐞.
 - Không tự tạo Bead cho warning thường, user cancel, validation input hoặc quota
   đã phân loại.
 - Không nhét toàn bộ runtime log hoặc media vào Dolt/Beads.
 - Không dùng parsing message mơ hồ để quyết định retry/state production.
+
+## Dependency Loguru
+
+Pin chính xác `loguru==0.7.3` từ project chính chủ
+[Delgan/loguru](https://github.com/Delgan/loguru) trong runtime requirements. Không
+cài package tên gần giống và không thêm `logging-loguru`/`loguru-config`.
+
+Loguru chỉ là persistence sink của `RuntimeBugJournal`; Python `logging` hiện tại
+vẫn phục vụ console, executor và UI error book. Không gọi `logger.remove()` không
+tham số, không dùng `logging.basicConfig(..., force=True)` và không intercept mọi
+log toàn cục.
+
+Sink bắt buộc:
+
+- `rotation="10 MB"`, `retention=10`, `compression=None`;
+- `enqueue=False`: severe call chỉ hoàn tất sau khi line-buffered sink nhận record;
+- `serialize=False`: journal tự serialize schema đã duyệt, không để Loguru thêm
+  process/thread/path metadata ngoài kiểm soát;
+- `backtrace=True`, `diagnose=False`: có call stack nhưng tuyệt đối không dump local
+  variable vào production log;
+- `catch=True`: lỗi sink không ném ngược vào worker;
+- filter chỉ nhận record đã bind marker `runtime_bug=True` và payload đã redact.
+
+Không log từ trong custom formatter, retention callback hoặc sink để tránh recursion
+và deadlock. Handler ID do module journal sở hữu và chỉ remove đúng ID đó khi shutdown.
 
 ## Kiến trúc
 
@@ -38,7 +65,7 @@ runtime boundary / explicit severe signal
                  │
                  ▼
         RuntimeBugJournal
-        sanitize + JSONL append
+       sanitize + Loguru JSONL sink
                  │
                  ▼
           BugClassifier
@@ -64,10 +91,14 @@ bridge worker tách biệt; không nằm trên worker ảnh/video hoặc request
 
 - Nhận immutable event dictionary đã typed/validated.
 - Redact trước khi serialize.
-- Append đúng một JSON object trên mỗi dòng dưới lock.
+- Bind JSON payload đã redact vào dedicated Loguru sink và append đúng một JSON
+  object trên mỗi dòng.
 - Flush mỗi severe event; lỗi ghi journal chỉ log tối giản ra stderr rồi trả về,
   không ném ngược vào production.
-- Xoay 10 segment, tối đa 10 MiB/segment, tổng xấp xỉ 100 MiB.
+- Loguru xoay 10 segment, tối đa 10 MiB/segment, tổng xấp xỉ 100 MiB.
+- Không dùng Loguru default `serialize=True`; file chỉ chứa schema event v1.
+- Standard-library ERROR/CRITICAL record đi qua adapter nhỏ vào reporter, không
+  thay root logger hoặc các handler đang có.
 
 Storage local:
 
@@ -253,11 +284,16 @@ bằng text editor.
 
 ### Unit
 
-- Schema validation, JSONL round-trip, rotation và truncated-tail recovery.
+- Schema validation, JSONL round-trip, Loguru rotation/retention và truncated-tail
+  recovery.
 - Redaction mọi loại secret/path/media canary.
 - Classifier report/ignore đúng reason code.
 - Fingerprint ổn định khi UUID/port/timestamp đổi và khác khi phase/source đổi.
 - Bead payload giới hạn kích thước và không chứa raw stack secret.
+- Multi-thread severe writes tạo đủ JSON lines hợp lệ, không interleave.
+- Sink config chứng minh `diagnose=False`, `serialize=False`, `enqueue=False`,
+  `catch=True`; chỉ marker `runtime_bug=True` được ghi.
+- Lỗi formatter/file sink bị bắt và không ném vào caller.
 
 ### Bridge contract
 
@@ -282,12 +318,13 @@ bằng text editor.
 ## Rollout
 
 1. Implement journal/schema/redactor và test, chưa hook production.
-2. Hook severe boundaries ở journal-only; chạy characterization và fault injection.
-3. Implement bridge với fake CLI và temporary Beads workspace.
-4. Chạy `bd doctor`; bật auto-create local.
-5. Inject một synthetic severe event không chạm provider; xác nhận đúng một Bead.
-6. Restart board; xác nhận checkpoint/dedupe và diagnostics.
-7. Giữ kill switch chuyển về journal-only mà không mất event.
+2. Cài/pin Loguru, cấu hình dedicated sink và chạy security/rotation/thread tests.
+3. Hook severe boundaries ở journal-only; chạy characterization và fault injection.
+4. Implement bridge với fake CLI và temporary Beads workspace.
+5. Chạy `bd doctor`; bật auto-create local.
+6. Inject một synthetic severe event không chạm provider; xác nhận đúng một Bead.
+7. Restart board; xác nhận checkpoint/dedupe và diagnostics.
+8. Giữ kill switch chuyển về journal-only mà không mất event.
 
 ## Failure và rollback
 
@@ -305,6 +342,7 @@ bằng text editor.
 - AI từ Bead tìm được event, stack trace, source và lifecycle context cần thiết.
 - Cancel/validation/warning không tạo task rác.
 - Secret/prompt/media không xuất hiện trong journal, API hoặc Beads.
+- Loguru không thay handler/UI log hiện tại và không ghi local variable nhạy cảm.
 - `bd`/Dolt lỗi không thay đổi job outcome, queue, retry hoặc account behavior.
 - Không cloud sync; không AI tự sửa/commit/close.
 - Full lifecycle gate giữ baseline 30 pass, 5 xfailed cho tới phase sửa từng bug.
