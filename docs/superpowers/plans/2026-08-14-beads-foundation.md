@@ -14,14 +14,18 @@
 - Cài Homebrew formula chính chủ `ast-grep`; expected stable là `0.45.1`.
 - Không clone source repo Beads vào `grokpipe` và không dùng `curl | bash`.
 - ast-grep search-only; cấm `--rewrite`, `-r` hoặc interactive rewrite trong Phase A.
-- Storage local embedded; không `bd dolt push/pull`, không remote sync, không GitHub Issues.
+- Storage local embedded dùng chung ở checkout canonical `main` và linked worktrees;
+  không `bd dolt push/pull`, `bd sync`, remote sync hoặc GitHub Issues. `sync.remote`
+  phải absent.
 - `agent.profile=conservative`; AI không tự commit, push, merge hoặc chạy provider.
 - Giữ byte-for-byte mọi nội dung hiện có ngoài managed marker trong `AGENTS.md` và `CLAUDE.md`.
 - Không commit embedded Dolt database, socket, lock, cache hoặc runtime state.
 - Không sửa production file và không thay baseline 30 pass, 5 xfailed.
 - Không stage bằng `git add .`; mọi lần stage dùng exact path.
-- Main đang có thay đổi riêng của người dùng; implementation phải bắt đầu bằng `superpowers:using-git-worktrees`.
-- Không xóa worktree sau merge cho tới khi local `.beads` workspace ở main đã được
+- Main có thay đổi riêng của người dùng; implementation phải bắt đầu bằng
+  `superpowers:using-git-worktrees`. Linked worktree được phép resolve workspace local
+  chung ở main nhưng không được sửa tracked user changes hoặc ép database riêng.
+- Không xóa worktree sau merge cho tới khi workspace local chung ở main đã được
   khởi tạo/seed và `bd show` xác minh đủ epic cùng năm child bug.
 - Commit message của repo là `update`.
 
@@ -34,7 +38,8 @@
 - Create: `.agents/skills/beads/` — skill do `bd setup codex` sinh.
 - Create/modify: `.codex/` — hook/config do `bd setup codex` sinh nếu version 1.2.1 yêu cầu.
 - Create/modify: `.claude/settings.json` — Claude SessionStart hook do `bd setup claude` sinh.
-- Local only: `.beads/` — embedded Dolt workspace, config, issue graph và checkpoint; không stage database.
+- Local only: `.beads/` ở checkout canonical — embedded Dolt workspace, config, issue
+  graph và checkpoint dùng chung với linked worktrees; không stage database.
 - Local-only ignore: exact Beads database patterns do `bd init` sinh phải được merge vào ignore configuration mà không xóa rule có sẵn của người dùng.
 
 ### Task 1: Install and verify the official Beads and ast-grep CLIs
@@ -130,7 +135,9 @@ Use `superpowers:using-git-worktrees` with branch:
 codex/beads-foundation
 ```
 
-Expected: worktree starts from current `main`, `git status --short` is clean, and user changes in `/Users/may1/Desktop/grokpipe` remain untouched.
+Expected: worktree starts from current `main` và sạch. Tracked user changes tại
+`/Users/may1/Desktop/grokpipe` vẫn untouched; Beads 1.2.1 có thể resolve local database
+chung ở đó và đó là hành vi được phê duyệt.
 
 Create the ignored Python environment needed by JSON checks and the lifecycle gate:
 
@@ -159,10 +166,15 @@ Run:
 ```bash
 bd init --quiet --skip-agents
 bd config set agent.profile conservative
-bd dolt set mode embedded
+bd config get sync.remote
+# Nếu key tồn tại:
+bd config unset sync.remote
 ```
 
-Expected: `.beads/` resolves in the worktree; no Dolt remote command runs; agent files are still unchanged.
+Expected: linked worktree resolve embedded `.beads/` local chung ở checkout canonical
+`main`; không ép DB riêng hoặc reinit. `sync.remote` absent, không có lệnh remote chạy
+và agent files vẫn unchanged. Với 1.2.1, không dùng `bd dolt set mode embedded` vì mode
+embedded hiện hữu không hỗ trợ setter này.
 
 - [ ] **Step 4: Install Codex integration and inspect its exact scope**
 
@@ -188,7 +200,10 @@ git status --short
 git diff -- CLAUDE.md .claude/settings.json
 ```
 
-Expected: check reports current; `CLAUDE.md` only gains its managed Beads block; `.claude/settings.json` has a SessionStart hook invoking `bd prime --hook-json` exactly once.
+Expected: `CLAUDE.md` only gains its managed Beads block; `.claude/settings.json` has a
+SessionStart hook invoking `bd prime --hook-json` exactly once. Với `sync.remote` absent,
+Beads 1.2.1 có thể báo `CLAUDE.md` stale dù file/managed block unchanged; không chạy setup
+để rewrite marker chỉ nhằm suppress warning đó.
 
 - [ ] **Step 6: Verify existing instructions still exist outside managed blocks**
 
@@ -210,6 +225,12 @@ and calls, rg for text/docs. ast-grep is search-only unless an approved TDD plan
 explicitly authorizes rewrite.
 ```
 
+Thêm ngoài Beads-owned markers trong `AGENTS.md` policy rõ rằng ví dụ `bd prime` chứa
+Dolt/Git pull, push, sync hoặc provider chỉ là documentation, không phải authorization;
+AI chỉ chạy chúng sau khi user phê duyệt rõ đúng action. Không thêm policy này vào
+`CLAUDE.md`: generated marker hash của Beads 1.2.1 bao gồm preamble và sẽ báo stale dù
+managed block không đổi; `AGENTS.md` là repository policy authority cho cả integration.
+
 - [ ] **Step 7: Verify workspace health and no remote**
 
 Run:
@@ -224,7 +245,12 @@ bd prime
 bd ready --json
 ```
 
-Expected: doctor has no blocking error; profile is `conservative`; prime prints workflow context; ready returns parseable JSON; output does not authorize push or Dolt sync.
+Expected: doctor có thể yêu cầu embedded-compatible checks thay aggregate doctor; profile
+hoạt động là `conservative`; header Claude `profile:minimal` là managed static metadata;
+prime in workflow context và có thể chứa upstream remote examples, nhưng policy ngoài
+marker phủ định chúng; ready returns parseable JSON. `sync.remote` phải absent. Nếu Claude
+check báo stale chỉ vì key này absent dù managed block unchanged, giữ nguyên marker và xác
+minh hook JSON thay vì rewrite generated content.
 
 - [ ] **Step 8: Audit generated storage before staging**
 
@@ -232,11 +258,15 @@ Run:
 
 ```bash
 git status --short
-find .beads -maxdepth 3 -type f -print | sort
-git check-ignore -v .beads/embeddeddolt 2>/dev/null || true
+bd where
+find /Users/may1/Desktop/grokpipe/.beads -maxdepth 3 -type f -print | sort
+git -C /Users/may1/Desktop/grokpipe check-ignore -v .beads/embeddeddolt 2>/dev/null || true
 ```
 
-Expected: embedded database/cache/lock files are ignored or remain strictly local. If any database file appears stageable, stop and add only the exact official ignore patterns while preserving every pre-existing ignore rule.
+Expected: embedded database/cache/lock files ở canonical workspace ignored hoặc strictly
+local. Nếu cần exclude local, thêm exact pattern vào `.git/info/exclude`, không sửa
+`.gitignore` có thay đổi của user. Nếu database file appears stageable, dừng và thêm
+chỉ official ignore pattern, giữ nguyên mọi rule có sẵn.
 
 - [ ] **Step 9: Commit only shareable integration files**
 

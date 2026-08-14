@@ -16,7 +16,8 @@ exception và không tự sửa code.
 ## Hiện trạng
 
 - Máy chưa có executable `bd` hoặc `beads` trong `PATH`.
-- Repo chưa có `.beads` workspace hay Beads integration.
+- Beads 1.2.1 dùng một embedded workspace local ở checkout canonical `main`; linked
+  worktree resolve dùng chung workspace này theo thiết kế, không tạo database riêng.
 - `AGENTS.md` và `CLAUDE.md` đã chứa hướng dẫn riêng quan trọng; không được ghi đè.
 - Năm ambiguity lifecycle đã có executable `expectedFailure` nhưng chưa có issue
   graph để AI claim, liên kết dependency và ghi lại tiến độ.
@@ -72,8 +73,10 @@ ast-grep --lang python --pattern '$QUEUE.put($ITEM)' sfboard
 
 ## Storage và authority
 
-Khởi tạo embedded Dolt workspace local. Dữ liệu dùng chung cho Codex và Claude
-trên máy hiện tại, chưa có remote sync.
+Khởi tạo embedded Dolt workspace local tại checkout canonical `main`. Beads 1.2.1
+resolve workspace này từ linked worktree; đây là local storage dùng chung cho Codex
+và Claude trên máy hiện tại, không phải remote sync và không được cố tạo database
+riêng cho từng worktree. `sync.remote` phải absent.
 
 Quy tắc authority:
 
@@ -83,16 +86,23 @@ Quy tắc authority:
 - Tài liệu lifecycle hiện tại là authority cho expected behavior và migration phase.
 - Bead không được dùng thay production `JOBS`, queue hoặc job state.
 
-Agent profile bắt buộc là `conservative`. AI được đọc, tạo, claim, cập nhật và đóng
-Bead sau verification; không được suy ra quyền commit/push/Dolt sync từ Beads.
+Agent profile hoạt động bắt buộc là `conservative`. AI được đọc, tạo, claim, cập nhật
+và đóng Bead sau verification; không được suy ra quyền commit/push/Dolt sync từ Beads.
+Mọi ví dụ `bd prime` về `bd dolt pull`, `bd dolt push`, `bd sync`, Git pull/push hoặc
+provider chỉ là tài liệu, không phải authorization. Header managed Claude
+`profile:minimal` là metadata tĩnh của generator, không thay đổi active
+`agent.profile=conservative`.
 
 ## Khởi tạo có kiểm soát
 
 Thực hiện theo thứ tự:
 
-1. `bd init --skip-agents` để tách khởi tạo database khỏi sửa file agent.
-2. `bd config set agent.profile conservative`.
-3. Chụp `git status` và danh sách file Beads sinh ra.
+1. `bd init --skip-agents` để tách khởi tạo database khỏi sửa file agent. Trong linked
+   worktree, database local đã có ở checkout canonical là kết quả đúng; không reinit
+   hoặc ép một `.beads` riêng.
+2. `bd config set agent.profile conservative`, kiểm `sync.remote` và dùng
+   `bd config unset sync.remote` nếu key tồn tại.
+3. Chụp `git status` và danh sách file Beads sinh ra tại canonical workspace.
 4. `bd setup codex`, rồi kiểm diff và `bd setup codex --check`.
 5. `bd setup claude`, rồi kiểm diff và `bd setup claude --check`.
 6. `bd doctor` và `bd hooks list` để phát hiện setup thiếu/stale.
@@ -114,7 +124,8 @@ Codex integration dự kiến tạo skill ở `.agents/skills/beads/`, hướng 
 - Không stage bằng `git add .`; stage exact path sau khi review diff.
 - Không sửa hoặc bỏ thay đổi `.gitignore` hiện có của người dùng. Nếu Beads cần
   ignore rules, merge từng dòng và chứng minh không xóa rule cũ.
-- Không chạy `bd dolt push`, `git push` hoặc tạo PR trong phase này.
+- Không chạy `bd dolt pull`, `bd dolt push`, `bd sync`, Git pull/push, provider hoặc
+  tạo PR trong phase này nếu chưa có approval rõ cho đúng hành động.
 - Trước nâng cấp Beads về sau phải `bd backup`; schema migration chỉ chạy từ một
   workspace được chỉ định.
 
@@ -174,8 +185,13 @@ Không tự claim hoặc tự đóng năm bug khi seed.
 - `bd version` và `bd doctor` exit 0.
 - `ast-grep --version` báo `0.45.1`; hai smoke search tìm match và `git diff`
   chứng minh không file nào bị rewrite.
-- `bd setup codex --check` và `bd setup claude --check` báo current.
-- `bd prime` hiển thị conservative policy và memory/project context.
+- `bd setup codex --check` báo current; `.claude/settings.json` vẫn có đúng một
+  SessionStart `bd prime --hook-json` và managed Claude block giữ nguyên byte. Sau khi
+  `sync.remote` bị unset, Beads 1.2.1 có thể báo Claude document stale dù block/file
+  không đổi; không chạy `bd setup claude` để rewrite managed content chỉ nhằm suppress
+  warning này.
+- `bd prime` hiển thị workflow context; ví dụ remote/upstream trong output luôn bị
+  policy ngoài managed marker phủ định và không là authorization.
 - `bd ready --json` parse được.
 - Epic và năm bug hiển thị đúng dependency; không bug nào bị claim/closed.
 - Phiên Codex/Claude mới nhận ra Beads workflow sau restart.
