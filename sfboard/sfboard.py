@@ -1471,6 +1471,22 @@ def _xoay_chrome(endpoint: str, kind: str, ly_do: str) -> None:
                  _ten_tk(endpoint), ly_do, _ten_tk(_ep(ke)))
 
 
+def _so_tab_theo_viec(a: dict, k: str) -> int:
+    """Tài khoản này mở bao nhiêu tab cho loại việc `k`?
+
+    SỐ TAB USER ĐẶT CHỈ ÁP CHO VIỆC CHÍNH CỦA TÀI KHOẢN (vá 2026-08-14).
+    Khi chưa có tài khoản Grok nào bật, thợ ảnh KIÊM luôn video — bản cũ nhân
+    số tab cho cả hai loại, nên đặt 2 tab lại thấy Chrome mở 4 tab: `cgslot0`,
+    `cgslot1` của ChatGPT cộng `gpslot0`, `gpslot1` của Grok. Hai không gian tên
+    khác nhau nên không dùng chung tab được, và RAM thì nhân đôi thật — đúng thứ
+    đẩy máy tới "Aw, Snap!".
+
+    Việc kiêm nhiệm là đường DỰ PHÒNG, cho đúng MỘT tab là đủ. Bật một tài khoản
+    Grok riêng thì tài khoản ảnh hết kiêm nhiệm và số tab lại đúng bằng user đặt."""
+    so_tab = max(1, min(MAX_TABS, int(a.get("tabs") or 1)))
+    return so_tab if k == a.get("kind") else 1
+
+
 def _quyet_xep_lai(ident: str, gen: int) -> str:
     """Tới giờ bắn — việc này còn được xếp lại không? `xep` · `dung` · `huy`.
 
@@ -1979,8 +1995,8 @@ def _supervisor():
                 # Một tài khoản có thể chạy NHIỀU TAB song song: mỗi tab một luồng
                 # thợ riêng, cùng trỏ vào một cửa sổ Chrome. Số tab do user đặt ở
                 # mục Tài khoản trên board (mặc định 1 = như cũ).
-                so_tab = max(1, min(MAX_TABS, int(a.get("tabs") or 1)))
                 for k in kinds:
+                    so_tab = _so_tab_theo_viec(a, k)
                     for slot in range(so_tab):
                         key = (a["port"], k, slot)
                         th = WORKERS.get(key)
