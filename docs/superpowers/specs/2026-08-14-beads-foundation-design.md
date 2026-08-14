@@ -1,7 +1,7 @@
 # Beads Foundation Design
 
 Ngày: 2026-08-14
-Trạng thái: Written spec đã được người dùng duyệt
+Trạng thái: Written spec và amendment ast-grep đã được người dùng duyệt
 
 ## Mục tiêu
 
@@ -28,6 +28,8 @@ exception và không tự sửa code.
 - Không cấu hình Dolt remote hoặc `bd dolt push/pull`.
 - Không đồng bộ bug ra cloud hay GitHub Issues.
 - Không cài Beads MCP; Codex và Claude Code đều có shell và integration chính chủ.
+- Không dùng ast-grep rewrite/codemod trong phase này và không thêm nó vào Python
+  runtime requirements.
 - Không cho AI tự commit, push, merge hoặc chạy provider.
 - Không thay thế regression tests, tài liệu kiến trúc hay runtime journal.
 - Không import source của repo Beads vào `grokpipe`.
@@ -44,6 +46,29 @@ Không dùng `curl | bash` trong implementation. Sau cài đặt bắt buộc gh
 `bd version`, chạy `bd doctor` và xác minh executable được resolve từ Homebrew.
 
 Beads là CLI cài một lần ở cấp máy; source repo không được clone vào project.
+
+## Structural search với ast-grep
+
+Cài Homebrew formula chính chủ `ast-grep` và ghi lại version; expected stable tại
+thời điểm duyệt là `0.45.1`. Không clone source
+[ast-grep/ast-grep](https://github.com/ast-grep/ast-grep) vào project.
+
+Phân vai bắt buộc:
+
+- Serena: definition, references, symbol call hierarchy.
+- ast-grep: structural assignment/call search trên Python/JavaScript.
+- `rg`: text, config, docs và fallback khi AST pattern không phù hợp.
+
+ast-grep mặc định search-only. Cấm `--rewrite`, `-r` và interactive rewrite khi
+chưa có regression test đỏ cùng implementation plan đã duyệt. Phase này không tạo
+YAML rules hoặc codemod; chỉ thêm rule khi một invariant cụ thể cần CI enforcement.
+
+Smoke commands phải tìm được structural matches mà không đổi file:
+
+```bash
+ast-grep --lang python --pattern '$OBJ[$KEY] = $VALUE' sfboard
+ast-grep --lang python --pattern '$QUEUE.put($ITEM)' sfboard
+```
 
 ## Storage và authority
 
@@ -100,10 +125,12 @@ Section chung phải hướng AI theo chuỗi:
 1. Chạy `bd prime` khi bắt đầu task có nhiều bước hoặc tiếp tục bug cũ.
 2. Chạy `bd ready` để chọn việc không bị block.
 3. Chạy `bd show <id>` và đọc evidence/dependency trước khi sửa.
-4. Claim atomically bằng `bd update <id> --claim`.
-5. Với bug: systematic debugging, regression test đỏ, fix tối thiểu, full gate.
-6. Ghi kết quả test, commit liên quan và quyết định vào Bead.
-7. Chỉ `bd close` khi acceptance criteria thực sự đạt.
+4. Dùng Serena → ast-grep → `rg` theo đúng loại truy vấn trước khi kết luận đã tìm
+   đủ writer/caller.
+5. Claim atomically bằng `bd update <id> --claim`.
+6. Với bug: systematic debugging, regression test đỏ, fix tối thiểu, full gate.
+7. Ghi kết quả test, commit liên quan và quyết định vào Bead.
+8. Chỉ `bd close` khi acceptance criteria thực sự đạt.
 
 Nếu task nhỏ, không liên quan issue hiện có và không cần memory dài hạn, AI không
 bắt buộc tạo Bead mới. Beads không được biến mọi câu hỏi của người dùng thành task.
@@ -145,6 +172,8 @@ Không tự claim hoặc tự đóng năm bug khi seed.
 ## Verification
 
 - `bd version` và `bd doctor` exit 0.
+- `ast-grep --version` báo `0.45.1`; hai smoke search tìm match và `git diff`
+  chứng minh không file nào bị rewrite.
 - `bd setup codex --check` và `bd setup claude --check` báo current.
 - `bd prime` hiển thị conservative policy và memory/project context.
 - `bd ready --json` parse được.
@@ -157,6 +186,7 @@ Không tự claim hoặc tự đóng năm bug khi seed.
 ## Điều kiện thành công
 
 - Codex và Claude dùng chung một local Beads workspace.
+- Codex/Claude có structural-search tool rõ vai trò, mặc định read-only.
 - AI có một cửa vào ngắn (`bd prime`) và issue graph thay vì danh sách Markdown dài.
 - Năm known lifecycle bug có executable evidence và acceptance criteria rõ.
 - Git authority vẫn conservative; không có remote sync hoặc cloud data.

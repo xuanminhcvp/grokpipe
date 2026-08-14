@@ -2,16 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Cài Beads chính chủ, tạo local embedded workspace dùng chung cho Codex/Claude và seed năm lifecycle bug hiện có mà không sửa production runtime.
+**Goal:** Cài Beads và ast-grep chính chủ, tạo local embedded workspace dùng chung cho Codex/Claude và seed năm lifecycle bug hiện có mà không sửa production runtime.
 
 **Architecture:** Beads CLI được cài cấp máy bằng Homebrew; repo dùng embedded Dolt local, conservative agent policy và integration chính chủ cho Codex/Claude. Versioned instruction files được chuẩn bị trong worktree cô lập; database và issue data giữ local, không Dolt remote hoặc cloud sync.
 
-**Tech Stack:** Beads CLI/Homebrew, embedded Dolt, Codex skill/hooks, Claude Code hooks, Git, existing pytest lifecycle gate.
+**Tech Stack:** Beads CLI/Homebrew, ast-grep 0.45.1, embedded Dolt, Codex skill/hooks, Claude Code hooks, Git, existing pytest lifecycle gate.
 
 ## Global Constraints
 
 - Cài Homebrew formula chính chủ `beads`; expected stable tại thời điểm lập plan là `1.2.1`.
+- Cài Homebrew formula chính chủ `ast-grep`; expected stable là `0.45.1`.
 - Không clone source repo Beads vào `grokpipe` và không dùng `curl | bash`.
+- ast-grep search-only; cấm `--rewrite`, `-r` hoặc interactive rewrite trong Phase A.
 - Storage local embedded; không `bd dolt push/pull`, không remote sync, không GitHub Issues.
 - `agent.profile=conservative`; AI không tự commit, push, merge hoặc chạy provider.
 - Giữ byte-for-byte mọi nội dung hiện có ngoài managed marker trong `AGENTS.md` và `CLAUDE.md`.
@@ -35,14 +37,14 @@
 - Local only: `.beads/` — embedded Dolt workspace, config, issue graph và checkpoint; không stage database.
 - Local-only ignore: exact Beads database patterns do `bd init` sinh phải được merge vào ignore configuration mà không xóa rule có sẵn của người dùng.
 
-### Task 1: Install and verify the official Beads CLI
+### Task 1: Install and verify the official Beads and ast-grep CLIs
 
 **Files:**
 - System install only; no repo file.
 
 **Interfaces:**
 - Consumes: Homebrew formula metadata for `gastownhall/beads`.
-- Produces: executable `bd` on `PATH`, stable version `1.2.1`, no project initialization yet.
+- Produces: executable `bd` version `1.2.1` and `ast-grep` version `0.45.1` on `PATH`, no project initialization yet.
 
 - [ ] **Step 1: Prove the CLI is absent**
 
@@ -50,9 +52,10 @@ Run:
 
 ```bash
 command -v bd
+command -v ast-grep
 ```
 
-Expected before install: exit 1 with no path. If a path exists, run `bd version` and compare it with `brew info beads`; do not overwrite a newer compatible version.
+Expected before install: both absent. If either path exists, compare its version with Homebrew metadata; do not overwrite a newer compatible version.
 
 - [ ] **Step 2: Confirm the Homebrew formula source**
 
@@ -60,9 +63,10 @@ Run:
 
 ```bash
 brew info beads
+brew info ast-grep
 ```
 
-Expected: formula homepage `https://github.com/gastownhall/beads`, license MIT and stable `1.2.1`.
+Expected: Beads points to `gastownhall/beads` at stable `1.2.1`; ast-grep points to `ast-grep/ast-grep` at stable `0.45.1`; both MIT.
 
 - [ ] **Step 3: Install the official formula**
 
@@ -70,9 +74,10 @@ Run:
 
 ```bash
 brew install beads
+brew install ast-grep
 ```
 
-Expected: Homebrew installs `bd` and its declared dependencies without modifying repo files.
+Expected: Homebrew installs both CLIs and declared dependencies without modifying repo files.
 
 - [ ] **Step 4: Verify binary identity and version**
 
@@ -80,11 +85,28 @@ Run:
 
 ```bash
 command -v bd
+command -v ast-grep
 brew list --versions beads
+brew list --versions ast-grep
 bd version
+ast-grep --version
 ```
 
-Expected: `bd` resolves inside the Homebrew prefix and version output is `1.2.1`.
+Expected: both resolve inside the Homebrew prefix; versions are `1.2.1` and `0.45.1`.
+
+- [ ] **Step 5: Prove ast-grep structural search is read-only and useful**
+
+Run:
+
+```bash
+git status --short > /tmp/grokpipe-status-before-ast-grep.txt
+ast-grep --lang python --pattern '$OBJ[$KEY] = $VALUE' sfboard
+ast-grep --lang python --pattern '$QUEUE.put($ITEM)' sfboard
+git status --short > /tmp/grokpipe-status-after-ast-grep.txt
+diff -u /tmp/grokpipe-status-before-ast-grep.txt /tmp/grokpipe-status-after-ast-grep.txt
+```
+
+Expected: structural matches include state/queue writers; final diff exits 0, proving no rewrite.
 
 ### Task 2: Initialize the local workspace and install agent integrations
 
@@ -179,12 +201,22 @@ rg -n 'BEGIN BEADS|END BEADS|bd prime' AGENTS.md CLAUDE.md
 
 Expected: all three existing rules and both managed marker pairs are present.
 
+Add one concise managed-project instruction outside Beads-owned markers only if the
+generated integrations do not mention structural search:
+
+```text
+Code navigation: Serena for symbols/references, ast-grep for structural assignments
+and calls, rg for text/docs. ast-grep is search-only unless an approved TDD plan
+explicitly authorizes rewrite.
+```
+
 - [ ] **Step 7: Verify workspace health and no remote**
 
 Run:
 
 ```bash
 bd version
+ast-grep --version
 bd doctor
 bd hooks list
 bd config get agent.profile
@@ -315,7 +347,7 @@ bd config get agent.profile
 bd prime
 ```
 
-Expected: all checks current/healthy and profile `conservative`.
+Expected: all checks current/healthy, ast-grep `0.45.1` and profile `conservative`.
 
 - [ ] **Step 2: Prove JSON commands are machine-readable**
 
@@ -347,13 +379,15 @@ git status --short
 git diff main...HEAD --name-only
 git diff main...HEAD --check
 git grep -n -E 'BEGIN BEADS|bd prime' -- AGENTS.md CLAUDE.md .agents .codex .claude/settings.json
+ast-grep --lang python --pattern '$OBJ[$KEY] = $VALUE' sfboard >/dev/null
+ast-grep --lang python --pattern '$QUEUE.put($ITEM)' sfboard >/dev/null
 ```
 
 Expected: branch contains only approved agent integration/plan files; no production file, media, credential, embedded database or runtime log.
 
 - [ ] **Step 5: Record handoff facts**
 
-Final report must state installed `bd` version, workspace mode, conservative policy, health checks, integration file scope, seeded epic/child IDs, lifecycle test output, local-only/no-remote status and any generated file deliberately left untracked.
+Final report must state installed `bd`/ast-grep versions, workspace mode, conservative policy, health checks, integration file scope, seeded epic/child IDs, lifecycle test output, structural-search smoke result, local-only/no-remote status and any generated file deliberately left untracked.
 
 Khi người dùng chọn merge local ở `finishing-a-development-branch`, trước cleanup
 worktree phải khởi tạo embedded workspace tại `/Users/may1/Desktop/grokpipe`, chạy
