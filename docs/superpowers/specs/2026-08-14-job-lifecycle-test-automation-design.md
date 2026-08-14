@@ -1,7 +1,7 @@
 # Job Lifecycle Test Automation Design
 
 Ngày: 2026-08-14
-Trạng thái: Đã duyệt thiết kế hội thoại, chờ duyệt written spec
+Trạng thái: Written spec đã được người dùng duyệt
 
 ## Mục tiêu
 
