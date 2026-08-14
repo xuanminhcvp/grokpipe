@@ -161,4 +161,3 @@ Không tự claim hoặc tự đóng năm bug khi seed.
 - Năm known lifecycle bug có executable evidence và acceptance criteria rõ.
 - Git authority vẫn conservative; không có remote sync hoặc cloud data.
 - Gỡ integration được mà không làm mất hướng dẫn hiện có hoặc database ngoài ý.
-

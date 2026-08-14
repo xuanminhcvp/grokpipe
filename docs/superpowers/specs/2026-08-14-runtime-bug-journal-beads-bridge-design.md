@@ -308,4 +308,3 @@ bằng text editor.
 - `bd`/Dolt lỗi không thay đổi job outcome, queue, retry hoặc account behavior.
 - Không cloud sync; không AI tự sửa/commit/close.
 - Full lifecycle gate giữ baseline 30 pass, 5 xfailed cho tới phase sửa từng bug.
-
