@@ -14,6 +14,7 @@ import os
 import threading
 import traceback
 import uuid
+from collections import OrderedDict
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,11 +22,14 @@ from pathlib import Path
 from .beads_bridge import MODE_AUTO_CREATE, MODE_JOURNAL_ONLY, BeadsBridge
 from .bugtool import build_config, diagnostics_snapshot, resolve_mode
 from .runtime_classifier import classify_signal
+from .runtime_fingerprint import fingerprint_event
 from .runtime_journal import RuntimeBugJournal, default_journal_path
+from .runtime_redaction import redact_event
 from .runtime_sentry import SentryReporter
 
 
 BRIDGE_THREAD_NAME = "runtime-bug-bridge"
+REPEAT_MEMORY_LIMIT = 512
 BRIDGE_POLL_SECONDS = 5.0
 BRIDGE_BACKOFF_CAP = 300.0
 STOP_JOIN_SECONDS = 2.0
@@ -62,6 +66,10 @@ class RuntimeBugService:
         self._synced = threading.Condition()
         self._sync_count = 0
         self._log_handler: logging.Handler | None = None
+        # Đếm số lần TỪNG fingerprint xuất hiện, để chỗ gọi nói được "chỉ ghi khi
+        # lặp lại N lần". Nhiều luồng thợ cùng gọi nên phải có khoá.
+        self._repeats: "OrderedDict[str, int]" = OrderedDict()
+        self._repeat_lock = threading.Lock()
 
         if self.mode == MODE_AUTO_CREATE:
             self.bridge_thread = threading.Thread(
@@ -84,6 +92,8 @@ class RuntimeBugService:
             if not classification.reportable:
                 return False
             event = _build_event(signal, classification, exception)
+            if self._bo_qua_vi_chua_du_lap(event, _min_repeats(signal)):
+                return False
             written = self.journal.record(event)
             if written:
                 # Sentry hỏng KHÔNG được làm hỏng kết quả ghi sổ: sổ cục bộ mới
@@ -97,6 +107,28 @@ class RuntimeBugService:
             return written
         except Exception:  # noqa: BLE001 - reporting must never break a job
             return False
+
+    def _bo_qua_vi_chua_du_lap(self, event: dict[str, object], min_repeats: int) -> bool:
+        """Lỗi lặp mới đáng ghi: `min_repeats=3` nghĩa là ghi ở lần 3, 6, 9…
+
+        Xoay tài khoản là chuyện BÌNH THƯỜNG của board — ghi mọi lần xoay thì sổ
+        thành rác và Bead thành chuông báo cháy kêu suốt ngày. `min_repeats=1`
+        (mặc định) giữ nguyên hành vi cũ: ghi ngay lần đầu."""
+        if min_repeats <= 1:
+            return False
+        fingerprint = fingerprint_event(redact_event(event, self.repo_root))
+        with self._repeat_lock:
+            count = self._repeats.get(fingerprint, 0) + 1
+            self._repeats[fingerprint] = count
+            self._repeats.move_to_end(fingerprint)
+            while len(self._repeats) > REPEAT_MEMORY_LIMIT:
+                self._repeats.popitem(last=False)
+        if count % min_repeats:
+            return True
+        runtime = event.get("runtime")
+        if isinstance(runtime, dict):
+            runtime["repeats"] = count
+        return False
 
     def diagnostics(self) -> dict[str, object]:
         return diagnostics_snapshot(self.repo_root)
@@ -285,6 +317,13 @@ def _build_event(
         "runtime": runtime,
         "exception": dict(exception),
     }
+
+
+def _min_repeats(signal: Mapping[str, object]) -> int:
+    value = signal.get("min_repeats")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return 1
+    return value
 
 
 def _exception_info(signal: Mapping[str, object]) -> dict[str, object]:

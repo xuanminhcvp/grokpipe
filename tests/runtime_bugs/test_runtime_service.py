@@ -146,6 +146,52 @@ def test_logging_adapter_leaves_existing_root_handlers_untouched(tmp_path):
     assert list(root.handlers) == before
 
 
+def test_min_repeats_only_journals_every_nth_identical_failure(tmp_path):
+    runtime_service.start_runtime_bug_service(tmp_path)
+
+    ket_qua = [
+        runtime_service.report_runtime_bug(crash_signal(min_repeats=3)) for _ in range(6)
+    ]
+
+    assert ket_qua == [False, False, True, False, False, True]
+    events = journal_lines(tmp_path)
+    assert [event["runtime"]["repeats"] for event in events] == [3, 6]
+
+
+def test_min_repeats_counts_each_fingerprint_separately(tmp_path):
+    runtime_service.start_runtime_bug_service(tmp_path)
+
+    for _ in range(2):
+        runtime_service.report_runtime_bug(crash_signal(min_repeats=2))
+    khac = crash_signal(min_repeats=2)
+    khac["job"] = {"job_id": "LO:S9", "kind": "vid", "phase": "downloading"}
+
+    assert runtime_service.report_runtime_bug(khac) is False
+    assert len(journal_lines(tmp_path)) == 1
+
+
+@pytest.mark.parametrize("min_repeats", [None, 1, 0, -5, True, "3"])
+def test_invalid_or_absent_min_repeats_keeps_reporting_every_time(tmp_path, min_repeats):
+    runtime_service.start_runtime_bug_service(tmp_path)
+    signal = crash_signal()
+    if min_repeats is not None:
+        signal["min_repeats"] = min_repeats
+
+    assert runtime_service.report_runtime_bug(signal) is True
+    assert runtime_service.report_runtime_bug(signal) is True
+
+
+def test_repeat_counter_stays_bounded(tmp_path):
+    service = runtime_service.start_runtime_bug_service(tmp_path)
+
+    for index in range(runtime_service.REPEAT_MEMORY_LIMIT + 40):
+        signal = crash_signal(min_repeats=9)
+        signal["exception"] = dict(signal["exception"], message=f"lỗi số {index}")
+        runtime_service.report_runtime_bug(signal)
+
+    assert len(service._repeats) == runtime_service.REPEAT_MEMORY_LIMIT
+
+
 def test_sentry_is_off_by_default_and_only_sees_journaled_events(tmp_path, monkeypatch):
     monkeypatch.delenv("SENTRY_DSN", raising=False)
     monkeypatch.delenv("GROKPIPE_SENTRY_DSN", raising=False)

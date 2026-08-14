@@ -795,6 +795,32 @@ def _loi_gon(e) -> str:
 # ghi log cho biết, không hành động theo.
 
 
+# ---- LỖI RENDER → MỘT REASON CODE CÓ KIỂU ---------------------------------
+# Chỉ để GHI SỔ. Không nhánh nào ở `_worker` đọc giá trị này để quyết định xoay
+# hay thử lại — luật "mọi lỗi đều xoay" (user chốt 2026-08-14) giữ nguyên.
+#
+# Thứ tự khớp có ý nghĩa: HUỶ đứng trước LỖI DỮ LIỆU, vì `_LOI_DU_LIEU` chứa cả
+# "đã huỷ"/"đã dừng" — user bấm dừng KHÔNG phải bug, ghi vào sổ là báo động giả.
+_LY_DO_HUY = ("đã huỷ", "đã dừng", "chưa chạy")
+
+# Cùng một lỗi phải lặp đủ số lần này mới được ghi sổ.
+LAP_MOI_GHI = 3
+
+
+def _ly_do_loi(e: Exception) -> str:
+    """Lỗi render → reason code cho sổ lỗi runtime. Hàm thuần, không ghi state."""
+    m = str(e).lower()
+    if any(k in m for k in _LY_DO_HUY):
+        return "CANCELLED"              # user dừng — bộ phân loại sẽ bỏ qua
+    if _loi_du_lieu(e):
+        return "PERMANENT"              # sai dữ liệu board, xoay Chrome vô ích
+    if _is_dead_session_error(e):
+        return "SESSION_TRANSIENT"      # tab/cửa sổ Chrome chết
+    if _is_quota_error(e):
+        return "ACCOUNT_LOST"           # hết lượt / bị chặn
+    return "PROVIDER_TRANSIENT"         # còn lại: phía Grok/ChatGPT
+
+
 def _is_dead_session_error(e: Exception) -> bool:
     """Tab/cửa sổ Chrome đã đóng — nhả phiên rồi thử lại trên CÙNG tài khoản."""
     m = str(e).lower()
@@ -1607,6 +1633,19 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                                  "msg": f"{_loi_gon(e)} → đổi tài khoản, thử lại "
                                         f"sau {cho}s (lần {tries + 1}){ghi_chu}"})
                 _xep_lai_sau(kind, (kind, ident, tries + 1, manual), cho)
+                # Ghi sổ SAU khi đã đặt nhãn và xếp lại — không đổi gì ở trên.
+                # `min_repeats` là cái phanh: xoay tài khoản là chuyện bình
+                # thường, chỉ khi CÙNG một lỗi lặp lại lần thứ 3 mới đáng lưu.
+                report_runtime_bug({
+                    "reason_code": _ly_do_loi(e),
+                    "category": "render_rotate",
+                    "severity": "ERROR",
+                    "job": {"job_id": ident, "kind": kind, "phase": "rotate",
+                            "tries": tries + 1},
+                    "runtime": {"endpoint": endpoint, "slot": slot},
+                    "min_repeats": LAP_MOI_GHI,
+                    "exc": e,
+                })
         finally:
             _ban_ra(endpoint)
             if tu_hang:                 # việc lấy từ CHO_RIENG không qua queue

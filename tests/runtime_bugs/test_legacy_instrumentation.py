@@ -5,6 +5,12 @@ from pathlib import Path
 
 import pytest
 
+# Nhập ở CẤP MODULE, không nhập trong hàm: `helpers.load_sfboard()` cắm thư mục
+# `sfboard/` vào đầu `sys.path`, và từ lúc đó `import sfboard` trúng file
+# `sfboard/sfboard.py` chứ không còn trúng package — module con sẽ không nhập
+# được nữa. Nhập lúc thu thập test là trước thời điểm đó.
+from sfboard.jobs.runtime_classifier import classify_signal
+
 
 ROOT = Path(__file__).resolve().parents[2]
 BOARD = ROOT / "sfboard" / "sfboard.py"
@@ -46,8 +52,37 @@ def test_worker_keeps_its_retry_and_rotation_logic():
 
     assert "_xep_lai_sau(" in worker
     assert "_xoay_chrome(" in worker
-    assert worker.count("report_runtime_bug(") == 1
+    assert worker.count("report_runtime_bug(") == 2  # cạn retry + xoay tài khoản
     assert "RETRY_EXHAUSTED" in worker
+
+
+def test_rotation_reports_after_requeue_and_only_when_the_error_repeats():
+    worker = function_source("_worker")
+    xep_lai = worker.index("_xep_lai_sau(kind, (kind, ident, tries + 1, manual), cho)")
+    report = worker.index("report_runtime_bug(", xep_lai)
+
+    assert xep_lai < report, "ghi sổ phải đứng SAU khi đã xếp lại"
+    assert '"min_repeats": LAP_MOI_GHI' in worker[report:]
+    assert '"reason_code": _ly_do_loi(e)' in worker[report:]
+
+
+def test_reason_code_mapping_is_pure_and_never_reports_a_user_stop():
+    from helpers import load_sfboard
+
+    board = load_sfboard()
+
+    assert board._ly_do_loi(RuntimeError("việc đã huỷ")) == "CANCELLED"
+    assert board._ly_do_loi(RuntimeError("SF chưa có ảnh (picked)")) == "PERMANENT"
+    assert board._ly_do_loi(RuntimeError("Target crashed")) == "SESSION_TRANSIENT"
+    assert board._ly_do_loi(RuntimeError("You've reached your limit")) == "ACCOUNT_LOST"
+    assert board._ly_do_loi(RuntimeError("ERR_QUIC_PROTOCOL_ERROR")) == "PROVIDER_TRANSIENT"
+    assert board.LAP_MOI_GHI >= 2
+
+
+def test_cancelled_rotation_errors_are_dropped_by_the_classifier():
+    assert classify_signal({"reason_code": "CANCELLED", "category": "render_rotate"}).reportable is False
+    for reason in ("PERMANENT", "SESSION_TRANSIENT", "ACCOUNT_LOST", "PROVIDER_TRANSIENT"):
+        assert classify_signal({"reason_code": reason, "category": "render_rotate"}).reportable is True
 
 
 def test_retry_exhaustion_reports_after_the_existing_state_write():
