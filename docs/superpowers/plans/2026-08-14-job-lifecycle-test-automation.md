@@ -78,9 +78,12 @@ Create `pytest.ini`:
 [pytest]
 testpaths = tests/job_lifecycle
 python_files = test_*.py
+pythonpath = tests/job_lifecycle
 addopts = -ra --strict-config --strict-markers
 ```
 
+`pythonpath` bảo toàn cách các characterization test hiện tại import top-level
+`helpers`, giống `unittest discover -s tests/job_lifecycle`, mà không rewrite test.
 Coverage không nằm trong `addopts`; targeted test không bị ép đo toàn package.
 
 - [ ] **Step 5: Cài đúng dependency đã pin**
