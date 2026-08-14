@@ -38,9 +38,8 @@ jobs:
         env:
           COVERAGE_FILE: ${{ runner.temp }}/job-lifecycle-${{ matrix.python-version }}.coverage
         run: >-
-          python -m pytest tests/job_lifecycle
-          --cov=sfboard.jobs.models
-          --cov=sfboard.jobs.errors
+          python -m pytest tests/job_lifecycle tests/runtime_bugs
+          --cov=sfboard.jobs
           --cov-report=term-missing
           --cov-fail-under=80
 
@@ -52,3 +51,12 @@ jobs:
           sfboard/jobs/__init__.py
           sfboard/jobs/models.py
           sfboard/jobs/errors.py
+          sfboard/jobs/runtime_bug.py
+          sfboard/jobs/runtime_redaction.py
+          sfboard/jobs/runtime_fingerprint.py
+          sfboard/jobs/runtime_classifier.py
+          sfboard/jobs/runtime_journal.py
+          sfboard/jobs/runtime_sentry.py
+          sfboard/jobs/beads_bridge.py
+          sfboard/jobs/bugtool.py
+          sfboard/jobs/runtime_service.py

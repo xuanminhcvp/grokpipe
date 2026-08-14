@@ -1,1 +1,4 @@
 loguru==0.7.3
+# Cảnh báo từ xa TÙY CHỌN. Không đặt SENTRY_DSN/GROKPIPE_SENTRY_DSN thì gói này
+# nằm im: không init, không gửi, không mạng.
+sentry-sdk==2.68.0

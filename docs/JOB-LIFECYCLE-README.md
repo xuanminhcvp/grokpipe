@@ -80,7 +80,9 @@ Gate này chạy toàn bộ lifecycle tests, yêu cầu coverage `sfboard/jobs` 
 80%, rồi compile legacy runtime và domain package. Nó không mở browser, gọi provider
 hoặc tiêu credit.
 
-Kết quả Phase 0–1 hiện tại: 35 tests, 30 pass và đúng 5 `xfailed`. Một expected
+Kết quả hiện tại: **155 pass và đúng 5 `xfailed`** (Phase 0–1 lifecycle + sổ lỗi
+runtime + lưới property-based Hypothesis). Con số pass sẽ còn tăng khi thêm test;
+cái PHẢI giữ nguyên là **đúng 5 `xfailed`**. Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
@@ -110,6 +112,20 @@ python -m sfboard.jobs.bugtool --root . sync
 - `/api/chan-doan` có thêm khối `bug_bridge` (mode · pending · last_sync_at ·
   last_error · created · updated) để nhìn nhanh trên board.
 - AI **chỉ điều tra khi user mở/nhắc một Bead**, không tự đi lục sổ lỗi rồi sửa.
+
+### Cảnh báo từ xa (tuỳ chọn)
+
+Đặt `GROKPIPE_SENTRY_DSN` (hoặc `SENTRY_DSN`) thì mỗi sự kiện đã lọc được gửi
+thêm lên Sentry, gom nhóm theo đúng `fingerprint` của sổ. **Không đặt DSN thì
+không có gì xảy ra** — không init, không mạng, không lỗi. Sentry hỏng cũng không
+làm hỏng việc ghi sổ: sổ JSONL cục bộ mới là nguồn AI đọc.
+
+### Lưới property-based
+
+`tests/job_lifecycle/test_queue_properties.py` dùng Hypothesis sinh chuỗi
+xếp/nhấc/huỷ/ghi-trạng-thái ngẫu nhiên trên chính `hangdoi.py`, đối chiếu với một
+mô hình song song. Nó KHÔNG thay 5 `xfail` đang khoá — vẫn phải sửa từng bug bằng
+TDD, mỗi lần chỉ hạ đúng một expected failure.
 
 ## File map
 

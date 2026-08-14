@@ -146,6 +146,49 @@ def test_logging_adapter_leaves_existing_root_handlers_untouched(tmp_path):
     assert list(root.handlers) == before
 
 
+def test_sentry_is_off_by_default_and_only_sees_journaled_events(tmp_path, monkeypatch):
+    monkeypatch.delenv("SENTRY_DSN", raising=False)
+    monkeypatch.delenv("GROKPIPE_SENTRY_DSN", raising=False)
+    service = runtime_service.start_runtime_bug_service(tmp_path)
+    assert service.sentry.enabled is False
+
+    sent = []
+
+    class Reporter:
+        enabled = True
+
+        def capture(self, event):
+            sent.append(event)
+            return True
+
+        def close(self):
+            return None
+
+    runtime_service.start_runtime_bug_service(tmp_path, sentry=Reporter())
+    runtime_service.report_runtime_bug(crash_signal())
+    runtime_service.report_runtime_bug(crash_signal(reason_code="CANCELLED"))
+
+    assert len(sent) == 1
+    assert sent[0]["reason_code"] == "WORKER_CRASH"
+
+
+def test_report_still_succeeds_when_sentry_is_broken(tmp_path):
+    class Exploding:
+        enabled = True
+
+        def capture(self, event):
+            raise RuntimeError("mạng chết")
+
+        def close(self):
+            raise RuntimeError("đóng cũng chết")
+
+    runtime_service.start_runtime_bug_service(tmp_path, sentry=Exploding())
+
+    assert runtime_service.report_runtime_bug(crash_signal()) is True
+    assert len(journal_lines(tmp_path)) == 1
+    runtime_service.stop_runtime_bug_service()  # `close` nổ cũng không được ném ra
+
+
 def test_diagnostics_shape_is_stable_while_running(tmp_path):
     runtime_service.start_runtime_bug_service(tmp_path)
     runtime_service.report_runtime_bug(crash_signal())

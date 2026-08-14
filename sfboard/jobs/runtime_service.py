@@ -22,6 +22,7 @@ from .beads_bridge import MODE_AUTO_CREATE, MODE_JOURNAL_ONLY, BeadsBridge
 from .bugtool import build_config, diagnostics_snapshot, resolve_mode
 from .runtime_classifier import classify_signal
 from .runtime_journal import RuntimeBugJournal, default_journal_path
+from .runtime_sentry import SentryReporter
 
 
 BRIDGE_THREAD_NAME = "runtime-bug-bridge"
@@ -45,10 +46,13 @@ class RuntimeBugService:
         attach_logging: bool = False,
         poll_interval: float = BRIDGE_POLL_SECONDS,
         jitter=lambda: 0.0,
+        sentry=None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.mode = mode or resolve_mode(self.repo_root)
         self.journal = RuntimeBugJournal(default_journal_path(self.repo_root), self.repo_root)
+        # Không có DSN thì reporter tự tắt: không import mạng, không gửi gì.
+        self.sentry = sentry if sentry is not None else SentryReporter(self.repo_root)
         self.bridge = BeadsBridge(build_config(self.repo_root, self.mode), run_bd=run_bd)
         self.bridge_thread: threading.Thread | None = None
         self._poll_interval = poll_interval
@@ -79,9 +83,17 @@ class RuntimeBugService:
             classification = classify_signal({**signal, "exception": exception})
             if not classification.reportable:
                 return False
-            written = self.journal.record(_build_event(signal, classification, exception))
-            if written and self.bridge_thread is not None:
-                self._wake.set()
+            event = _build_event(signal, classification, exception)
+            written = self.journal.record(event)
+            if written:
+                # Sentry hỏng KHÔNG được làm hỏng kết quả ghi sổ: sổ cục bộ mới
+                # là nguồn chuẩn, cảnh báo từ xa chỉ là phần thêm.
+                try:
+                    self.sentry.capture(event)
+                except Exception:  # noqa: BLE001
+                    pass
+                if self.bridge_thread is not None:
+                    self._wake.set()
             return written
         except Exception:  # noqa: BLE001 - reporting must never break a job
             return False
@@ -133,6 +145,10 @@ class RuntimeBugService:
                 logging.getLogger().removeHandler(handler)
             except Exception:  # noqa: BLE001
                 pass
+        try:
+            self.sentry.close()
+        except Exception:  # noqa: BLE001
+            pass
         try:
             self.journal.close()
         except Exception:  # noqa: BLE001
@@ -191,6 +207,7 @@ def start_runtime_bug_service(
     mode: str | None = None,
     run_bd=None,
     attach_logging: bool = False,
+    sentry=None,
 ) -> RuntimeBugService | None:
     """Start (or restart) the singleton service. Returns None when start fails."""
     global _SERVICE
@@ -200,7 +217,11 @@ def start_runtime_bug_service(
             _SERVICE = None
         try:
             _SERVICE = RuntimeBugService(
-                repo_root, mode=mode, run_bd=run_bd, attach_logging=attach_logging
+                repo_root,
+                mode=mode,
+                run_bd=run_bd,
+                attach_logging=attach_logging,
+                sentry=sentry,
             )
         except Exception:  # noqa: BLE001 - the board must start without the journal
             _SERVICE = None

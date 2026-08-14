@@ -9,7 +9,7 @@ if [ ! -x "$PYTHON_BIN" ]; then
   exit 2
 fi
 
-if ! "$PYTHON_BIN" -c 'import pytest, pytest_cov' >/dev/null 2>&1; then
+if ! "$PYTHON_BIN" -c 'import pytest, pytest_cov, hypothesis, loguru' >/dev/null 2>&1; then
   echo "Missing test dependencies. Run: ./.venv/bin/python3 -m pip install -r requirements-test.txt" >&2
   exit 2
 fi
@@ -22,9 +22,8 @@ trap cleanup EXIT
 
 cd "$REPO_ROOT"
 COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
-  tests/job_lifecycle \
-  --cov=sfboard.jobs.models \
-  --cov=sfboard.jobs.errors \
+  tests/job_lifecycle tests/runtime_bugs \
+  --cov=sfboard.jobs \
   --cov-report=term-missing \
   --cov-fail-under=80
 
@@ -33,6 +32,15 @@ COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
   sfboard/sfboard.py \
   sfboard/jobs/__init__.py \
   sfboard/jobs/models.py \
-  sfboard/jobs/errors.py
+  sfboard/jobs/errors.py \
+  sfboard/jobs/runtime_bug.py \
+  sfboard/jobs/runtime_redaction.py \
+  sfboard/jobs/runtime_fingerprint.py \
+  sfboard/jobs/runtime_classifier.py \
+  sfboard/jobs/runtime_journal.py \
+  sfboard/jobs/runtime_sentry.py \
+  sfboard/jobs/beads_bridge.py \
+  sfboard/jobs/bugtool.py \
+  sfboard/jobs/runtime_service.py
 
 echo "Job lifecycle gate: PASS"
