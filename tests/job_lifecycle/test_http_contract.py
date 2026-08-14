@@ -50,6 +50,30 @@ class HttpContractTest(unittest.TestCase):
         self.assertEqual(set(body["hang"]), {"anh", "video"})
         self.assertEqual(set(body["tho"]), {"img", "vid"})
 
+    def test_diagnostics_keeps_legacy_keys_and_adds_only_bug_bridge(self):
+        handler = make_handler(self.m, "/api/chan-doan")
+        handler.do_GET()
+        code, body = handler.captured
+        self.assertEqual(code, 200)
+        self.assertEqual(
+            set(body),
+            {
+                "hang_doi",
+                "tho",
+                "chet",
+                "lo_dang_hoan",
+                "da_huy",
+                "dung_gen",
+                "job_cho",
+                "job_chay",
+                "bug_bridge",
+            },
+        )
+        self.assertEqual(
+            set(body["bug_bridge"]),
+            {"mode", "pending", "last_sync_at", "last_error", "created", "updated"},
+        )
+
     def test_create_and_cancel_routes_keep_response_keys(self):
         source = (ROOT / "sfboard/sfboard.py").read_text(encoding="utf-8")
         self.assertIn('{"ok": True, "qua_lo": True, "so_ban": so_ban}', source)

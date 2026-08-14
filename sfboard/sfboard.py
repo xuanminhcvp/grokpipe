@@ -974,6 +974,32 @@ from hangdoi import (                                          # noqa: E402
     thu_tu_shot, thu_tu_hang, dung_gen, tang_dung_gen, bo_co_huy, VET, vet_don)
 import hangdoi                                                 # noqa: E402
 
+# SỔ LỖI RUNTIME (2026-08-14) — ghi lỗi nặng ra .grokpipe/runtime-bugs/ để AI đọc
+# lại được sau khi board restart. Import phải CHỊU ĐƯỢC THIẾU loguru: board vẫn
+# phải chạy trên máy chưa cài requirements-runtime.txt, chỉ mất phần ghi sổ.
+try:                                                           # noqa: E402
+    from jobs.runtime_service import (                         # noqa: E402
+        report_runtime_bug, runtime_bug_diagnostics,
+        start_runtime_bug_service, stop_runtime_bug_service)
+except Exception as _e:                                        # noqa: BLE001,E402
+    _BUG_IMPORT_ERROR = str(_e)[:120]
+
+    def report_runtime_bug(signal) -> bool:                    # type: ignore[misc]
+        return False
+
+    def runtime_bug_diagnostics() -> dict:                     # type: ignore[misc]
+        return {"bug_bridge": {"mode": "journal-only", "pending": 0,
+                               "last_sync_at": None, "last_error": "",
+                               "created": 0, "updated": 0}}
+
+    def start_runtime_bug_service(*_a, **_k):                  # type: ignore[misc]
+        return None
+
+    def stop_runtime_bug_service() -> None:                    # type: ignore[misc]
+        return None
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 BOARD_LOCK = threading.RLock()      # nhiều thợ cùng ghi sf-board.json
 _LOG = logging.getLogger("sfboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
@@ -1411,6 +1437,26 @@ def _acct_label() -> str:
     return f" [tk {pool.index(ep) + 1}/{len(pool)}]"
 
 
+def _worker_entry(endpoint: str, kind: str, slot: int = 0):
+    """Vỏ bọc DUY NHẤT của `_worker` — chỉ để ghi sổ lỗi, không có logic việc.
+
+    `_worker` tự nuốt mọi lỗi của từng việc và xoay tài khoản; cái lọt ra tới
+    đây là lỗi làm CHẾT CẢ LUỒNG THỢ (supervisor sẽ mở luồng mới ở vòng sau).
+    Đúng loại lỗi cần lưu lại để đọc sau khi board restart."""
+    try:
+        _worker(endpoint, kind, slot)
+    except BaseException as e:                      # noqa: BLE001
+        report_runtime_bug({
+            "reason_code": "WORKER_CRASH",
+            "category": "unhandled_exception",
+            "severity": "CRITICAL",
+            "job": {"kind": kind, "phase": "worker_loop", "job_id": ""},
+            "runtime": {"endpoint": endpoint, "slot": slot},
+            "exc": e,
+        })
+        raise
+
+
 def _worker(endpoint: str, kind: str, slot: int = 0):
     """Một luồng thợ gắn cứng với MỘT tài khoản.
 
@@ -1545,6 +1591,17 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                                         f"dừng để khỏi đốt credit. Bấm 'Tạo lại' nếu "
                                         f"muốn thử tiếp.{ghi_chu}"})
                 _LOG.warning("video %s dừng sau %d lượt: %s", ident, VID_MAX_TRY, _loi_gon(e))
+                # Ghi sổ runtime SAU khi đã đặt nhãn lỗi + log như cũ. Không đổi
+                # trạng thái job, không xếp lại, không ném lỗi ra ngoài.
+                report_runtime_bug({
+                    "reason_code": "RETRY_EXHAUSTED",
+                    "category": "video_retry",
+                    "severity": "ERROR",
+                    "job": {"job_id": ident, "kind": "vid", "phase": "retry_exhausted",
+                            "tries": VID_MAX_TRY},
+                    "runtime": {"endpoint": endpoint, "slot": slot},
+                    "exc": e,
+                })
             else:
                 _dat_job(ident, {"state": "running",
                                  "msg": f"{_loi_gon(e)} → đổi tài khoản, thử lại "
@@ -1796,7 +1853,8 @@ def _supervisor():
                         key = (a["port"], k, slot)
                         th = WORKERS.get(key)
                         if th is None or not th.is_alive():
-                            t = threading.Thread(target=_worker, args=(ep, k, slot), daemon=True)
+                            t = threading.Thread(target=_worker_entry,
+                                                 args=(ep, k, slot), daemon=True)
                             WORKERS[key] = t
                             t.start()
                     # hạ số tab thì cho các luồng thừa tự nghỉ ở vòng lặp kế tiếp
@@ -3596,6 +3654,7 @@ class Handler(BaseHTTPRequestHandler):
                 "dung_gen": dung_gen(),
                 "job_cho": sum(1 for v in JOBS.values() if v.get("state") == "queued"),
                 "job_chay": sum(1 for v in JOBS.values() if v.get("state") == "running"),
+                "bug_bridge": runtime_bug_diagnostics()["bug_bridge"],
             })
         elif u.path == "/api/projects":
             self._json({
@@ -4578,6 +4637,10 @@ def main():
     SERVE_PORT = port
     _reg_register(os.path.basename(BOARD.dir), port)
     atexit.register(_reg_unregister, os.path.basename(BOARD.dir))
+    # Sổ lỗi runtime nằm ở REPO chứ không nằm trong thư mục phim: thư mục phim
+    # là dữ liệu riêng, còn sổ lỗi là chuyện của công cụ.
+    start_runtime_bug_service(REPO_ROOT, attach_logging=True)
+    atexit.register(stop_runtime_bug_service)
     url = f"http://localhost:{port}"
     print(f"SF Board v2  →  {url}")
     print(f"Phim    : {BOARD.dir}")
