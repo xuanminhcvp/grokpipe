@@ -971,8 +971,7 @@ from hangdoi import (                                          # noqa: E402
     CHO_RIENG, CR_LOCK as _CR_LOCK, _HOAN,
     TRAN_MAY_TU_GOM, xep as _xep, lay as _lay, y_trong_hang as _y_trong_hang,
     vet_hang, dat_job as _dat_job, bi_huy as _bi_huy, uu_tien as _uu_tien,
-    thu_tu_shot, thu_tu_hang, dung_gen, tang_dung_gen, bo_co_huy,
-)
+    thu_tu_shot, thu_tu_hang, dung_gen, tang_dung_gen, bo_co_huy, VET, vet_don)
 import hangdoi                                                 # noqa: E402
 
 BOARD_LOCK = threading.RLock()      # nhiều thợ cùng ghi sf-board.json
@@ -1070,6 +1069,10 @@ def _dan_nhan_tk(msg: str) -> str:
 
 
 JOBS.__class__.dan_nhan = staticmethod(_dan_nhan_tk)
+# …và hàm trả nhãn tài khoản trần, để MỌI trạng thái (không chỉ lỗi) ghi được
+# việc này đang chạy trên cửa sổ nào. Không có nó thì soi lại một job xong
+# vẫn không biết tài khoản nào đã làm, mà đó là thứ quyết định đi chữa ở đâu.
+JOBS.__class__.nhan_tk = staticmethod(_nhan_tk)
 
 # Mỗi luồng thợ giữ Playwright + phiên RIÊNG của nó (sync_playwright không dùng chung
 # được giữa các luồng, nhưng mỗi luồng có một instance riêng thì hoàn toàn hợp lệ).
@@ -3567,8 +3570,12 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 # ident lô ("LO:a,b") là việc ảnh; ident shot (V-…) là việc video.
                 _tho["vid" if _id.startswith("V-") else "img"]["ban"] += 1
+            # DẤU VẾT từng việc — "việc này đã đi qua những đâu, tài khoản
+            # nào, thử mấy lần". JOBS chỉ giữ trạng thái HIỆN TẠI nên không bao
+            # giờ trả lời được câu đó; hộp 🐞 vì thế in dòng JOB không có giờ.
+            vet_don()
             self._json({"jobs": JOBS, "auto": _auto_status(), "nhom": _nh,
-                        "hang": _hang, "tho": _tho,
+                        "hang": _hang, "tho": _tho, "vet": VET,
                         "pl": _pl_dem(), "dan_ma": _dan_ma_doc(),
                         # tổng số bản ghi lỗi từ lúc board chạy — giao diện so
                         # con số này để biết khi nào phải kéo phần mới về

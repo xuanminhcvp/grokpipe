@@ -47,9 +47,11 @@ class _Jobs(dict):
 
     khi_loi = None          # sfboard.py gắn hàm log vào đây lúc khởi động
     dan_nhan = None         # …và hàm dán nhãn tài khoản vào thông báo lỗi
+    nhan_tk = None          # …và hàm trả về 'gpt-4 :9225' của luồng thợ đang chạy
 
     def __setitem__(self, k, v):
         try:
+            v = self._dong_dau(k, v)
             if isinstance(v, dict) and v.get("state") == "error":
                 # DÁN TÊN TÀI KHOẢN + CỔNG VÀO MỌI THÔNG BÁO LỖI.
                 #
@@ -66,6 +68,86 @@ class _Jobs(dict):
         except Exception:
             pass                # móc hỏng KHÔNG được làm hỏng việc đặt trạng thái
         super().__setitem__(k, v)
+
+    # ─────────────────────────── DẤU VẾT ───────────────────────────
+    # Trước đây một job chỉ mang {"state", "msg"} — KHÔNG có giờ, không có tài
+    # khoản, không có lịch sử. Hậu quả thấy rõ trong hộp 🐞: dòng WARNING có giờ
+    # (do handler logging đóng dấu), còn dòng JOB thì cột giờ để trống cứng, vì
+    # chẳng có gì để in. Mà đúng ba câu hỏi hay phải trả lời nhất khi soi lỗi lại
+    # là "lúc mấy giờ · tài khoản nào · đã thử mấy lần" — cả ba đều không lưu.
+    #
+    # Đóng dấu ở ĐÂY là bao trọn hơn hai chục nhánh đặt trạng thái rải khắp
+    # sfboard.py, khỏi phải nhớ sửa từng chỗ mỗi lần thêm nhánh mới.
+    def _dong_dau(self, k, v):
+        if not isinstance(v, dict):
+            return v
+        import time as _t
+        cu = self.get(k) or {}
+        v = dict(v)
+        st = v.get("state")
+        now = _t.time()
+        v.setdefault("t", now)
+        v.setdefault("luc", _t.strftime("%H:%M:%S", _t.localtime(now)))
+
+        # Mốc thời gian ĐỜI của một việc — giữ nguyên qua mọi lần đổi trạng thái
+        # để tính được "chờ bao lâu" và "chạy bao lâu".
+        v["t_vao"] = cu.get("t_vao") or (now if st == "queued" else cu.get("t_vao"))
+        if st == "running":
+            v["t_bd"] = cu.get("t_bd") if cu.get("state") == "running" else now
+        else:
+            v["t_bd"] = cu.get("t_bd")
+        if st in ("done", "error"):
+            v["t_xong"] = now
+            if v.get("t_bd"):
+                v["giay"] = round(now - v["t_bd"], 1)
+        v = {kk: vv for kk, vv in v.items() if vv is not None}
+
+        # TÀI KHOẢN đang giữ việc. Bốn cửa sổ Chrome cùng trỏ chatgpt.com nên
+        # không có nhãn này thì lỗi nào cũng vô danh.
+        if self.nhan_tk and st in ("running", "done", "error"):
+            try:
+                nh = self.nhan_tk()
+                if nh:
+                    v["tk"] = nh
+                elif cu.get("tk"):
+                    v["tk"] = cu["tk"]
+            except Exception:
+                pass
+        elif cu.get("tk"):
+            v.setdefault("tk", cu["tk"])
+
+        # SỐ LẦN THỬ — đếm mỗi lần việc quay lại 'running' sau khi đã chạy.
+        lan = int(cu.get("lan") or 0)
+        if st == "running" and cu.get("state") != "running":
+            lan += 1
+        v["lan"] = max(lan, 1 if st in ("running", "done", "error") else 0)
+
+        # SỔ RIÊNG CỦA TỪNG VIỆC. Ghi khi trạng thái ĐỔI hoặc lời nhắn đổi —
+        # vòng người gác đặt lại y hệt trạng thái cũ mỗi vài giây, ghi hết thì
+        # sổ ngập một dòng lặp và mất hẳn tác dụng.
+        if cu.get("state") != st or (cu.get("msg") or "") != (v.get("msg") or ""):
+            d = VET.setdefault(k, [])
+            d.append({"luc": v["luc"], "state": st, "msg": (v.get("msg") or "")[:300],
+                      "tk": v.get("tk", ""), "lan": v.get("lan", 0),
+                      "giay": v.get("giay")})
+            if len(d) > VET_MAX:
+                del d[:-VET_MAX]
+        return v
+
+
+# Dấu vết từng việc: ident -> [{luc, state, msg, tk, lan, giay}, …]
+# Đây là thứ trả lời "việc này đã đi qua những đâu", cái mà JOBS (chỉ giữ trạng
+# thái HIỆN TẠI) không bao giờ trả lời được.
+VET: dict[str, list] = {}
+VET_MAX = 40
+
+
+def vet_don(giu: int = 400) -> None:
+    """Cắt bớt sổ dấu vết khi quá nhiều việc — giữ lại `giu` việc mới nhất."""
+    if len(VET) <= giu:
+        return
+    for k in list(VET)[:-giu]:
+        VET.pop(k, None)
 
 
 JOBS: dict[str, dict] = _Jobs()
