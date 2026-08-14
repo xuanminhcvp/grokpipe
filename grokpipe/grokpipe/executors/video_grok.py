@@ -26,7 +26,7 @@ from . import common as C
 from .dom_grok import (
     DAU_TRANG_POST, JS_CHAN_DOAN, JS_CHU_TRONG_O_SOAN, JS_CLICK_LUOT_MOI,
     JS_CLICK_RADIO, JS_CLICK_TEXT, JS_CO_MODE_VIDEO, JS_CO_NUT_GUI,
-    JS_DAT_TEN_TAB, JS_DONG_DAU_VIDEO_CU, JS_HET_CREDIT, JS_NUT_DANG_CO,
+    JS_DAT_TEN_TAB, JS_DAU_VET_PHIEN, JS_DONG_DAU_VIDEO_CU, JS_HET_CREDIT, JS_NUT_DANG_CO,
     JS_RADIO_DA_CHON, JS_VIDEO_THAT, NHOM_PHAN_GIAI, NHOM_THOI_LUONG,
     SELECTORS, URL_IMAGINE, loi_mang,
 )
@@ -249,6 +249,37 @@ class GrokSession:
                 f"lượt mới {d.get('co_luot_moi') or 'không có'} · "
                 f"{d.get('so_video')} video | nút: {', '.join(d.get('nut') or [])[:140]}")
 
+    def _thay_tab(self) -> bool:
+        """Đóng tab đang kẹt, mở tab TRẮNG khác trên cùng cửa sổ Chrome.
+
+        Đường thoát cuối khi SPA cứ dựng lại lượt cũ: state đó sống trong tab,
+        nên đổi tab là mất sạch. Cookie đăng nhập nằm ở profile Chrome nên tab
+        mới vẫn đăng nhập — KHÔNG đụng gì tới cookie hay localStorage của phiên,
+        vì xoá nhầm là đăng xuất và board không được phép đăng nhập lại.
+
+        KHÔNG đi qua `_tim_tab()`: hàm đó cho slot 0 "nhận nuôi" một tab grok
+        chưa đánh dấu, mà tab đó rất có thể chính là tab đang kẹt của user.
+        """
+        if self._ctx is None:
+            return False
+        tag = f"{_TAG}{self.slot}"
+        cu = self.page
+        try:
+            pg = self._ctx.new_page()
+            pg.evaluate(JS_DAT_TEN_TAB, tag)
+        except Exception as e:
+            self.logger.warning("Grok: không mở được tab thay thế (%s)", str(e)[:80])
+            return False
+        self.page = pg
+        try:
+            if cu is not None and not cu.is_closed():
+                cu.evaluate(JS_DAT_TEN_TAB, "")   # nhả dấu, khỏi bị nhận lại
+                cu.close()
+        except Exception:
+            pass
+        self.logger.info("Grok: tab cũ kẹt ở lượt cũ → đã thay bằng tab mới (%s)", tag)
+        return True
+
     def _ve_trang_imagine(self) -> bool:
         """Đưa tab về ĐÚNG trang /imagine. Trang post KHÔNG có nút mode 'Video'
         (nó chỉ có 'Make video'), nên đứng nhầm trang là hỏng cả job.
@@ -261,14 +292,30 @@ class GrokSession:
           2. BẤM NÚT 'New Generation' — đi đúng luồng của chính giao diện, nên
              không bị khôi phục đè. Đây là đường thoát thật khi (1) trượt.
 
+          3. THAY TAB — đóng tab đang kẹt, mở tab trắng khác trên CÙNG cửa sổ.
+             Đây là đường chữa cho ca user báo 2026-08-14: "cứ treo ở một link
+             tạo video/ảnh cũ, reload xong cũng quay lại đó". Hai đường trên đều
+             thao tác TRÊN CHÍNH cái tab đã kẹt, nên mọi thứ SPA giữ trong bộ nhớ
+             tab (route đang xem, state của app) vẫn còn nguyên và nó dựng lại
+             đúng trang cũ. Tab mới không mang theo thứ gì trong số đó, mà cookie
+             đăng nhập nằm ở profile nên vẫn đăng nhập — không phải làm gì thêm.
+
         Lỗi MẠNG được tách riêng: ERR_QUIC_PROTOCOL_ERROR và họ hàng không phải
         chuyện selector, thử lại bao nhiêu lần cũng vô ích nếu không chữa đúng
         chỗ — nên nó được nêu đích danh trong log kèm cách chữa.
         """
         ma_mang = ""
         for lan in range(3):
+            # Lượt 2 (lượt cuối): đổi hẳn tab trước khi thử lại. Lượt 1: thêm một
+            # tham số vô hại vào URL — SPA khôi phục route theo đường dẫn, query
+            # lạ thường đủ để nó dựng trang trắng thay vì kéo lại lượt cũ.
+            dich = self.URL
+            if lan == 1:
+                dich = f"{self.URL}?gp={int(time.time())}"
+            elif lan == 2 and self._thay_tab():
+                dich = self.URL
             try:
-                self.page.goto(self.URL, wait_until="domcontentloaded")
+                self.page.goto(dich, wait_until="domcontentloaded")
             except Exception as e:
                 ma = loi_mang(e)
                 if ma:
@@ -306,6 +353,17 @@ class GrokSession:
                             return True
                     except Exception:
                         pass
+            # CHỤP DẤU VẾT PHIÊN khi kẹt. Không có nó thì lần sau vẫn chỉ có mỗi
+            # câu "chưa về được trang soạn" và lại phải ngồi đoán Grok nhớ lượt
+            # cũ ở đâu.
+            try:
+                _dv = self.page.evaluate(JS_DAU_VET_PHIEN)
+                self.logger.warning(
+                    "Grok: kẹt — url=%s · sessionStorage[%s] · localStorage[%s]",
+                    (_dv.get("url") or "")[:90], ",".join(_dv.get("ss") or []) or "-",
+                    ",".join(_dv.get("ls") or []) or "-")
+            except Exception:
+                pass
             self.logger.warning("Grok: chưa về được trang soạn (lượt %d/3) — %s",
                                 lan + 1, self._chan_doan())
         if ma_mang:
@@ -384,7 +442,7 @@ class GrokSession:
 
     # ------------------------------------------------------------------
     def generate(self, prompt: str, image_path: str, out_path: str,
-                 duration_s: float = 10.0, duong_them=None) -> bool:
+                 duration_s: float = 10.0, duong_them=None, nen_dung=None) -> bool:
         """Tạo video image-to-video, lưu mp4 ra out_path.
 
         MỘT submit của Grok đẻ ra NHIỀU clip (đo 2026-08-09: một lần bấm ra 3
@@ -393,8 +451,16 @@ class GrokSession:
 
         `duong_them` là hàm không tham số, gọi một lần trả về một đường dẫn mới
         để lưu bản THỪA (board truyền `BOARD.next_vversion`). Không truyền thì
-        giữ nguyên hành vi cũ: chỉ lấy một bản."""
+        giữ nguyên hành vi cũ: chỉ lấy một bản.
+
+        `nen_dung` là hàm không tham số trả bool — board truyền cờ "user bấm
+        dừng riêng". CHỈ SOI TRƯỚC KHI SUBMIT. Sau submit thì credit đã bị trừ
+        rồi, bỏ ngang là mất tiền mà không có clip: lượt đó cứ chạy nốt và lưu
+        về, còn cờ dừng chặn lượt SAU."""
         page = self.page
+        if nen_dung and nen_dung():
+            self.logger.info("Grok: user bấm dừng trước khi submit — không tiêu credit")
+            return False
         dur_label = "10s" if duration_s >= 8 else "6s"
 
         # CHỌN MODE TRƯỚC, UPLOAD SAU — thứ tự này quan trọng.
@@ -498,6 +564,11 @@ class GrokSession:
             raise
         except Exception:
             pass
+        # CỬA CUỐI TRƯỚC KHI TIÊU TIỀN. Từ dòng dưới trở đi credit đã trừ, nên
+        # đây là chỗ cuối cùng cờ dừng còn cứu được gì.
+        if nen_dung and nen_dung():
+            self.logger.info("Grok: user bấm dừng ngay trước submit — không tiêu credit")
+            return False
         if not self._bam_submit(15):
             raise C.ExecutorError(f"Không bấm được nút gửi. {self._chan_doan()}")
         self.logger.info("Grok: đã submit, chờ render...")

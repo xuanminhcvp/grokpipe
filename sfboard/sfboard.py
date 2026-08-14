@@ -361,6 +361,10 @@ GROK_ENDPOINTS: list[str] = []           # cờ --cdp-grok (như trên)
 # không phải sửa lệnh khởi động hay tự tay mở Chrome với đúng cờ nữa.
 ACCOUNTS: list[dict] = []      # {id, kind: img|vid, port, profile, enabled, tabs}
 MAX_TABS = 6                   # trần tab đồng thời trên MỘT tài khoản
+# Trần thử lại cho VIỆC VIDEO. Ảnh vẫn thử lại vô hạn (user chốt 2026-08-14);
+# video thì không, vì mỗi lượt Grok là credit thật — xem lý do đầy đủ ở nhánh
+# `except` của `_worker`.
+VID_MAX_TRY = 5
 ACC_PATH = os.path.expanduser("~/.grokpipe-accounts.json")
 PROJECTS_ROOT = ""       # thư mục chứa các *.project (bộ chọn dự án)
 SERVE_PORT = 0           # cổng board này đang phục vụ
@@ -963,7 +967,7 @@ def _release_tl():
 # phép thử mà không cần dựng board lẫn Chrome. Import thẳng tên vào đây: dict/
 # set/Queue là đối tượng dùng chung nên mọi điểm gọi cũ vẫn trỏ đúng một chỗ.
 from hangdoi import (                                          # noqa: E402
-    IMG_QUEUE, VID_QUEUE, JOBS, DA_HUY, HUY_LOCK, DUNG_RIENG,
+    IMG_QUEUE, VID_QUEUE, JOBS, DA_HUY, HUY_LOCK, DUNG_RIENG, TAY_SF,
     CHO_RIENG, CR_LOCK as _CR_LOCK, _HOAN,
     TRAN_MAY_TU_GOM, xep as _xep, lay as _lay, y_trong_hang as _y_trong_hang,
     vet_hang, dat_job as _dat_job, bi_huy as _bi_huy, uu_tien as _uu_tien,
@@ -1283,6 +1287,25 @@ def _xoay_chrome(endpoint: str, kind: str, ly_do: str) -> None:
     user tắt" — hiện lên giao diện, không còn cơ chế nào đọc để quyết định.
     """
     port = int((endpoint or ":0").rsplit(":", 1)[1] or 0)
+    # ⛔ KHÔNG XOAY KHI CỬA SỔ NÀY KHÔNG THUỘC LOẠI VIỆC ĐANG LỖI.
+    #
+    # `_pool("vid")` cho việc video chạy nhờ trên cửa sổ ChatGPT khi chưa bật
+    # tài khoản Grok nào. Cửa sổ đó gần như chắc chắn lỗi ("Không nối được
+    # Grok"), và bản cũ mang endpoint ChatGPT vào đây với kind="vid": danh sách
+    # ứng viên chỉ gồm tài khoản Grok nên nó hoặc TẮT cửa sổ ChatGPT để bật một
+    # cửa sổ Grok, hoặc — khi chỉ có một tài khoản Grok — rơi vào nhánh "cửa sổ
+    # duy nhất" và `_kill_chrome(port)` chính cái cửa sổ ChatGPT đang vẽ ảnh dở.
+    # Một việc video xếp nhầm giết cả lô ảnh, im lặng.
+    # So theo CỔNG, không so chuỗi endpoint: `_ep()` dựng "http://localhost:<p>"
+    # còn log/cấu hình chỗ khác hay dùng "127.0.0.1" — so chuỗi là chốt này im
+    # lặng bỏ qua đúng lúc cần nó nhất.
+    with ACC_LOCK:
+        _loai = next((x.get("kind") for x in ACCOUNTS if int(x.get("port") or 0) == port), None)
+    if _loai is not None and _loai != kind:
+        _LOG.warning("%s là cửa sổ %s nhưng đang chạy việc %s (chạy nhờ) — KHÔNG "
+                     "đóng/xoay cửa sổ này. Bật một tài khoản Grok để việc video "
+                     "chạy đúng chỗ.", _ten_tk(endpoint), _loai, kind)
+        return
     # CHỌN — TẮT — BẬT TRONG MỘT KHỐI KHOÁ, không tách ra ba nhịp.
     #
     # Hai chốt chống đua nằm cả ở đây:
@@ -1365,7 +1388,9 @@ def _xep_lai_sau(kind: str, item: tuple, giay: float) -> None:
     Q = IMG_QUEUE if kind == "img" else VID_QUEUE
 
     def _ban():
-        if dung_gen() != gen or _bi_huy(item[1]):
+        # ĐỌC CỜ HUỶ MÀ KHÔNG ĂN. Ăn cờ ở đây là thợ nhấc việc lên sau đó không
+        # thấy gì và chạy thật — đúng việc user vừa bấm huỷ.
+        if dung_gen() != gen or _bi_huy(item[1], an=False):
             return
         _xep(Q, item)
 
@@ -1437,13 +1462,16 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
             _TL.gen = CHROME_GEN["n"]
         stop = False
         try:
-            if kind == "img":
+            # CỜ HUỶ ÁP CHO CẢ HAI LOẠI VIỆC. Bản cũ đặt phép kiểm này BÊN TRONG
+            # nhánh `kind == "img"`, nên việc video đã bị user huỷ vẫn được thợ
+            # nhấc lên chạy — mà mỗi lượt Grok là credit thật (vá 2026-08-14).
+            if _bi_huy(ident):
+                _dat_job(ident, {"state": "error", "msg": "đã huỷ"})
+            elif kind == "img":
                 # ident "LO:sf1,sf2,…" = một LÔ ảnh cùng địa điểm, gửi trong MỘT
                 # lượt của MỘT đoạn chat. Đường lô nằm cạnh đường một-ảnh, không
                 # thay thế nó: sửa lẻ vẫn phải dùng đường một-ảnh.
-                if _bi_huy(ident):
-                    _dat_job(ident, {"state": "error", "msg": "đã huỷ"})
-                elif ident.startswith("LO:"):
+                if ident.startswith("LO:"):
                     _generate_lo([x for x in ident[3:].split(",") if x], tay=manual)
                     # DỌN JOB CỦA IDENT LÔ khi lô đã xong hẳn. `_dat_job` đặt
                     # JOBS["LO:a,b,c"] lúc lô phải chờ khoá địa điểm, nhưng
@@ -1499,10 +1527,26 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
             # xoay theo đúng luật, nhưng nói thẳng trên thẻ để khỏi ngồi đợi một
             # việc không bao giờ ra ảnh.
             ghi_chu = " ⚠ lỗi DỮ LIỆU — đổi cửa sổ không chữa được" if _loi_du_lieu(e) else ""
-            _dat_job(ident, {"state": "running",
-                             "msg": f"{_loi_gon(e)} → đổi tài khoản, thử lại "
-                                    f"sau {cho}s (lần {tries + 1}){ghi_chu}"})
-            _xep_lai_sau(kind, (kind, ident, tries + 1, manual), cho)
+            # ═══ VIDEO CÓ TRẦN, ẢNH THÌ KHÔNG ══════════════════════════════
+            # Luật "thử lại vô hạn" (user chốt 2026-08-14) viết cho ẢNH và đúng
+            # với ảnh: hỏng thì mất lượt, xoay tài khoản là chữa được.
+            #
+            # VIDEO khác về bản chất TIỀN: Grok trừ credit theo từng submit và
+            # trả 2 biến thể mỗi lượt. Một shot hỏng ở bước tải (CDN Grok ngắt —
+            # chuyện thường) mà thử lại vô hạn thì cứ ~3 phút lại tiêu ~2 credit,
+            # chạy qua đêm là cạn ví, còn trên giao diện nó chỉ hiện "đang chạy".
+            # Nên video dừng sau VID_MAX_TRY lượt và BÁO LỖI để user nhìn thấy.
+            if kind == "vid" and tries + 1 >= VID_MAX_TRY:
+                _dat_job(ident, {"state": "error",
+                                 "msg": f"{_loi_gon(e)} — đã thử {VID_MAX_TRY} lượt, "
+                                        f"dừng để khỏi đốt credit. Bấm 'Tạo lại' nếu "
+                                        f"muốn thử tiếp.{ghi_chu}"})
+                _LOG.warning("video %s dừng sau %d lượt: %s", ident, VID_MAX_TRY, _loi_gon(e))
+            else:
+                _dat_job(ident, {"state": "running",
+                                 "msg": f"{_loi_gon(e)} → đổi tài khoản, thử lại "
+                                        f"sau {cho}s (lần {tries + 1}){ghi_chu}"})
+                _xep_lai_sau(kind, (kind, ident, tries + 1, manual), cho)
         finally:
             _ban_ra(endpoint)
             if tu_hang:                 # việc lấy từ CHO_RIENG không qua queue
@@ -1525,8 +1569,16 @@ def _enqueue(kind: str, ident: str, copies: int = 1, manual: bool = False):
     else:
         with _BATCH_LOCK:
             BATCH.pop(ident, None)
-        JOBS[ident] = {"state": "running",
-                       "msg": "khởi động…" if n == 0 else f"đang xếp hàng ({n} việc trước)"}
+        # NHÃN 'CHỜ' CHỨ KHÔNG PHẢI 'ĐANG CHẠY' (vá 2026-08-14). Bản cũ đóng dấu
+        # `running` ngay lúc XẾP, nên xếp 307 video là 307 dòng "đang chạy" trong
+        # khi chỉ một thợ Grok làm thật. Ba thứ hỏng theo nó:
+        #   · `/api/huy` và `/api/huy-viec` chỉ nhận việc nhãn 'queued' → không
+        #     có cách nào huỷ hàng đợi video ngoài "Dừng tất cả";
+        #   · người gác chỉ cứu việc nhãn 'queued' → video rơi khỏi hàng là kẹt;
+        #   · `/api/jobs` đếm thợ bận theo nhãn → báo 307 thợ video đang bận.
+        # Thợ tự đóng dấu `running` ngay khi nhấc việc, nên không mất thông tin.
+        JOBS[ident] = {"state": "queued",
+                       "msg": "chờ · sắp tới lượt" if n == 0 else f"chờ · {n} việc trước"}
     for _ in range(copies):
         _xep(q, (kind, ident, 0, manual))
 
@@ -1621,6 +1673,30 @@ def _gac_hang_doi():
                 da_huy = set(DA_HUY)
             mo_coi = [k for k in mo_coi if k not in da_huy]
 
+            # TÁCH VIỆC VIDEO RA TRƯỚC KHI GOM LÔ.
+            #
+            # Từ 2026-08-14 việc video cũng mang nhãn 'queued' nên nó lọt vào đây
+            # — trước đó nó đội nhãn 'running' nên vô hình với người gác (và vì
+            # thế rơi khỏi hàng là kẹt mãi). Nhưng nhánh gom bên dưới coi MỌI
+            # ident không có tiền tố "LO:" là ảnh lẻ, gom thành lô rồi ném vào
+            # IMG_QUEUE — video mà đi đường đó thì thợ ChatGPT nhận một ident
+            # shot và cố vẽ ảnh cho nó.
+            #
+            # Nhận diện bằng SỔ SHOT của board, không bằng tiền tố "V-": tiền tố
+            # là quy ước đặt tên, mà quy ước thì dự án cũ có thể khác.
+            _shot_ids = {sh["id"] for sc in BOARD.read().get("scenes", [])
+                         for sh in sc.get("shots", [])} if mo_coi else set()
+            vid_mo_coi = [k for k in mo_coi if k in _shot_ids]
+            mo_coi = [k for k in mo_coi if k not in _shot_ids]
+            for k in vid_mo_coi:
+                if cuu.get(k, 0) >= 12:
+                    JOBS[k] = {"state": "error", "msg": "rơi khỏi hàng đợi 12 lần — bấm chạy lại"}
+                    continue
+                cuu[k] = cuu.get(k, 0) + 1
+                _xep(VID_QUEUE, ("vid", k, 0, False))
+                _LOG.warning("video %s mang nhãn 'chờ' mà không còn trong hàng đợi "
+                             "— đã xếp lại (lần %d)", k, cuu[k])
+
             # GOM LẠI THÀNH LÔ THEO ĐỊA ĐIỂM RỒI MỚI XẾP.
             # Xếp từng SF lẻ là hỏng: mỗi ảnh thành một lô một ảnh, tức mỗi ảnh
             # một lượt chat riêng — mất hết cái lợi của việc gom lô (ảnh cùng lô
@@ -1651,9 +1727,15 @@ def _gac_hang_doi():
                                        "msg": "rơi khỏi hàng đợi 12 lần — bấm chạy lại"}
                     continue
                 cuu[k] = cuu.get(k, 0) + 1
-                _xep(IMG_QUEUE, ("img", k, 0, False))
+                # GIỮ NGUYÊN CỜ TAY CỦA VIỆC GỐC. Xếp lại là KHÔI PHỤC một việc
+                # đã mất, không phải sinh việc mới — hạ cờ xuống False là đổi ý
+                # user thành ý máy, và lô user vừa bấm tạo lại bị bộ lọc "đã có
+                # ảnh" gạt sạch ngay ở lượt xếp lại đầu tiên.
+                _tay = any(x in TAY_SF for x in k[3:].split(",") if x)
+                _xep(IMG_QUEUE, ("img", k, 0, _tay))
                 _LOG.warning("việc %s mang nhãn 'chờ' mà không còn trong hàng đợi "
-                             "— đã xếp lại (lần %d)", k, cuu[k])
+                             "— đã xếp lại (lần %d%s)", k, cuu[k],
+                             ", giữ cờ tạo-tay" if _tay else "")
         except Exception as e:
             # Không nuốt im: người gác mà chết lặng thì bệnh nó phải chữa quay lại
             # y như cũ, lần sau lại mất cả buổi để lần ra.
@@ -2091,6 +2173,43 @@ def _grok():
     return s
 
 
+def _giu_dau_ban(data: dict) -> int:
+    """Giữ lại `picked`/`vpicked` của bản trên ĐĨA khi giao diện ghi đè board.
+
+    CỬA SỔ ĐUA THẬT, đã tính ra được: giao diện gom thao tác rồi POST NGUYÊN cả
+    board sau 450ms. Trong 450ms đó thợ có thể ghi xong một ảnh — `set_current`
+    + `_mark_picked` — và bản POST (chụp từ trước) không có dấu ấy, nên ghi đè là
+    xoá mất. Ảnh không mất (nó đã nằm trong assets/ và versions/), nhưng board
+    quên bản nào đang dùng: dãy bản không tô đúng ô, và mọi phép kiểm dựa vào
+    `picked` đọc ra chỗ trống.
+
+    HAI TRƯỜNG NÀY THUỘC VỀ THỢ, không thuộc giao diện. Người dùng đổi bản đang
+    dùng bằng đường riêng (`/api/pick-version`, `/api/pick-vversion`) chứ không
+    qua đây, nên lấy theo đĩa là luôn đúng.
+    """
+    try:
+        cu = BOARD.read()
+    except Exception:
+        return 0
+    dau_sf = {f["id"]: f.get("picked") for s in cu.get("scenes", [])
+              for f in s.get("sfs", []) if f.get("picked")}
+    dau_sh = {sh["id"]: sh.get("vpicked") for s in cu.get("scenes", [])
+              for sh in s.get("shots", []) if sh.get("vpicked")}
+    n = 0
+    for s in data.get("scenes", []):
+        for f in s.get("sfs", []):
+            v = dau_sf.get(f.get("id"))
+            if v and f.get("picked") != v:
+                f["picked"] = v; n += 1
+        for sh in s.get("shots", []):
+            v = dau_sh.get(sh.get("id"))
+            if v and sh.get("vpicked") != v:
+                sh["vpicked"] = v; n += 1
+    if n:
+        _LOG.info("giữ lại %d dấu bản-đang-dùng mà giao diện chưa kịp thấy", n)
+    return n
+
+
 def _sync_startframe(data: dict) -> int:
     """Dòng 'Start frame: X' trong prompt video PHẢI luôn khớp shot['sf'].
 
@@ -2178,9 +2297,22 @@ def _sf_attachments(sf: dict) -> tuple[list[str], list[str], list[str]]:
     return attach, missing, ids
 
 
-def _gen_video(shot_id: str):
+def _gen_video(shot_id: str) -> bool:
     """Chạy trong một luồng thợ. Lỗi hết lượt / cửa sổ chết được ném lên cho
-    worker phân loại và chuyển việc sang tài khoản khác."""
+    worker phân loại và chuyển việc sang tài khoản khác.
+
+    Trả False khi user bấm DỪNG RIÊNG — worker đọc cờ này để KHÔNG xếp lại.
+    Ném exception cho mọi lỗi thật."""
+    # NÚT ■ DỪNG RIÊNG PHẢI ĂN CẢ Ở ĐƯỜNG VIDEO (vá 2026-08-14). Trước đây
+    # `/api/dung-viec` vẫn nhận và vẫn ghi vào DUNG_RIENG, nhưng cờ đó chỉ được
+    # đọc trong `_generate_lo_ruot` — tức đường ẢNH. Thợ video không soi bao giờ,
+    # nên job nằm mãi ở "đang dừng…" trong khi Grok vẫn render và vẫn trừ credit.
+    if shot_id in DUNG_RIENG:
+        with HUY_LOCK:
+            DUNG_RIENG.discard(shot_id)
+        JOBS[shot_id] = {"state": "error", "msg": "đã dừng riêng — chưa tiêu credit"}
+        _LOG.info("video %s bị user dừng riêng trước khi chạy", shot_id)
+        return False
     sh, sc = BOARD.get_shot(shot_id)
     if not sh:
         raise RuntimeError("Không tìm thấy video này")
@@ -2207,10 +2339,20 @@ def _gen_video(shot_id: str):
                 with BOARD_LOCK:
                     return BOARD.next_vversion(shot_id)
             ok = g.generate(prompt, sf_file, out, duration_s=dur,
-                            duong_them=_duong_them)
+                            duong_them=_duong_them,
+                            nen_dung=lambda: shot_id in DUNG_RIENG)
             if ok and os.path.exists(out):
                 _dem_cong()
                 break
+            # PHÂN BIỆT "USER DỪNG" VỚI "GROK HỎNG". Cả hai đều cho ok=False,
+            # nhưng ném lỗi cho ca thứ nhất là vừa báo sai vừa đẩy việc vào vòng
+            # thử lại — đúng thứ user vừa bấm dừng để tránh.
+            if shot_id in DUNG_RIENG:
+                with HUY_LOCK:
+                    DUNG_RIENG.discard(shot_id)
+                JOBS[shot_id] = {"state": "error", "msg": "đã dừng riêng — chưa tiêu credit"}
+                _LOG.info("video %s: user bấm dừng trước lúc submit", shot_id)
+                return False
             raise RuntimeError("Grok không trả về video")
         except Exception as e:
             if attempt == 0 and _is_dead_session_error(e) and _endpoint_alive(_TL.endpoint):
@@ -2221,19 +2363,17 @@ def _gen_video(shot_id: str):
     if not ok or not out or not os.path.exists(out):
         raise RuntimeError("Grok không trả về video")
     with BOARD_LOCK:
-        # BẢN ĐÃ DUYỆT LÀ BẢN CHỐT: user bấm duyệt tức là chốt đúng bản đó để
-        # hiển thị và tải về. Bản render sau chỉ nằm trong versions/ để so, tuyệt
-        # đối không đè. Muốn thay thì user bỏ duyệt trước.
-        cur = BOARD.get_shot(shot_id)[0] or {}
-        if cur.get("vstatus") == "approved" and BOARD.video_file(shot_id):
-            _LOG.info("%s ĐÃ DUYỆT — giữ nguyên bản chốt, bản mới nằm ở versions/%s",
-                      shot_id, os.path.basename(out))
-            JOBS[shot_id] = {"state": "done",
-                             "msg": "xong — đã duyệt nên giữ bản cũ, bản mới ở dãy bản"}
-            return
+        # VIDEO MỚI VỀ THÌ ĐÈ, KỂ CẢ SHOT ĐÃ DUYỆT (user chốt 2026-08-14, cùng
+        # luật với ảnh SF). `vstatus: approved` là DẤU để user quản lý, không
+        # phải khoá kỹ thuật. Bản cũ vẫn nằm trong videos/versions/ nên chọn lại
+        # được. Giữ bản cũ như trước là đốt credit Grok mà màn hình không đổi gì
+        # — hỏng câm, đúng thứ khó lần nhất.
         BOARD.set_video(shot_id, out)
         _mark_picked(shot_id, "vpicked", os.path.basename(out))
+    with HUY_LOCK:               # lượt này xong rồi, cờ dừng không còn ý nghĩa
+        DUNG_RIENG.discard(shot_id)
     JOBS[shot_id] = {"state": "done", "msg": "xong"}
+    return True
 
 
 def _ten_gon(khoa: str | None, data: dict | None = None) -> str:
@@ -3095,14 +3235,14 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
                            {"turn": luot["turn"], "o": k, "port": port,
                             "at": luot.get("at") or ""})
         with BOARD_LOCK:
-            sf_now = BOARD.get_sf(i) or {}
-            if sf_now.get("status") == "approved" and BOARD.find_file(i):
-                JOBS[i] = {"state": "done",
-                           "msg": f"xong (lượt {luot['turn']}) — đã duyệt nên giữ bản cũ, "
-                                  f"bản mới ở dãy bản"}
-                continue
+            # ẢNH MỚI VỀ THÌ ĐÈ, KỂ CẢ THẺ ĐÃ DUYỆT (user chốt 2026-08-14).
+            # Bản cũ vẫn nằm nguyên trong `versions/` nên không mất gì — bấm lại
+            # trong dãy bản là quay về được. Trước đây nhánh này giữ bản cũ và
+            # đẩy bản mới xuống dãy bản: user chủ động bấm tạo lại mà thẻ không
+            # đổi, tốn lượt mà nhìn như hỏng câm.
             BOARD.set_current(i, out)
             _mark_picked(i, "picked", os.path.basename(out))
+        TAY_SF.discard(i)        # ảnh đã về → ý "tạo tay" coi như đã thực hiện
         JOBS[i] = {"state": "done", "msg": f"xong (lô · lượt {luot['turn']} #{k:02d})"}
     if hong:
         luot["ly_do"] = "chép vào versions/ lỗi ở " + ", ".join(hong[:4])
@@ -3504,7 +3644,9 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/board":
             data = json.loads(raw.decode("utf-8"))
             _sync_startframe(data)   # đổi SF trên board thì prompt phải đổi theo
-            BOARD.write(data)
+            with BOARD_LOCK:
+                _giu_dau_ban(data)
+                BOARD.write(data)
             self._json({"ok": True, "mtime": int(os.path.getmtime(BOARD.path))})
         elif u.path == "/api/upload":
             if not re.match(r"^[A-Za-z0-9_\-]+$", sf_id):
@@ -3551,6 +3693,7 @@ class Handler(BaseHTTPRequestHandler):
                            "msg": "chờ · 1 ảnh" if so_ban == 1
                                   else f"chờ · {so_ban} bản song song"}
             bo_co_huy("LO:" + sf_id, sf_id)   # user vừa bấm tạo → thắng cờ huỷ cũ
+            TAY_SF.add(sf_id)
             for _ in range(so_ban):
                 _xep(IMG_QUEUE, ("img", "LO:" + sf_id, 0, True))
             self._json({"ok": True, "qua_lo": True, "so_ban": so_ban})
@@ -3561,6 +3704,7 @@ class Handler(BaseHTTPRequestHandler):
             # có chỗ nào để nó ngó lại cờ huỷ giữa chừng.
             tang_dung_gen()      # thợ đang chạy dở soi số này, thấy đổi là không thử lại
             AUTO.clear()
+            TAY_SF.clear()       # dừng hết = bỏ mọi ý định tạo tay còn treo
             bo = 0
             for Q in (IMG_QUEUE, VID_QUEUE):
                 try:
@@ -3610,14 +3754,19 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/huy":
             # Chỉ vứt việc CHƯA chạy. Việc đang chạy phải để nó xong — cắt giữa
             # chừng là mất cả ảnh đã sinh mà không thu lại được.
+            # VÉT CẢ HAI HÀNG. Bản cũ chỉ vét IMG_QUEUE, nên bấm "Huỷ việc đang
+            # chờ" khi có 300 video xếp hàng thì báo "đã bỏ 0 việc" mà hàng video
+            # vẫn chạy tiếp — lối duy nhất để dừng là "Dừng tất cả", kéo theo
+            # đóng sạch Chrome và giết luôn việc ảnh đang chạy dở.
             bo = 0
-            try:
-                while True:
-                    it = IMG_QUEUE.get_nowait()[2]       # (prio, seq, item) → item
-                    _dat_job(it[1], {"state": "error", "msg": "đã huỷ khỏi hàng đợi"})
-                    IMG_QUEUE.task_done(); bo += 1
-            except queue.Empty:
-                pass
+            for Q in (IMG_QUEUE, VID_QUEUE):
+                try:
+                    while True:
+                        it = Q.get_nowait()[2]           # (prio, seq, item) → item
+                        _dat_job(it[1], {"state": "error", "msg": "đã huỷ khỏi hàng đợi"})
+                        Q.task_done(); bo += 1
+                except queue.Empty:
+                    pass
             # việc đã ra khỏi hàng nhưng thợ chưa bắt tay làm: ghi vào DA_HUY để
             # thợ tự bỏ. Ident lô là "LO:a,b,c" nên phải suy ngược từ SF thành viên.
             cho = {k for k, v in JOBS.items() if v.get("state") == "queued"}
@@ -3665,8 +3814,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "err": "việc này không đang chạy"}); return
             with HUY_LOCK:
                 DUNG_RIENG.add(sf)
-            JOBS[sf] = {"state": "running", "msg": "đang dừng… (thợ soi cờ mỗi 5s)"}
-            self._json({"ok": True, "sf": sf})
+            # VIDEO CHỈ DỪNG ĐƯỢC TRƯỚC KHI SUBMIT. Sau khi đã bấm gửi thì Grok
+            # đã trừ credit — bỏ ngang là mất tiền mà không có clip, nên lượt đó
+            # chạy nốt và lưu về. Nói thẳng trên nhãn để user không ngồi đợi một
+            # cú dừng không tới.
+            _la_vid = BOARD.get_shot(sf)[0] is not None
+            JOBS[sf] = {"state": "running",
+                        "msg": "đang dừng… (chỉ cắt được nếu Grok CHƯA submit; đã "
+                               "submit thì chạy nốt vì credit đã trừ)" if _la_vid
+                               else "đang dừng… (thợ soi cờ mỗi 5s)"}
+            self._json({"ok": True, "sf": sf, "video": _la_vid})
         elif u.path == "/api/huy-viec":
             # HUỶ ĐÚNG MỘT VIỆC, không phải cả hàng đợi.
             #
@@ -3680,6 +3837,15 @@ class Handler(BaseHTTPRequestHandler):
             if JOBS.get(sf, {}).get("state") == "running":
                 self._json({"ok": False, "err": "việc này ĐANG CHẠY — không cắt giữa "
                                                 "chừng được. Dùng '⏹ Dừng tất cả'."}); return
+            # VIỆC VIDEO: một shot là một việc rời, không có lô để xé — chỉ cần
+            # đánh cờ huỷ rồi thợ tự bỏ khi nhấc tới. Bản cũ không có nhánh này
+            # nên mọi ident video rơi xuống vòng quét "LO:…" bên dưới, không khớp
+            # gì cả và trả về "đã huỷ 0 lô" trong khi việc vẫn nằm nguyên.
+            if BOARD.get_shot(sf)[0] is not None:
+                with HUY_LOCK:
+                    DA_HUY.add(sf)
+                JOBS[sf] = {"state": "error", "msg": "đã huỷ riêng việc này"}
+                self._json({"ok": True, "video": True}); return
             bo, con_lai = [], []
             for k, v in list(JOBS.items()):
                 if not k.startswith("LO:") or v.get("state") != "queued":
@@ -3727,6 +3893,7 @@ class Handler(BaseHTTPRequestHandler):
             # nên không chung chat được, và mỗi cái chạy chat trắng của chính nó.
             for i in sorted(can, key=_uu_tien):
                 JOBS[i] = {"state": "queued", "msg": "chờ chạy ảnh gốc địa điểm"}
+                TAY_SF.add(i)
                 _xep(IMG_QUEUE, ("img", "LO:" + i, 0, True))
             _LOG.info("chạy %d thẻ địa điểm: %s", len(can), ", ".join(can))
             self._json({"ok": True, "so": len(can), "ds": can})
@@ -3847,6 +4014,7 @@ class Handler(BaseHTTPRequestHandler):
                     so_lo += 1
                     ident = "LO:" + ",".join(lo)
                     bo_co_huy(ident, *lo)   # user vừa bấm tạo → thắng cờ huỷ cũ
+                    TAY_SF.update(lo)       # …và giữ cờ tạo-tay nếu phải xếp lại
                     for i in lo:
                         JOBS[i] = {"state": "queued",
                                    "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m)}"
@@ -4219,8 +4387,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "err": "op không hợp lệ"}, 400)
         # ---------- video ----------
         elif u.path == "/api/genvideo":
-            if JOBS.get(sf_id, {}).get("state") == "running":
-                self._json({"ok": False, "err": "đang chạy"}); return
+            if JOBS.get(sf_id, {}).get("state") in ("running", "queued"):
+                self._json({"ok": False, "err": "việc này đã ở trong hàng đợi"}); return
+            # KIỂM TRƯỚC KHI XẾP, không để thợ phát hiện hộ. Ba lỗi dữ liệu dưới
+            # đây đổi tài khoản không chữa được, mà thợ thì cứ xoay và thử lại —
+            # trước khi có trần VID_MAX_TRY thì là thử lại vô hạn. Hai đường kia
+            # (/api/video-lo và auto) đã lọc sẵn; riêng nút "Tạo lại" trên từng
+            # dòng thì không, nên nó là lối duy nhất đẩy được rác vào hàng.
+            _sh = BOARD.get_shot(sf_id)[0]
+            if _sh is None:
+                self._json({"ok": False, "err": f"không có dòng {sf_id}"}, 404); return
+            if not (_sh.get("prompt") or "").strip():
+                self._json({"ok": False, "err": "dòng này chưa có prompt video"}, 400); return
+            if not BOARD.find_file(_sh.get("sf") or ""):
+                self._json({"ok": False,
+                            "err": f"start frame {_sh.get('sf') or '(chưa gán)'} chưa có ảnh"},
+                           400); return
+            bo_co_huy(sf_id)          # user vừa bấm tạo → thắng cờ huỷ cũ
             _enqueue("vid", sf_id)
             self._json({"ok": True})
         elif u.path == "/api/video-lo":
@@ -4228,14 +4411,23 @@ class Handler(BaseHTTPRequestHandler):
             # truyền gì). Mỗi video là MỘT việc riêng: Grok chỉ nhận một ảnh và
             # một prompt mỗi lượt, không gom lô như ảnh SF được.
             _sid = (q.get("scene", [""])[0] or "").strip()
+            # `lai=1` — CHẾ ĐỘ TẠO LẠI: nhận cả shot ĐÃ CÓ video. Không có cờ này
+            # thì phim dựng xong không còn lối làm lại hàng loạt, chỉ còn bấm
+            # từng dòng một. Video mới đè lên bản đang dùng, bản cũ vẫn nằm trong
+            # videos/versions/.
+            _lai = (q.get("lai", [""])[0] or "") in ("1", "true", "yes")
             _d = BOARD.read()
-            _xep, _bo = [], {"co_video": 0, "thieu_sf": 0, "thieu_prompt": 0, "dang_chay": 0}
+            # TÊN BIẾN KHÔNG ĐƯỢC TRÙNG HÀM `_xep()` Ở TẦNG MODULE. Gán ở đây là
+            # Python coi `_xep` LÀ BIẾN CỤC BỘ CỦA CẢ `do_POST`, nên mọi nhánh
+            # khác trong cùng hàm gọi `_xep(...)` đều nổ UnboundLocalError —
+            # /api/tao-lo, /api/generate, /api/master chết câm suốt từ lúc thêm
+            # nhánh này (2026-08-13), lỗi chỉ hiện trong log server.
+            _ds, _bo = [], {"co_video": 0, "thieu_sf": 0, "thieu_prompt": 0, "dang_chay": 0}
             for sc in _d.get("scenes", []):
                 if _sid and sc["id"] != _sid:
                     continue
-                _anh = {f["id"] for f in sc.get("sfs", []) if f.get("image")}
                 for sh in sc.get("shots", []):
-                    if sh.get("video"):
+                    if sh.get("video") and not _lai:
                         _bo["co_video"] += 1; continue
                     if not (sh.get("prompt") or "").strip():
                         _bo["thieu_prompt"] += 1; continue
@@ -4245,14 +4437,15 @@ class Handler(BaseHTTPRequestHandler):
                         _bo["thieu_sf"] += 1; continue
                     if JOBS.get(sh["id"], {}).get("state") in ("running", "queued"):
                         _bo["dang_chay"] += 1; continue
-                    _xep.append(sh["id"])
-            for i in _xep:
+                    _ds.append(sh["id"])
+            for i in _ds:
                 _enqueue("vid", i)
-            _LOG.info("xếp %d video%s — bỏ qua: %d đã có video · %d thiếu ảnh SF · "
-                      "%d thiếu prompt · %d đang chạy", len(_xep),
-                      f" của {_sid}" if _sid else " (cả phim)", _bo["co_video"],
+            _LOG.info("xếp %d video%s%s — bỏ qua: %d đã có video · %d thiếu ảnh SF · "
+                      "%d thiếu prompt · %d đang chạy", len(_ds),
+                      f" của {_sid}" if _sid else " (cả phim)",
+                      " [TẠO LẠI]" if _lai else "", _bo["co_video"],
                       _bo["thieu_sf"], _bo["thieu_prompt"], _bo["dang_chay"])
-            self._json({"ok": True, "so": len(_xep), "bo": _bo})
+            self._json({"ok": True, "so": len(_ds), "bo": _bo})
         elif u.path == "/api/upload-video":
             if not re.match(r"^[A-Za-z0-9_\-]+$", sf_id):
                 self._json({"ok": False, "err": "id không hợp lệ"}, 400); return

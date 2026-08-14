@@ -260,8 +260,14 @@ function veHangDoi() {
   // tưởng chúng chạy lần lượt, trong khi cả nhóm đi chung MỘT lượt.
   if (QVIEW === 'live' && cho.length) {
     const theoTask = new Map();      // ident lô → [SF con đang chờ]
-    const moCoi = [];
+    const moCoi = [], choVid = [];
+    // VIDEO KHÔNG CÓ TASK. Grok nhận một ảnh + một prompt mỗi lượt, nên mỗi
+    // video là một việc rời — vẽ chúng theo khuôn task thì "Chạy hết video" của
+    // cả phim đẻ ra 300 khối "Task N · 1 ảnh", vừa sai chữ vừa không đọc nổi.
+    // Gom hết vào MỘT khối, liệt kê bằng chip như thành viên của một task.
+    const dsVid = new Set(QHANG.video || []);
     for (const [id, j] of cho) {
+      if (dsVid.has(id)) { choVid.push([id, j]); continue }
       const k = qViTri(id);
       if (k < 0) { moCoi.push([id, j]); continue }
       const key = [...(QHANG.anh || []), ...(QHANG.video || [])][k];
@@ -271,6 +277,7 @@ function veHangDoi() {
     const dsTask = [...theoTask.entries()]
       .sort((a, b) => qViTri(a[1][0][0]) - qViTri(b[1][0][0]));
     h += `<div class="qg"><b>⏳ Đang chờ</b> <span class="hint">${dsTask.length} task`
+      + `${choVid.length ? ' + ' + choVid.length + ' video' : ''}`
       + `${moCoi.length ? ' + ' + moCoi.length + ' mồ côi' : ''}</span>`
       + `<div class="hint" style="font-size:11px;margin:2px 0 6px">${esc(qViSao())}</div>`;
     dsTask.forEach(([key, ds], idx) => {
@@ -288,6 +295,20 @@ function veHangDoi() {
         ${ghi ? `<div class="hint" style="font-size:11px;margin-top:3px">${esc(ghi.slice(0, 120))}</div>` : ''}
       </div>`;
     });
+    if (choVid.length) {
+      const thu = id => (QHANG.video || []).indexOf(id);
+      choVid.sort((a, b) => (thu(a[0]) + 1 || 9e9) - (thu(b[0]) + 1 || 9e9));
+      h += `<div class="qtask">
+        <div class="qth"><span class="qstt">🎬</span>
+          <b>Video</b>
+          <span class="hint">${choVid.length} lượt Grok · chạy lần lượt, mỗi lượt TỐN CREDIT</span>
+          <span style="flex:1"></span>
+          <span class="t">${dsTask.length ? 'song song với ảnh' : 'kế tiếp'}</span>
+        </div>
+        <div class="qtb">${choVid.map(([id]) => `<span class="qsf" title="Huỷ ${esc(id)} khỏi hàng đợi"
+             onclick="huyMotViec('${esc(id)}')">${esc(id)} ✕</span>`).join('')}</div>
+      </div>`;
+    }
     for (const [id, j] of moCoi)
       h += `<div class="qi" title="${esc(j.msg || '')}"><span class="d" style="background:#dc2626"></span>
         <span class="n">${esc(id)}</span><span class="t">mồ côi ⟳</span></div>`;
@@ -1069,7 +1090,7 @@ function render() {
   <span style="flex:1"></span>
   <span class="sfdens ${nsf && coanh === nsf ? 'ok' : ''}"
     title="${coanh}/${nsf} SF của scene này đã có ảnh">${coanh}/${nsf}</span>
-  ${autoBtn(sc)}
+  ${autoBtn(sc, true)}
   ${nutTask(sc, list)}
   <button class="sm" onclick="tickScene('${sc.id}')"
     title="Tích mọi thẻ đang hiện của scene này để 'Tạo lại theo lô'">☑ Chọn hết</button>
@@ -1148,9 +1169,53 @@ async function toggleAuto(id) {
     { method: 'POST' })).json();
   AUTO = r.auto || {}; render();
 }
-function autoBtn(sc) {
+// SCENE ĐÃ ĐỦ ẢNH MÀ USER VẪN MUỐN VẼ LẠI — đường riêng, KHÔNG đi qua auto.
+//
+// Vòng quét nền sinh ra để LẤP CHỖ TRỐNG: nó chọn việc bằng `find_file()` (thẻ
+// nào chưa có ảnh) và đẩy hàng với `tay=False`, nên bộ lọc "đã có ảnh" ở tầng
+// gửi chặn lần thứ hai. Ép nó tạo lại là đi ngược cả hai tầng. Đường này chia
+// task y hệt nút T rồi bắn thẳng qua `/api/tao-lo` — cùng lối với "▶ Tạo ảnh đã
+// chọn", tức `tay=True`, đè được, và vẫn nằm đủ trong hàng chờ để theo dõi.
+async function chayLaiScene(sid) {
+  const sc = DATA.scenes.find(s => s.id === sid);
+  if (!sc) return;
+  const ts = taskCua(sc.sfs.filter(f => (f.prompt || '').trim()), true);
+  const n = ts.reduce((s, ds) => s + ds.length, 0);
+  if (!n) { bao(`Scene ${sid} không có thẻ nào có prompt để chạy.`); return }
+  const nDuyet = sc.sfs.filter(f => f.status === 'approved').length;
+  const coDD = sc.sfs.some(f => f.luatchung);
+  if (!await hoi(`Scene ${sid} đã đủ ảnh. TẠO LẠI toàn bộ ${n} thẻ (${ts.length} task)?\n\n`
+    + `Ảnh mới sẽ ĐÈ lên ảnh đang dùng — bản cũ vẫn nằm trong dãy bản của thẻ.\n`
+    + (nDuyet ? `${nDuyet} thẻ đang ở trạng thái ĐÃ DUYỆT: chúng cũng bị đè.\n` : '')
+    + (coDD ? `Scene có thẻ địa điểm: nó chạy lại cùng lượt với các thẻ con, nên\n`
+      + `lứa con này vẫn bám ảnh địa điểm CŨ. Muốn khớp look thì chạy thẻ địa điểm\n`
+      + `trước, duyệt nó, rồi mới tạo lại phần còn lại.\n` : '')
+    + `\nMỗi task là một tin nhắn ChatGPT và TỐN LƯỢT.`,
+    { dong: `Tạo lại ${n} ảnh` })) return;
+  let ok = 0, loi = [];
+  for (const ds of ts) {
+    const r = await (await fetch('/api/tao-lo?sf=' + encodeURIComponent(ds.map(f => f.id).join(',')),
+      { method: 'POST' })).json();
+    if (r.err) loi.push(r.err); else ok += ds.length;
+  }
+  $('#runstatus').textContent = `đã xếp ${ok} ảnh của ${sid} để tạo lại`
+    + (loi.length ? ` · ${loi.length} task bị chặn` : '');
+  if (loi.length) bao(`Có ${loi.length} task không xếp được:\n\n` + loi.slice(0, 3).join('\n'));
+  setTimeout(() => $('#runstatus').textContent = '', 9000);
+}
+
+// `laiOK` — CHỈ TAB START FRAMES được đổi nút sang "tạo lại". Ở tab Kịch bản,
+// cùng nút này còn lo VIDEO: scene đủ ảnh mà thiếu video vẫn phải bật auto được,
+// đổi vai ở đó là cắt mất lối chạy video của scene.
+function autoBtn(sc, laiOK) {
   const on = AUTO.hasOwnProperty(sc.id);
   const st = AUTO[sc.id] || {};
+  // Scene đủ ảnh và auto đang tắt → nút đổi vai thành "tạo lại". Không ẩn đi:
+  // ẩn nút là mất luôn lối vẽ lại cả scene, mà đó đúng là lúc user cần nó nhất.
+  if (laiOK && !on && sc.sfs.length && sc.sfs.every(f => f.image))
+    return `<button class="sm re-b" onclick="chayLaiScene('${sc.id}')"
+      title="Scene đã đủ ảnh. Bấm để TẠO LẠI toàn bộ: board chia task ≤10 ảnh cùng địa điểm rồi đẩy hết vào hàng chờ. Ảnh mới đè lên ảnh cũ, bản cũ vẫn nằm trong dãy bản."
+      >↻ Tạo lại hết</button>`;
   // TỰ ĐẾM KHI SERVER CHƯA KỊP TRẢ SỐ. Số liệu này do vòng quét nền ghi ra, mà
   // vòng đó chạy theo nhịp riêng — bản cũ hiện "⏳ đang quét…" cho tới lượt quét
   // kế tiếp, nên bấm xong nhìn như bấm hụt. Dữ liệu để đếm đã nằm sẵn ở đây.
@@ -1248,7 +1313,15 @@ async function chayHetPhim() {
   }
   const thieu = DATA.scenes.filter(s => s.id !== 'REF' && s.sfs.some(f => !f.image));
   const n = thieu.reduce((s, sc) => s + sc.sfs.filter(f => !f.image).length, 0);
-  if (!thieu.length) { bao('Mọi scene đã đủ ảnh — không có gì để chạy.'); return }
+  if (!thieu.length) {
+    // KHÔNG tự tạo lại cả phim ở đây. Nút này là "lấp chỗ thiếu"; tạo lại vài
+    // trăm ảnh một phát vì bấm nhầm là mất cả ngày lượt. Muốn vẽ lại thì vào
+    // từng scene — ở đó nút đã đổi thành "↻ Tạo lại hết" và có hỏi xác nhận.
+    bao('Mọi scene đã đủ ảnh — không còn gì để lấp.\n\n'
+      + 'Muốn VẼ LẠI thì vào từng scene: nút "↻ Tạo lại hết" ở đầu scene, '
+      + 'hoặc các nút T1↻ / T2↻ để tạo lại từng task 10 ảnh.');
+    return;
+  }
   if (!await hoi(`Chạy hết ${n} ảnh còn thiếu của ${thieu.length} scene?\n\n`
     + `Board tự chia task ≤10 ảnh cùng địa điểm rồi đẩy lần lượt vào hàng chờ,\n`
     + `lỗi thì tự bắn lại, xong scene nào tự tắt scene đó.\n\n`
@@ -1275,21 +1348,31 @@ function veChayHetPhim() {
 // một prompt mỗi lượt, nên đây là xếp từng việc rời vào hàng đợi.
 async function chayHetVideo(sid) {
   const scs = DATA.scenes.filter(s => !sid || s.id === sid);
-  const dem = scs.reduce((n, sc) => n + (sc.shots || []).filter(sh => {
+  const dung = sh => {
     const f = sfById(sh.sf);
-    return !sh.video && (sh.prompt || '').trim() && f && f.image;
-  }).length, 0);
-  if (!dem) {
-    bao(sid ? `Scene ${sid} không có video nào cần chạy.`
-      : 'Không có video nào cần chạy — mọi dòng đã có video, hoặc thiếu prompt / ảnh SF.');
+    return (sh.prompt || '').trim() && f && f.image;
+  };
+  const dem = scs.reduce((n, sc) => n + (sc.shots || []).filter(sh => !sh.video && dung(sh)).length, 0);
+  // ĐỦ VIDEO RỒI THÌ CHUYỂN SANG TẠO LẠI, KHÔNG BÁO "không có gì để chạy"
+  // (cùng luật với nút ảnh, user chốt 2026-08-14). Phim dựng xong mà nút này
+  // câm thì không còn lối làm lại hàng loạt, chỉ còn bấm từng dòng.
+  const lai = !dem;
+  const demLai = scs.reduce((n, sc) => n + (sc.shots || []).filter(dung).length, 0);
+  const so = lai ? demLai : dem;
+  if (!so) {
+    bao(sid ? `Scene ${sid} không có dòng nào chạy được — thiếu prompt hoặc ảnh SF chưa vẽ.`
+      : 'Không có dòng nào chạy được — mọi dòng đều thiếu prompt hoặc ảnh SF chưa vẽ.');
     return;
   }
-  if (!await hoi(`Tạo ${dem} video${sid ? ' của ' + sid : ' của cả phim'}?\n\n`
+  if (!await hoi(
+    (lai ? `Mọi dòng đã có video. TẠO LẠI ${so} video${sid ? ' của ' + sid : ' của cả phim'}?\n\n`
+      + `Video mới ĐÈ lên bản đang dùng — bản cũ vẫn nằm trong dãy bản của dòng đó.\n`
+      : `Tạo ${so} video${sid ? ' của ' + sid : ' của cả phim'}?\n\n`)
     + `Mỗi video là một lượt Grok riêng và TỐN CREDIT.\n`
-    + `Bỏ qua dòng đã có video, thiếu prompt, hoặc ảnh SF chưa vẽ xong.`,
-    { dong: `Tạo ${dem} video` })) return;
-  const r = await (await fetch('/api/video-lo' + (sid ? '?scene=' + encodeURIComponent(sid) : ''),
-    { method: 'POST' })).json();
+    + `Bỏ qua dòng thiếu prompt hoặc ảnh SF chưa vẽ xong.`,
+    { dong: (lai ? 'Tạo lại ' : 'Tạo ') + so + ' video' })) return;
+  const qs = [sid ? 'scene=' + encodeURIComponent(sid) : '', lai ? 'lai=1' : ''].filter(Boolean).join('&');
+  const r = await (await fetch('/api/video-lo' + (qs ? '?' + qs : ''), { method: 'POST' })).json();
   const b = r.bo || {};
   $('#runstatus').textContent = `đã xếp ${r.so} video`
     + (b.co_video ? ` · bỏ ${b.co_video} đã có` : '')
@@ -1946,14 +2029,17 @@ function khoaNhom(f) {
 }
 
 // Hai luật khi chia:
-//   1. CHỈ THẺ CHƯA CÓ ẢNH. Nút này để TẠO, mà thẻ đã có ảnh thì board bỏ qua
-//      khi chạy — chia theo tổng số thì "T1 (10)" thực chất gửi 3 ảnh.
+//   1. MẶC ĐỊNH CHỈ THẺ CHƯA CÓ ẢNH. Nút này để TẠO, mà thẻ đã có ảnh thì vòng
+//      quét nền bỏ qua — chia theo tổng số thì "T1 (10)" thực chất gửi 3 ảnh.
+//      `lai=true` là CHẾ ĐỘ TẠO LẠI: chia trên MỌI thẻ, dùng khi scene đã đủ
+//      ảnh mà user vẫn muốn vẽ lại. Đường tạo tay (`/api/tao-lo`) chạy với
+//      `tay=True` nên không bị bộ lọc "đã có ảnh" gạt — chia được là chạy được.
 //   2. MỘT TASK = MỘT NHÓM (địa điểm, hoặc nhân vật với thẻ REF). Một tin nhắn
 //      chỉ mang được một khối `luatchung`, nên lô lẫn hai địa điểm bị board CHẶN
 //      THẲNG. Đã đo trên phim này: S12 có 2 địa điểm, S15 có 2 — chia thuần theo
 //      thứ tự là hai scene đó bấm phát nào chặn phát ấy.
-function taskCua(list) {
-  const con = list.filter(f => !f.image);
+function taskCua(list, lai) {
+  const con = lai ? list.slice() : list.filter(f => !f.image);
   const theoBg = new Map();
   for (const f of con) {
     const k = khoaNhom(f);
@@ -1973,28 +2059,50 @@ function taskCua(list) {
 // bộ lọc trên header có thể đang giấu bớt thẻ, và giữa hai thời điểm có thể vừa
 // có ảnh mới về — nút ghi "10" mà tích ra 7 thẻ thì không ai hiểu vì sao.
 let TASKS = {};
+let TASKS_LAI = {};        // scene nào đang ở CHẾ ĐỘ TẠO LẠI (đã đủ ảnh)
 
 function nutTask(sc, list) {
-  const ts = taskCua(list);
+  // SCENE ĐỦ ẢNH THÌ CHUYỂN SANG CHIA TẠO LẠI, KHÔNG BIẾN MẤT (user chốt
+  // 2026-08-14). Bản cũ ẩn nút T ngay khi scene hết thẻ thiếu — nhìn ra thành
+  // "scene này có T, scene kia không" mà chẳng lý do nào hiện ở đâu, và user
+  // muốn vẽ lại một scene thì không còn lối nào ngoài tích tay từng thẻ.
+  let lai = false;
+  let ts = taskCua(list, false);
+  if (!ts.length) { lai = true; ts = taskCua(list, true); }
   TASKS[sc.id] = ts.map(ds => ds.map(f => f.id));
+  TASKS_LAI[sc.id] = lai;
   // HIỆN CẢ KHI CHỈ CÓ MỘT TASK. Trước đây ẩn đi cho gọn, nhưng thành ra scene
   // này có T scene kia không, và không ai đoán được vì sao — mà lý do (10 thẻ
   // là ranh giới) chẳng hiện ở đâu cả.
   if (!ts.length) return '';
+  const mo = ds => `${lai ? 'TẠO LẠI ' : ''}${ds.length} thẻ: `
+    + ds.slice(0, 4).map(f => f.id).join(', ') + (ds.length > 4 ? '…' : '');
+  // QUÁ NHIỀU TASK THÌ THẢ XUỐNG, KHÔNG RẢI NÚT (user báo 2026-08-14).
+  // REF chia theo NHÂN VẬT chứ không theo địa điểm, mà mỗi nhân vật chỉ 1–3 thẻ
+  // — 136 thẻ ra 22 task tí hon, hàng nút tràn ngang và bóp nút bên cạnh thành
+  // chữ dọc. Ngưỡng 8 là chỗ hàng nút bắt đầu chiếm quá nửa dòng tiêu đề.
+  if (ts.length > 8)
+    return `<select class="sm tsel ${lai ? 're-b' : ''}" title="Chọn nhanh một task"
+        onchange="if(this.value!=='')tickTask('${sc.id}',+this.value); this.value=''">
+      <option value="">T ▾ ${ts.length} task${lai ? ' (tạo lại)' : ''}</option>`
+      + ts.map((ds, i) => `<option value="${i}">T${i + 1} · ${mo(ds)}</option>`).join('')
+      + `</select>`;
   return ts.map((ds, i) =>
-    `<button class="sm" onclick="tickTask('${sc.id}',${i})"
-       title="Tích ${ds.length} thẻ chưa có ảnh: ${ds.slice(0, 4).map(f => f.id).join(', ')}${ds.length > 4 ? '…' : ''}"
-     >T${i + 1}<i class="tn">${ds.length}</i></button>`).join('');
+    `<button class="sm ${lai ? 're-b' : ''}" onclick="tickTask('${sc.id}',${i})"
+       title="${lai ? 'Scene đã đủ ảnh — tích để TẠO LẠI (ảnh mới đè lên ảnh cũ, bản cũ vẫn nằm trong dãy bản). '
+                    : 'Tích các thẻ chưa có ảnh. '}${mo(ds)}"
+     >T${i + 1}${lai ? '↻' : ''}<i class="tn">${ds.length}</i></button>`).join('');
 }
 
 function tickTask(sid, idx) {
   const ds = (TASKS[sid] || [])[idx] || [];
-  if (!ds.length) { bao('Task này không còn thẻ nào chưa có ảnh.'); return }
+  if (!ds.length) { bao('Task này không còn thẻ nào.'); return }
   TICK.clear();                        // chọn task là chọn ĐÚNG task đó, không cộng dồn
   ds.forEach(id => TICK.add(id));
   document.querySelectorAll('input[data-tick]').forEach(e => { e.checked = TICK.has(e.dataset.tick) });
   veLoBar();
-  $('#runstatus').textContent = `Task ${idx + 1}: đã chọn ${ds.length} thẻ của ${sid}`;
+  $('#runstatus').textContent = `Task ${idx + 1}: đã chọn ${ds.length} thẻ của ${sid}`
+    + (TASKS_LAI[sid] ? ' — TẠO LẠI, ảnh mới sẽ đè lên ảnh cũ' : '');
   setTimeout(() => $('#runstatus').textContent = '', 4000);
 }
 

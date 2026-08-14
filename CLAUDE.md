@@ -8,11 +8,16 @@ Repo này sản xuất phim drama ngắn bằng pipeline hai chặng:
 ## ⛔ LUẬT CỨNG
 
 Không tự ý sửa skill, chỉ sửa khi user bảo sửa. 
-## ⛔ LUẬT CỨNG — KHÔNG ĐỘNG VÀO BẢN ĐÃ DUYỆT
+## ⛔ LUẬT CỨNG — KHÔNG TỰ Ý ĐỘNG VÀO ẢNH/VIDEO ĐANG DÙNG
 
-Ảnh SF `status: approved` và video `vstatus: approved` là **bản user đã chốt**.
-Không xoá, không ghi đè, không crop, không "nâng cấp" lên bản nét hơn trong `versions/`.
-Nghi bản đã duyệt bị sai thì **báo user**, để user quyết. Muốn thay phải bỏ duyệt trước.
+`approved` chỉ là **dấu để user nhìn cho dễ quản lý**, không phải khoá kỹ thuật
+(user chốt 2026-08-14). User chủ động bấm tạo lại thì ảnh mới **đè lên bản đang
+dùng, kể cả thẻ đã duyệt** — bản cũ vẫn nằm nguyên trong `versions/` nên không
+mất gì.
+
+Cái bị cấm là **AI tự ý**: không xoá, không crop, không "nâng cấp" lên bản nét
+hơn trong `versions/` khi user không bảo. Nghi bản đang dùng bị sai thì **báo
+user**, để user quyết.
 
 Ảnh user tự dán vào là **bản chuẩn tuyệt đối**, kể cả khi độ phân giải thấp.
 

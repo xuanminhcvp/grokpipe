@@ -230,6 +230,61 @@ class ChatGPTSession:
         pg.evaluate("n => { window.name = n }", tag)
         return pg
 
+    def _la_chat_cu(self, page) -> bool:
+        """Tab đang đứng trong một đoạn chat CÓ SẴN chứ không phải trang trắng.
+
+        Nhận bằng ĐƯỜNG DẪN `/c/<id>` — dấu hiệu ổn định nhất của ChatGPT, và
+        không phụ thuộc ngôn ngữ giao diện (luật "bám thuộc tính, đừng bám chữ").
+        """
+        try:
+            return "/c/" in (page.url or "")
+        except Exception:
+            return False
+
+    def _ve_chat_trang(self, page) -> bool:
+        """Bảo đảm tab đang ở TRANG TRẮNG. Ba đường, thử lần lượt.
+
+        1. Đang trắng sẵn → xong.
+        2. `goto` lại trang gốc — chữa được ca SPA chỉ khôi phục một lần.
+        3. THAY TAB — state của SPA sống trong tab, nên tab mới là sạch chắc
+           chắn. Cookie đăng nhập nằm ở profile Chrome nên vẫn đăng nhập; board
+           không đụng gì tới cookie hay localStorage (xoá nhầm là đăng xuất, mà
+           board không được phép đăng nhập lại).
+        """
+        if not self._la_chat_cu(page):
+            return True
+        self.logger.warning("ChatGPT: xin chat trắng nhưng tab đang ở %s → mở lại",
+                            (page.url or "")[:80])
+        for _ in range(2):
+            try:
+                page.goto(self.url, wait_until="domcontentloaded")
+                page.wait_for_selector(SELECTORS["composer"], timeout=20000)
+                time.sleep(1.5)
+            except Exception as e:
+                self.logger.warning("ChatGPT: goto lại hỏng (%s)", str(e)[:70])
+            if not self._la_chat_cu(page):
+                return True
+        # Đường 3 — đổi hẳn tab.
+        tag = f"{_TAG_TAB}{self.slot}"
+        cu = page
+        try:
+            pg = self._ctx.new_page()
+            pg.goto(self.url, wait_until="domcontentloaded")
+            pg.evaluate("n => { window.name = n }", tag)
+            pg.wait_for_selector(SELECTORS["composer"], timeout=30000)
+        except Exception as e:
+            self.logger.warning("ChatGPT: không mở được tab thay thế (%s)", str(e)[:80])
+            return False
+        self.page = pg
+        try:
+            if cu is not None and not cu.is_closed():
+                cu.evaluate("n => { window.name = n }", "")   # nhả dấu
+                cu.close()
+        except Exception:
+            pass
+        self.logger.info("ChatGPT: tab cũ kẹt ở đoạn chat cũ → đã thay bằng tab mới (%s)", tag)
+        return not self._la_chat_cu(self.page)
+
     def _start_profile(self) -> None:
         """Mở profile riêng (bạn tự đăng nhập + qua Cloudflare một lần)."""
         os.makedirs(self.user_data_dir, exist_ok=True)
@@ -681,6 +736,21 @@ class ChatGPTSession:
         page.goto(chat_url or self.url, wait_until="domcontentloaded")
         page.wait_for_selector(SELECTORS["composer"], timeout=30000)
         time.sleep(2)
+        # XIN CHAT TRẮNG THÌ PHẢI ĐƯỢC CHAT TRẮNG (vá 2026-08-14, user báo tab
+        # "cứ treo ở một link cũ, reload xong cũng quay lại đó").
+        #
+        # ChatGPT là SPA và có lúc kéo tab về đúng đoạn chat trước ngay sau khi
+        # tải xong — URL thành /c/<id>. Bản cũ không kiểm gì cả, nên cả lô đi vào
+        # đoạn chat cũ: model đã có mấy chục ảnh trước đó trong ngữ cảnh, luật
+        # chung của lô mới bị luật cũ đè, và ảnh ra khác look mà không báo gì.
+        if moi:
+            if not self._ve_chat_trang(page):
+                return [], "", {"loi_text": "", "da_gui": False,
+                                "chan_doan": "không mở được đoạn chat trắng"}
+            # `_ve_chat_trang` có thể ĐỔI TAB, mà biến `page` ở đây là bản chụp
+            # từ đầu hàm — không lấy lại là cả phần còn lại thao tác trên tab vừa
+            # bị đóng, và mọi lời gọi Playwright ném "Target closed".
+            page = self.page
         self._che_do_tot_nhat()
 
         tu_choi_0 = self._dem_tu_choi()

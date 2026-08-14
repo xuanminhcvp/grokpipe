@@ -2241,6 +2241,45 @@ button.auto-b.on {
   color: var(--bad)
 }
 
+/* Nút trong dòng tiêu đề scene KHÔNG được bẻ dòng: hàng nút dài đẩy nút bên
+   cạnh thành một chữ mỗi dòng, đọc ra chữ dọc. */
+.scene-h button,
+.scene-h .tsel {
+  white-space: nowrap
+}
+
+/* Ô thả xuống thay cho hàng nút T khi scene có quá nhiều task (REF).
+   `button.sm` không áp cho <select>, nên chép lại đúng bộ dáng của nút — để
+   nó đứng cùng hàng mà không lệch cao thấp. */
+.scene-h .tsel {
+  max-width: 190px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--tx);
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit
+}
+
+.scene-h .tsel:hover {
+  border-color: var(--linehi);
+  background: var(--hover)
+}
+
+/* CHẾ ĐỘ TẠO LẠI — scene đã đủ ảnh nhưng user vẫn muốn vẽ lại. Phải nhìn ra
+   NGAY là khác với nút tạo thường: bấm nhầm là đè lên ảnh đang dùng. */
+.scene-h .re-b {
+  border-color: var(--warn);
+  color: var(--warn)
+}
+
+.scene-h .re-b:hover {
+  background: var(--warn);
+  color: var(--bg)
+}
+
 /* Số thẻ trên nút chọn nhanh theo task (T1⁵ = task 1, 5 thẻ). */
 .scene-h .tn {
   margin-left: 3px;

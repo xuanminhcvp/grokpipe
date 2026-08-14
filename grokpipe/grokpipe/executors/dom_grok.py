@@ -152,6 +152,21 @@ JS_DONG_DAU_VIDEO_CU = """() => document.querySelectorAll('video')
 
 JS_DAT_TEN_TAB = """n => { window.name = n }"""
 
+# DẤU VẾT PHIÊN — để lần sau bắt được tận tay cái làm tab quay lại post cũ.
+# Grok là SPA: nó nhớ "lượt đang xem" ở đâu đó (sessionStorage của tab,
+# localStorage của profile, hoặc chỉ trong bộ nhớ của app). Khi tab kẹt, chụp
+# lại các khoá có mùi route/lượt để biết chỗ nào cần dọn — CHỈ ĐỌC TÊN KHOÁ,
+# không đọc giá trị và tuyệt đối không đụng khoá đăng nhập.
+JS_DAU_VET_PHIEN = """() => {
+    const mui = /post|imagine|generation|draft|route|last|current/i;
+    const cam = /auth|token|session_id|sso|cookie|jwt|refresh|user/i;
+    const lay = kho => { try {
+        return Object.keys(kho).filter(k => mui.test(k) && !cam.test(k)).slice(0, 12);
+    } catch (e) { return ['<không đọc được>']; } };
+    return {ss: lay(sessionStorage), ls: lay(localStorage),
+            url: location.href, ref: document.referrer || ''};
+}"""
+
 
 # ---- LỖI MẠNG ------------------------------------------------------------
 # Chrome ném các mã này khi tầng vận chuyển hỏng, KHÔNG phải khi selector sai.

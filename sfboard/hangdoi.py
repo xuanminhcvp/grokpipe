@@ -73,6 +73,15 @@ JOBS: dict[str, dict] = _Jobs()
 DA_HUY: set[str] = set()          # ident user đã huỷ, thợ phải bỏ qua
 HUY_LOCK = threading.Lock()
 
+# SF id user CHỦ ĐỘNG bấm tạo (nút Tạo trên thẻ · Tạo ảnh đã chọn · Tạo lại hết).
+# Cờ này quyết định `tay=True` ở tầng gửi, tức lô KHÔNG bị bộ lọc "đã có ảnh"
+# gạt đi. Phải nhớ THEO SF chứ không giữ trong tuple hàng đợi: việc có thể rơi
+# khỏi hàng (bug, restart, lỗi HTTP) rồi được người gác xếp lại — bản cũ xếp lại
+# với `tay=False` cứng, nên đúng lô user vừa bấm tạo lại bị gạt sạch và nhảy
+# thẳng sang "Đã xong · đã có ảnh — bỏ qua". Bắt tận tay 2026-08-14 với lô
+# SF-S23-01..10.
+TAY_SF: set[str] = set()
+
 # SF id user bấm DỪNG RIÊNG (nút ■ trên từng việc trong ngăn kéo hàng đợi).
 # ĐÁNH CỜ THEO SF ID, KHÔNG THEO IDENT LÔ: trạng thái được rải cho từng SF thành
 # viên chứ không giữ khoá "LO:a,b,c", nên tra ident lô là tra vào chỗ trống.
@@ -150,9 +159,22 @@ def thu_tu_shot(khoa=None) -> dict:
     m = {}
     for si, s in enumerate(d.get("scenes", [])):
         for i, sh in enumerate(s.get("shots", [])):
+            v = si * 1000 + i
+            # VÀO SỔ CẢ HAI TÊN: id của SHOT và id của SF nó dùng.
+            #
+            # Bản cũ chỉ vào sổ SF id, nên việc VIDEO (ident là shot id) luôn tra
+            # trượt và rơi xuống phép đoán theo tên ở `uu_tien` — mà phép đoán đó
+            # đọc `-(\d+)` nên mọi shot mang hậu tố chữ (`V-S1-B1`, `V-S3-B2`)
+            # trượt nốt và nhận mức 999999. Đo trên ALTAR 2026-08-14: 62/438 shot
+            # dính, trong đó có shot MỞ CẢNH của gần như mọi scene — chúng bị đẩy
+            # xuống cuối hàng đợi video, dựng sau cùng.
+            # Hai không gian tên không giẫm nhau (`V-…` với `SF-…`/`REF_…`).
+            sid = (sh.get("id") or "").strip()
+            if sid and sid not in m:
+                m[sid] = v
             sf = (sh.get("sf") or "").strip()
             if sf and sf not in m:
-                m[sf] = si * 1000 + i
+                m[sf] = v
     with _TT_LOCK:
         _TT_CACHE["khoa"] = khoa
         _TT_CACHE["map"] = m
@@ -250,13 +272,21 @@ def bo_co_huy(*idents: str) -> None:
             DA_HUY.discard(i)
 
 
-def bi_huy(ident: str) -> bool:
+def bi_huy(ident: str, an: bool = True) -> bool:
     """Việc này đã bị huỷ chưa? Kiểm NGAY TRƯỚC khi bắt tay làm.
 
     Chỉ vứt hàng đợi là không đủ: thợ nhấc việc ra khỏi hàng trong vòng 2 giây,
-    nên phần lớn cú bấm Huỷ sẽ trượt nếu không có chốt này."""
+    nên phần lớn cú bấm Huỷ sẽ trượt nếu không có chốt này.
+
+    `an=False` là ĐỌC MÀ KHÔNG ĂN CỜ. Cờ vốn bị xoá ngay khi đọc (để lần chạy
+    sau của cùng ident không bị chặn oan), nhưng có HAI nơi cùng đọc: thợ lúc
+    nhấc việc, và bộ hẹn giờ xếp-lại-sau-khi-lỗi. Ai đọc trước thì người kia
+    thấy sạch — nên một việc vừa bị thợ bỏ vì đã huỷ vẫn được bộ hẹn giờ xếp lại
+    vài giây sau, và nó chạy thật. Bộ hẹn giờ phải gọi với `an=False`.
+    """
     with HUY_LOCK:
         if ident in DA_HUY:
-            DA_HUY.discard(ident)
+            if an:
+                DA_HUY.discard(ident)
             return True
     return False
