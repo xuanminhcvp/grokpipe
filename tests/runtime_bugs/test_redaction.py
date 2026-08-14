@@ -144,3 +144,30 @@ def test_redactor_sanitizes_path_prefixes_and_preserves_safe_metadata(tmp_path):
     assert redacted["runtime"]["request_id"] == "request-123"
     assert redacted["runtime"]["response_status"] == 500
     assert redacted["runtime"]["image_count"] == 2
+
+
+def test_redactor_scrubs_nested_media_payloads_but_preserves_safe_counts(tmp_path):
+    event = valid_event()
+    event["runtime"].update(
+        {
+            "image_data": "raw-image-secret",
+            "video_bytes": "raw-video-secret",
+            "media_content": {"chunk": "raw-media-secret"},
+            "image_count": 3,
+            "request_id": "request-456",
+            "response_status": 502,
+        }
+    )
+
+    redacted = redact_event(event, repo_root=tmp_path)
+
+    assert redacted["runtime"] == {
+        "worker": "local",
+        "image_data": "<redacted>",
+        "video_bytes": "<redacted>",
+        "media_content": "<redacted>",
+        "image_count": 3,
+        "request_id": "request-456",
+        "response_status": 502,
+    }
+    assert "raw-" not in json.dumps(redacted)

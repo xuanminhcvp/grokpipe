@@ -9,6 +9,10 @@ from collections.abc import Mapping
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
 _PORT = re.compile(r"(?<![A-Za-z0-9_]):\d{1,5}\b")
+_HOST_PORT = re.compile(
+    r"(?i)(?P<host>\blocalhost|\b(?:\d{1,3}\.){3}\d{1,3}|"
+    r"\b[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,})(?P<port>:\d{1,5})\b"
+)
 _TIMESTAMP = re.compile(
     r"\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b"
 )
@@ -45,6 +49,7 @@ def normalize_message(message: str) -> str:
     normalized = _TIMESTAMP.sub("<timestamp>", normalized)
     normalized = _CLOCK_TIME.sub("<time>", normalized)
     normalized = _RETRY_DELAY.sub(r"\1<delay>\2", normalized)
+    normalized = _HOST_PORT.sub(r"\g<host>:<port>", normalized)
     normalized = _PORT.sub(":<port>", normalized)
     normalized = _IDENTIFIER.sub("<identifier>", normalized)
     return _WHITESPACE.sub(" ", normalized).strip()

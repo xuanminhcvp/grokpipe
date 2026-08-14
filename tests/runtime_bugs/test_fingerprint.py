@@ -61,3 +61,19 @@ def test_fingerprint_preserves_error_codes_in_messages():
     unavailable = valid_event(message="provider returned status:500")
 
     assert fingerprint_event(not_found) != fingerprint_event(unavailable)
+
+
+def test_fingerprint_ignores_ports_attached_to_runtime_hosts():
+    pairs = [
+        ("worker failed at localhost:7", "worker failed at localhost:8"),
+        ("worker failed at 127.0.0.1:9222", "worker failed at 127.0.0.1:9333"),
+        (
+            "worker failed at http://provider.example.test:7001/v1",
+            "worker failed at http://provider.example.test:7002/v1",
+        ),
+    ]
+
+    for left_message, right_message in pairs:
+        assert fingerprint_event(valid_event(left_message)) == fingerprint_event(
+            valid_event(right_message)
+        )

@@ -52,6 +52,9 @@ _PAYLOAD_KEYS = frozenset(
         "video",
         "videopath",
         "videourl",
+        "imagedata",
+        "videobytes",
+        "mediacontent",
     }
 )
 _URL = re.compile(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\"<>]+")
