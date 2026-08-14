@@ -1,8 +1,26 @@
 import dataclasses
 import unittest
+from datetime import datetime, timezone
 from uuid import UUID
 
-from sfboard.jobs.models import AssetId, Job, JobId, JobKind, JobOrigin, JobState
+from sfboard.jobs.models import (
+    AssetId,
+    Attempt,
+    AttemptId,
+    AttemptPhase,
+    Batch,
+    BatchId,
+    BatchMode,
+    CreditConsumption,
+    Execution,
+    ExecutionId,
+    ExecutionState,
+    Job,
+    JobId,
+    JobKind,
+    JobOrigin,
+    JobState,
+)
 
 
 class JobModelTest(unittest.TestCase):
@@ -33,3 +51,77 @@ class JobModelTest(unittest.TestCase):
             {JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED},
         )
         self.assertFalse(JobState.NEEDS_ATTENTION.is_terminal)
+
+
+class ExecutionModelTest(unittest.TestCase):
+    def test_execution_rejects_empty_or_duplicate_members(self):
+        with self.assertRaises(ValueError):
+            Execution(ExecutionId.new(), JobKind.IMAGE, (), ExecutionState.READY, 1)
+        job_id = JobId.new()
+        with self.assertRaises(ValueError):
+            Execution(
+                ExecutionId.new(),
+                JobKind.IMAGE,
+                (job_id, job_id),
+                ExecutionState.READY,
+                1,
+            )
+
+    def test_attempt_before_submit_cannot_consume_credit(self):
+        attempt = Attempt(
+            AttemptId.new(),
+            ExecutionId.new(),
+            1,
+            "acct-1",
+            "lease-1",
+            AttemptPhase.READY_TO_SUBMIT,
+            CreditConsumption.FALSE,
+        )
+        self.assertIsNone(attempt.submitted_at)
+
+    def test_submitted_attempt_requires_timestamp_and_credit_classification(self):
+        with self.assertRaises(ValueError):
+            Attempt(
+                AttemptId.new(),
+                ExecutionId.new(),
+                1,
+                "acct-1",
+                "lease-1",
+                AttemptPhase.SUBMITTED,
+                CreditConsumption.FALSE,
+            )
+        now = datetime.now(timezone.utc)
+        valid = Attempt(
+            AttemptId.new(),
+            ExecutionId.new(),
+            1,
+            "acct-1",
+            "lease-1",
+            AttemptPhase.SUBMITTED,
+            CreditConsumption.UNKNOWN,
+            submitted_at=now,
+        )
+        self.assertEqual(valid.submitted_at, now)
+
+    def test_finished_attempt_requires_outcome_and_finished_at(self):
+        now = datetime.now(timezone.utc)
+        with self.assertRaises(ValueError):
+            Attempt(
+                AttemptId.new(),
+                ExecutionId.new(),
+                1,
+                "acct-1",
+                "lease-1",
+                AttemptPhase.FINISHED,
+                CreditConsumption.TRUE,
+                submitted_at=now,
+            )
+
+    def test_batch_mode_must_match_kind(self):
+        with self.assertRaises(ValueError):
+            Batch(
+                BatchId.new(),
+                JobKind.VIDEO,
+                BatchMode.IMAGE_GROUP,
+                (JobId.new(),),
+            )

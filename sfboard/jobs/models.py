@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import UUID, uuid4
 
 
@@ -116,3 +117,118 @@ class Job:
             raise ValueError("copy_index không được âm")
         if self.allow_account_fallback and not self.forced_account_id:
             raise ValueError("fallback chỉ có nghĩa khi job ép account")
+
+
+class BatchMode(str, Enum):
+    IMAGE_GROUP = "image_group"
+    MULTI_COPY = "multi_copy"
+    BULK_VIDEO = "bulk_video"
+
+
+@dataclass(frozen=True)
+class Batch:
+    batch_id: BatchId
+    kind: JobKind
+    mode: BatchMode
+    member_job_ids: Tuple[JobId, ...]
+
+    def __post_init__(self) -> None:
+        if not self.member_job_ids or len(set(self.member_job_ids)) != len(
+            self.member_job_ids
+        ):
+            raise ValueError("batch cần member duy nhất và không rỗng")
+        if not all(isinstance(job_id, JobId) for job_id in self.member_job_ids):
+            raise TypeError("batch member phải là JobId")
+        if (
+            self.mode in {BatchMode.IMAGE_GROUP, BatchMode.MULTI_COPY}
+            and self.kind is not JobKind.IMAGE
+        ):
+            raise ValueError("image batch phải có kind=image")
+        if self.mode is BatchMode.BULK_VIDEO and self.kind is not JobKind.VIDEO:
+            raise ValueError("bulk_video phải có kind=video")
+
+
+class ExecutionState(str, Enum):
+    READY = "ready"
+    LEASED = "leased"
+    WAITING = "waiting"
+    FINISHED = "finished"
+
+
+@dataclass(frozen=True)
+class Execution:
+    execution_id: ExecutionId
+    kind: JobKind
+    member_job_ids: Tuple[JobId, ...]
+    state: ExecutionState
+    priority: int
+
+    def __post_init__(self) -> None:
+        if not self.member_job_ids or len(set(self.member_job_ids)) != len(
+            self.member_job_ids
+        ):
+            raise ValueError("execution cần member duy nhất và không rỗng")
+        if not all(isinstance(job_id, JobId) for job_id in self.member_job_ids):
+            raise TypeError("execution member phải là JobId")
+
+
+class AttemptPhase(str, Enum):
+    PREPARING = "preparing"
+    ATTACHING = "attaching"
+    READY_TO_SUBMIT = "ready_to_submit"
+    SUBMITTED = "submitted"
+    WAITING_PROVIDER = "waiting_provider"
+    DOWNLOADING = "downloading"
+    SAVING = "saving"
+    FINISHED = "finished"
+
+
+class AttemptOutcome(str, Enum):
+    SUCCESS = "success"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+    UNKNOWN = "unknown"
+
+
+class CreditConsumption(str, Enum):
+    TRUE = "true"
+    FALSE = "false"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class Attempt:
+    attempt_id: AttemptId
+    execution_id: ExecutionId
+    number: int
+    account_id: str
+    lease_id: str
+    phase: AttemptPhase
+    consumes_credit: CreditConsumption
+    submitted_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    outcome: Optional[AttemptOutcome] = None
+
+    def __post_init__(self) -> None:
+        if self.number < 1 or not self.account_id or not self.lease_id:
+            raise ValueError("attempt number/account/lease không hợp lệ")
+        submitted_or_later = self.phase in {
+            AttemptPhase.SUBMITTED,
+            AttemptPhase.WAITING_PROVIDER,
+            AttemptPhase.DOWNLOADING,
+            AttemptPhase.SAVING,
+            AttemptPhase.FINISHED,
+        }
+        if submitted_or_later and self.submitted_at is None:
+            raise ValueError("phase sau submit cần submitted_at")
+        if not submitted_or_later and self.submitted_at is not None:
+            raise ValueError("phase trước submit không được có submitted_at")
+        if submitted_or_later and self.consumes_credit is CreditConsumption.FALSE:
+            raise ValueError("submit phải consume credit hoặc unknown")
+        if not submitted_or_later and self.consumes_credit is not CreditConsumption.FALSE:
+            raise ValueError("trước submit consumes_credit phải false")
+        if self.phase is AttemptPhase.FINISHED:
+            if self.finished_at is None or self.outcome is None:
+                raise ValueError("finished attempt cần finished_at và outcome")
+        elif self.finished_at is not None or self.outcome is not None:
+            raise ValueError("attempt chưa finished không được có terminal fields")
