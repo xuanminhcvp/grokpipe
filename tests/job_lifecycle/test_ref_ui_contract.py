@@ -30,9 +30,9 @@ def test_ref_sidebar_co_focus_va_ton_trong_reduced_motion():
 
 
 def test_ngan_hang_doi_dang_dong_khong_tao_cuon_ngang_responsive():
-    assert "overflow-x: clip" in CSS
+    assert "#qdrawer:not(.on) {\n  display: none" in CSS
 
 
 def test_header_ref_duoc_xuong_hang_duoi_breakpoint_sidebar():
-    assert "#sc-REF .scene-h" in CSS
-    assert "#sc-REF .scene-h h2" in CSS
+    assert "  .scene-h {\n    flex-wrap: wrap" in CSS
+    assert "  .scene-h>span[style]" in CSS
