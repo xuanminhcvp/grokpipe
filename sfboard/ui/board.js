@@ -511,10 +511,14 @@ async function huyMotViec(id) {
   veHangDoi();
 }
 let QNHOM = {}, QHANG = {}, QTHO = {};
+// Dấu vết từng việc: ident -> [{luc,state,msg,tk,lan,giay}, …]. JOBS chỉ giữ
+// trạng thái HIỆN TẠI, nên không có cái này thì không soi lại được một việc
+// đã đi qua những đâu và hỏng ở bước nào.
+let VET = {}, VET_MO = '';
 async function poll() {
   const r = await (await fetch('/api/jobs')).json();
   const j = r.jobs || {};
-  QNHOM = r.nhom || {}; QHANG = r.hang || {}; QTHO = r.tho || {};
+  QNHOM = r.nhom || {}; QHANG = r.hang || {}; QTHO = r.tho || {}; VET = r.vet || {};
   const a = r.auto || {};
   const changed = JSON.stringify(j) !== JSON.stringify(JOBS) || JSON.stringify(a) !== JSON.stringify(AUTO);
   AUTO = a;
@@ -598,7 +602,12 @@ function loiTatCa() {
   // TRƯỚC lúc board kịp khởi tạo xong — đó đúng là lúc cần nó nhất.
   for (const [id, j] of Object.entries(typeof JOBS === 'undefined' ? {} : (JOBS || {}))) {
     if (j.state !== 'error') continue;
-    ra.push({ n: 0, luc: '', muc: 'JOB', nguon: id, text: `${id}: ${j.msg || ''}` });
+    const phu = [j.tk ? `tk ${j.tk}` : '', (j.lan || 0) > 1 ? `lần ${j.lan}` : '',
+                 j.giay ? `${j.giay}s` : ''].filter(Boolean).join(' · ');
+    ra.push({
+      n: 0, luc: j.luc || '', muc: 'JOB', nguon: id,
+      text: `${id}: ${j.msg || ''}${phu ? '   [' + phu + ']' : ''}`,
+    });
   }
   return ra;
 }
@@ -620,16 +629,66 @@ function veLoi() {
     + (LOI.length >= 800 ? ' · chỉ giữ 800 dòng log gần nhất' : '');
   // Mới nhất LÊN ĐẦU: lỗi vừa xảy ra là lỗi đang cần đọc, đừng bắt cuộn xuống đáy.
   $('#loibody').innerHTML = ds.length
-    ? ds.slice().reverse().map(m => `<div class="loirow ${m.muc === 'ERROR' || m.muc === 'CRITICAL' ? 'nang' : ''}">
-        <span class="loiluc">${esc(m.luc)}</span>
-        <span class="loimuc">${esc(m.muc)}</span>
-        <span class="loitext">${esc(m.text)}</span></div>`).join('')
+    ? ds.slice().reverse().map(m => veLoiDong(m)).join('')
     : '<div class="hint" style="padding:10px">Chưa có lỗi nào. Sạch.</div>';
 }
 
+// Một dòng trong hộp 🐞. Dòng JOB bấm được: mở ra SỔ DẤU VẾT của việc đó —
+// nó đã xếp hàng lúc nào, chạy trên tài khoản nào, hỏng ở lần thử thứ mấy, mỗi
+// chặng mất bao lâu. Dòng WARNING là nhật ký một thời điểm, không có gì để mở.
+function veLoiDong(m) {
+  const nang = m.muc === 'ERROR' || m.muc === 'CRITICAL';
+  const co_vet = m.muc === 'JOB' && (VET[m.nguon] || []).length;
+  const mo = VET_MO === m.nguon;
+  const dau = co_vet ? `<span class="loivet">${mo ? '▾' : '▸'}</span>` : '';
+  let ra = `<div class="loirow ${nang ? 'nang' : ''} ${co_vet ? 'bam' : ''}"`
+    + (co_vet ? ` onclick="moVet('${esc(m.nguon)}')"` : '') + `>
+      <span class="loiluc">${esc(m.luc)}</span>
+      <span class="loimuc">${esc(m.muc)}</span>
+      <span class="loitext">${dau}${esc(m.text)}</span></div>`;
+  if (mo && co_vet) ra += veVet(m.nguon);
+  return ra;
+}
+
+function veVet(id) {
+  const d = VET[id] || [];
+  const NHAN = { queued: 'xếp hàng', running: 'đang chạy', done: 'xong', error: 'LỖI' };
+  return `<div class="vetbox">` + d.map((v, i) => {
+    const truoc = d[i - 1];
+    // Khoảng cách tới chặng trước — chỗ này mới cho biết việc NẰM CHỜ bao lâu,
+    // thứ mà tổng thời gian chạy không nói ra.
+    const cach = truoc ? khoangGio(truoc.luc, v.luc) : '';
+    return `<div class="vetrow ${v.state === 'error' ? 'nang' : ''}">
+      <span class="vetluc">${esc(v.luc)}</span>
+      <span class="vetst st-${esc(v.state || '')}">${esc(NHAN[v.state] || v.state || '')}</span>
+      <span class="vetphu">${v.lan > 1 ? 'lần ' + v.lan + ' · ' : ''}${v.giay ? v.giay + 's · ' : ''}${cach ? '+' + cach + ' · ' : ''}${esc(v.tk || '')}</span>
+      <span class="vetmsg">${esc(v.msg || '')}</span></div>`;
+  }).join('') + `</div>`;
+}
+
+// '15:01:54' - '14:58:52' → '3m02s'. Chỉ có giờ-phút-giây nên qua nửa đêm sẽ
+// âm; kẹp về 0 thay vì in số vô nghĩa — không ai soi log qua mốc nửa đêm.
+function khoangGio(a, b) {
+  const g = t => { const p = (t || '').split(':').map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : NaN };
+  const d = g(b) - g(a);
+  if (!isFinite(d) || d <= 0) return '';
+  return d < 60 ? d + 's' : Math.floor(d / 60) + 'm' + String(d % 60).padStart(2, '0') + 's';
+}
+
+function moVet(id) { VET_MO = (VET_MO === id ? '' : id); veLoi() }
+
 async function loiCopy() {
   const ds = loiLoc();
-  const txt = ds.map(m => `${m.luc} ${m.muc} [${m.nguon}] ${m.text}`).join('\n');
+  // Chép KÈM dấu vết của việc lỗi — dán vào chat để nhờ soi thì thiếu đúng
+  // phần lịch sử là người đọc lại phải hỏi ngược "nó thử mấy lần, tài khoản nào".
+  const txt = ds.map(m => {
+    let t = `${m.luc || '--:--:--'} ${m.muc} [${m.nguon}] ${m.text}`;
+    for (const v of (m.muc === 'JOB' ? (VET[m.nguon] || []) : [])) {
+      t += `\n      ${v.luc} ${v.state}${v.lan > 1 ? ' lần ' + v.lan : ''}`
+        + `${v.giay ? ' ' + v.giay + 's' : ''}${v.tk ? ' [' + v.tk + ']' : ''} ${v.msg || ''}`;
+    }
+    return t;
+  }).join('\n');
   try {
     await navigator.clipboard.writeText(txt);
     const b = $('#loicopy'); const cu = b.textContent;

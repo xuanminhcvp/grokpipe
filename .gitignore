@@ -86,3 +86,14 @@ sfboard/sua-board.py
 # kho git của repo PRIVATE — không bao giờ đẩy lên repo public
 .git-rieng/
 day-rieng.sh
+
+# ⛔ QUY TRÌNH RIÊNG CỦA USER — chỉ đi lên repo PRIVATE
+.claude/quy-trinh.md
+
+# test artifacts
+.coverage
+.coverage.*
+.hypothesis/
+
+# công cụ Serena — trạng thái/cache cục bộ
+.serena/
