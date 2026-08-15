@@ -21,9 +21,18 @@ def test_ref_co_ba_section_va_sidebar_con():
     assert 'class="refsub"' in JS
     assert 'type="button"' in JS
     assert "aria-label=" in JS
+    assert "onkeydown=" in JS
 
 
 def test_ref_sidebar_co_focus_va_ton_trong_reduced_motion():
     assert "#snav .refsub:focus-visible" in CSS
     assert "prefers-reduced-motion: reduce" in JS
 
+
+def test_ngan_hang_doi_dang_dong_khong_tao_cuon_ngang_responsive():
+    assert "overflow-x: clip" in CSS
+
+
+def test_header_ref_duoc_xuong_hang_duoi_breakpoint_sidebar():
+    assert "#sc-REF .scene-h" in CSS
+    assert "#sc-REF .scene-h h2" in CSS
