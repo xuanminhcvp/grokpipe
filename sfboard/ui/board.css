@@ -232,6 +232,10 @@ a.sm.dl:hover {
   transform: none
 }
 
+#qdrawer:not(.on) {
+  display: none
+}
+
 #qdrawer .qhead {
   display: flex;
   align-items: center;
@@ -1393,7 +1397,8 @@ details.scr pre {
   backdrop-filter: blur(8px)
 }
 
-#snav a {
+#snav a,
+#snav button.refsub {
   display: block;
   text-decoration: none;
   color: inherit;
@@ -1404,7 +1409,16 @@ details.scr pre {
   cursor: pointer
 }
 
-#snav a:hover {
+#snav button.refsub {
+  width: 100%;
+  appearance: none;
+  background: transparent;
+  font: inherit;
+  text-align: left
+}
+
+#snav a:hover,
+#snav button.refsub:hover {
   background: var(--tagbg2);
   border-color: var(--line)
 }
@@ -1450,6 +1464,36 @@ details.scr pre {
 
 #snav a.full .sp {
   color: var(--ok, #1a7f37)
+}
+
+#snav .refsubs {
+  margin: -1px 0 5px 7px;
+  padding-left: 5px;
+  border-left: 1px solid var(--line)
+}
+
+#snav .refsub {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-height: 30px;
+  padding: 5px 7px;
+  white-space: nowrap
+}
+
+#snav .refsub .sv {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tx2);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600
+}
+
+#snav .refsub:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+  background: var(--tagbg2)
 }
 
 /* Thanh hai lớp: lớp mờ = đã có ảnh, lớp đậm = đã duyệt (nằm đè lên). Đọc được
@@ -1512,6 +1556,78 @@ section.scene {
   scroll-margin-top: calc(var(--hdrh, 52px) + 12px)
 }
 
+.ref-section {
+  grid-column: 1 / -1;
+  min-width: 0;
+  scroll-margin-top: calc(var(--hdrh, 52px) + 12px)
+}
+
+.ref-section + .ref-section {
+  margin-top: 8px
+}
+
+.ref-section-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--line)
+}
+
+.ref-section-h h3 {
+  font-size: 14px;
+  font-weight: 700
+}
+
+.ref-section-h p {
+  margin-top: 1px;
+  color: var(--tx2);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums
+}
+
+.ref-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 15px;
+  min-width: 0
+}
+
+.ref-empty {
+  grid-column: 1 / -1;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--tx2);
+  text-align: center
+}
+
+.ref-role {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 7px;
+  padding: 1px 6px;
+  border: 1px solid var(--linehi);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.4;
+  vertical-align: 1px
+}
+
+.ref-role.main {
+  border-color: var(--acc);
+  background: var(--tagbg);
+  color: var(--tagtx)
+}
+
+.ref-role.supporting {
+  background: var(--panel2);
+  color: var(--tx2)
+}
+
 @media (max-width:1100px) {
   #snav {
     display: none
@@ -1519,6 +1635,26 @@ section.scene {
 
   body.hasnav main {
     padding-left: 18px
+  }
+
+  .scene-h {
+    flex-wrap: wrap;
+    align-items: center
+  }
+
+  .scene-h h2 {
+    flex: 1 1 60%;
+    min-width: 240px
+  }
+
+  .scene-h>span[style] {
+    display: none
+  }
+}
+
+@media (max-width:700px) {
+  .ref-grid {
+    grid-template-columns: minmax(0, 1fr)
   }
 }
 

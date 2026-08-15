@@ -932,6 +932,64 @@ function allShotsOrdered() {
 
 // ══ THANH NHẢY SCENE (trái) ══ mỗi scene một dòng + % ĐÃ DUYỆT của chế độ đang xem.
 // Chế độ Kịch bản đếm video đã duyệt (vstatus), chế độ Start frames đếm SF đã duyệt.
+function nguoiRef(id) {
+  const m = /^REF_([A-Z0-9]+)_/.exec(id || '');
+  return m ? m[1] : (id || '');
+}
+function chiaRef(list, nguonThuTu = list) {
+  const nhanVat = list.filter(f => /_(PORTRAIT|FULL)$/.test(f.id || ''));
+  const tapNhanVat = new Set(nhanVat);
+  const daoCu = list.filter(f => !tapNhanVat.has(f) && (f.id || '').startsWith('REF_PROP_'));
+  const tapDaoCu = new Set(daoCu);
+  const boiCanh = list.filter(f => !tapNhanVat.has(f) && !tapDaoCu.has(f));
+  const portraits = nguonThuTu.filter(f => (f.id || '').endsWith('_PORTRAIT'));
+  const thuTu = new Map();
+  portraits.forEach(f => {
+    const ten = nguoiRef(f.id);
+    if (!thuTu.has(ten)) thuTu.set(ten, thuTu.size);
+  });
+  return { nhanVat, daoCu, boiCanh, thuTu };
+}
+function tienDoRef(items) {
+  const n = items.length;
+  const co = items.filter(x => x.image).length;
+  const duyet = items.filter(x => x.status === 'approved').length;
+  return {
+    n, co, duyet,
+    pctCo: n ? Math.round(co * 100 / n) : 0,
+    pctDuyet: n ? Math.round(duyet * 100 / n) : 0,
+  };
+}
+function taoRefSection(id, ten, items) {
+  if (!items.length) return null;
+  const p = tienDoRef(items);
+  const sec = document.createElement('section');
+  sec.className = 'ref-section';
+  sec.id = id;
+  sec.innerHTML = `<div class="ref-section-h"><div><h3>${esc(ten)}</h3>
+    <p>${p.co}/${p.n} đã có ảnh · ${p.duyet}/${p.n} đã duyệt</p></div></div>
+    <div class="ref-grid"></div>`;
+  return sec;
+}
+function refSubRow(label, anchor, items) {
+  const p = tienDoRef(items);
+  if (!p.n) return '';
+  return `<button type="button" class="refsub"
+    aria-label="${esc(label)}: ${p.co}/${p.n} đã có ảnh, ${p.duyet}/${p.n} đã duyệt"
+    title="${esc(label)} · ${p.co}/${p.n} đã có ảnh · ${p.duyet}/${p.n} đã duyệt"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();jumpRefGroup('${anchor}')}"
+    onclick="jumpRefGroup('${anchor}')">
+      <span class="sv">${esc(label)}</span>
+      <span class="si ${p.co === p.n ? 'du' : ''}">${p.pctCo}%</span>
+      <span class="sp">${p.pctDuyet}%</span>
+    </button>`;
+}
+function jumpRefGroup(anchor) {
+  const el = document.getElementById(anchor);
+  if (!el) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+}
 function snav() {
   const nav = document.getElementById('snav');
   const vid = VIEW === 'script';
@@ -953,12 +1011,19 @@ function snav() {
       : items.filter(x => x.image).length;
     const pct = n ? Math.round(d * 100 / n) : 0;
     const pctCo = n ? Math.round(co * 100 / n) : 0;
-    return `<a onclick="jumpScene('${sc.id}')" id="nv-${sc.id}" class="${n && d === n ? 'full' : ''}"
+    const row = `<a onclick="jumpScene('${sc.id}')" id="nv-${sc.id}" class="${n && d === n ? 'full' : ''}"
   title="${sc.id}: ${co}/${n} ${vid ? 'shot đã có video' : 'SF đã có ảnh'} · ${d}/${n} đã duyệt">
   <span class="r1"><span class="sv">${esc(sc.id)}</span>
     <span class="si ${n && co === n ? 'du' : ''}">${n ? pctCo + '%' : '—'}</span>
     <span class="sp">${n ? pct + '%' : '—'}</span></span>
   <span class="bar"><u style="width:${pctCo}%"></u><i style="width:${pct}%"></i></span></a>`;
+    if (sc.id !== 'REF' || vid) return row;
+    const ref = chiaRef(sc.sfs || []);
+    return row + `<div class="refsubs" aria-label="Nhóm REF">
+      ${refSubRow('Nhân vật', 'ref-nhan-vat', ref.nhanVat)}
+      ${refSubRow('Đạo cụ', 'ref-dao-cu', ref.daoCu)}
+      ${refSubRow('Bối cảnh', 'ref-boi-canh', ref.boiCanh)}
+    </div>`;
   }).join('');
   // Dòng tổng "x% — d/n đã duyệt" ở đáy thanh bên đã bỏ 2026-08-09 theo yêu cầu user.
   // Tiêu đề "START FRAME"/"VIDEO" trên đầu thanh bên đã bỏ 2026-08-09: tab đang
@@ -1165,55 +1230,83 @@ function render() {
     // Hàm pasteBox() vẫn giữ — kéo–thả ảnh thẳng vào ô ảnh của thẻ vẫn chạy,
     // chỉ mất lối tạo THẺ MỚI từ ảnh.
     if (sc.id === 'REF') {
+      const refTatCa = chiaRef(sc.sfs || [], sc.sfs || []);
+      const ref = chiaRef(list, sc.sfs || []);
+      const themSection = (id, ten, tatCa, dangHien, ve) => {
+        const sec = taoRefSection(id, ten, tatCa);
+        if (!sec) return;
+        const rg = sec.querySelector('.ref-grid');
+        if (dangHien.length) ve(rg);
+        else rg.innerHTML = '<p class="ref-empty">Không có mục phù hợp bộ lọc hiện tại.</p>';
+        g.appendChild(sec);
+      };
       // NHÓM THEO NHÂN VẬT: portrait là thẻ chính, các bản trang phục (_FULL)
       // thành dải ảnh nhỏ bên trong thẻ đó — bấm ảnh nhỏ để phóng to,
       // bấm ✎ để mở/đóng các thẻ trang phục đầy đủ (sửa prompt, tạo lại).
-      const who = id => id.split('_')[1] || id;
-      const ports = list.filter(f => f.id.endsWith('_PORTRAIT'));
-      const fulls = list.filter(f => f.id.endsWith('_FULL'));
-      const rest = list.filter(f => !f.id.endsWith('_PORTRAIT') && !f.id.endsWith('_FULL'));
-      const byChar = {};
-      fulls.forEach(f => (byChar[who(f.id)] = byChar[who(f.id)] || []).push(f));
-      ports.forEach(pf => {
-        const ch = who(pf.id), kids = byChar[ch] || [];
-        delete byChar[ch];
-        const d = card(sc, pf);
-        if (kids.length) {
-          const strip = document.createElement('div');
-          strip.className = 'wrstrip';
-          // Chữ "Trang phục (n)" đã bỏ 2026-08-09 — dải ảnh nhỏ tự nói lên nó là gì.
-          strip.innerHTML = kids.map(k =>
-            `<span class="wit${k.status === 'approved' ? ' ok' : ''}" data-wsee="${esc(k.id)}"
-           title="${esc(k.id)} — bấm để phóng to">
-           ${k.image ? `<img src="${thumb(k.image, 120)}" loading="lazy">` : '<i>?</i>'}</span>`).join('')
-            + `<button class="sm wtog pri" data-wtog="${esc(ch)}"
-           title="${WROPEN[ch] ? 'Đóng' : 'Mở'} thẻ đầy đủ của ${kids.length} bộ trang phục — sửa prompt, tạo lại, duyệt, xoá"
-           >${WROPEN[ch] ? '▾' : '✎'}</button>`;
-          strip.querySelectorAll('[data-wsee]').forEach(el => {
-            el.onclick = () => {
-              const r = find(el.dataset.wsee);
-              if (r && r.f && r.f.image) lbOpenAt(r.f); else bao(el.dataset.wsee + ' chưa có ảnh.');
+      themSection('ref-nhan-vat', 'Nhân vật', refTatCa.nhanVat, ref.nhanVat, rg => {
+        const ports = ref.nhanVat.filter(f => f.id.endsWith('_PORTRAIT'));
+        const fulls = ref.nhanVat.filter(f => f.id.endsWith('_FULL'));
+        const byChar = {};
+        fulls.forEach(f => {
+          const ch = nguoiRef(f.id);
+          (byChar[ch] = byChar[ch] || []).push(f);
+        });
+        ports.forEach(pf => {
+          const ch = nguoiRef(pf.id), kids = byChar[ch] || [];
+          delete byChar[ch];
+          const d = card(sc, pf);
+          const idx = ref.thuTu.get(ch);
+          if (Number.isInteger(idx)) {
+            const phu = idx >= 4;
+            d.querySelector('.sfid').insertAdjacentHTML(
+              'afterbegin',
+              `<span class="ref-role ${phu ? 'supporting' : 'main'}">${phu ? 'Phụ' : 'Chính'}</span>`
+            );
+          }
+          if (kids.length) {
+            const strip = document.createElement('div');
+            strip.className = 'wrstrip';
+            // Chữ "Trang phục (n)" đã bỏ 2026-08-09 — dải ảnh nhỏ tự nói lên nó là gì.
+            strip.innerHTML = kids.map(k =>
+              `<span class="wit${k.status === 'approved' ? ' ok' : ''}" data-wsee="${esc(k.id)}"
+             title="${esc(k.id)} — bấm để phóng to">
+             ${k.image ? `<img src="${thumb(k.image, 120)}" loading="lazy">` : '<i>?</i>'}</span>`).join('')
+              + `<button class="sm wtog pri" data-wtog="${esc(ch)}"
+             title="${WROPEN[ch] ? 'Đóng' : 'Mở'} thẻ đầy đủ của ${kids.length} bộ trang phục — sửa prompt, tạo lại, duyệt, xoá"
+             >${WROPEN[ch] ? '▾' : '✎'}</button>`;
+            strip.querySelectorAll('[data-wsee]').forEach(el => {
+              el.onclick = () => {
+                const r = find(el.dataset.wsee);
+                if (r && r.f && r.f.image) lbOpenAt(r.f); else bao(el.dataset.wsee + ' chưa có ảnh.');
+              };
+              el.title = el.dataset.wsee + ' — bấm để phóng to, KÉO ẢNH VÀO ĐÂY để thay';
+              el.ondragover = e => { e.preventDefault(); el.classList.add('drop') };
+              el.ondragleave = () => el.classList.remove('drop');
+              el.ondrop = async e => {
+                e.preventDefault(); el.classList.remove('drop');
+                const file = e.dataTransfer.files[0]; if (!file) return;
+                await uploadTo(el.dataset.wsee, file, file.name);
+                await load();
+              };
+            });
+            strip.querySelector('[data-wtog]').onclick = () => {
+              WROPEN[ch] = !WROPEN[ch]; render();
             };
-            el.title = el.dataset.wsee + ' — bấm để phóng to, KÉO ẢNH VÀO ĐÂY để thay';
-            el.ondragover = e => { e.preventDefault(); el.classList.add('drop') };
-            el.ondragleave = () => el.classList.remove('drop');
-            el.ondrop = async e => {
-              e.preventDefault(); el.classList.remove('drop');
-              const file = e.dataTransfer.files[0]; if (!file) return;
-              await uploadTo(el.dataset.wsee, file, file.name);
-              await load();
-            };
+            d.querySelector('.body').insertBefore(strip, d.querySelector('.body').children[1]);
+          }
+          rg.appendChild(d);
+          kids.forEach(k => {
+            const kd = card(sc, k);
+            if (!WROPEN[ch]) kd.style.display = 'none';
+            rg.appendChild(kd);
           });
-          strip.querySelector('[data-wtog]').onclick = e => {
-            WROPEN[ch] = !WROPEN[ch]; render();
-          };
-          d.querySelector('.body').insertBefore(strip, d.querySelector('.body').children[1]);
-        }
-        g.appendChild(d);
-        kids.forEach(k => { const kd = card(sc, k); if (!WROPEN[ch]) kd.style.display = 'none'; g.appendChild(kd); });
+        });
+        Object.values(byChar).flat().forEach(f => rg.appendChild(card(sc, f))); // full mồ côi
       });
-      Object.values(byChar).flat().forEach(f => g.appendChild(card(sc, f)));   // full mồ côi
-      rest.forEach(f => g.appendChild(card(sc, f)));
+      themSection('ref-dao-cu', 'Đạo cụ', refTatCa.daoCu, ref.daoCu,
+        rg => ref.daoCu.forEach(f => rg.appendChild(card(sc, f))));
+      themSection('ref-boi-canh', 'Bối cảnh', refTatCa.boiCanh, ref.boiCanh,
+        rg => ref.boiCanh.forEach(f => rg.appendChild(card(sc, f))));
     } else {
       list.forEach(f => g.appendChild(card(sc, f)));
     }

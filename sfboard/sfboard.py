@@ -2172,7 +2172,7 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
         _data = BOARD.read()
         nhom: dict[str, list[str]] = {}
         for i in xep:
-            nhom.setdefault(_nhom_cua(i, _data), []).append(i)
+            nhom.setdefault(_nhom_auto_cua(i, sc.get("id", ""), _data), []).append(i)
         # Dựng danh sách TASK theo đúng thứ tự sẽ chạy: mỗi task ≤ TRAN_MAY_TU_GOM
         # ảnh và CÙNG MỘT ĐỊA ĐIỂM (một tin nhắn chỉ mang được một `luatchung`).
         tasks: list[tuple[str, list[str]]] = []
@@ -2796,6 +2796,36 @@ def _nhom_cua(sf_id: str, data: dict | None = None) -> str:
     if mt:
         return "NV:" + mt.group(1)
     return ""
+
+
+def _nhom_auto_cua(sf_id: str, scene_id: str, data: dict) -> str:
+    """Khoá gom lô RIÊNG cho auto; không đổi nhóm chat của đường chạy tay.
+
+    Trong REF, portrait là các ảnh độc lập nên có thể sinh chung. Bốn nhân vật
+    đầu giữ `_FULL` theo từng người để bảo toàn nhất quán; từ người thứ năm là
+    nhân vật phụ và có thể gom `_FULL` chung một lô (vẫn qua `_chia_lo`).
+    """
+    if scene_id != "REF":
+        return _nhom_cua(sf_id, data)
+    if sf_id.startswith("REF_PROP_"):
+        return "PROP"
+    if sf_id.endswith("_PORTRAIT"):
+        return "REF:PORTRAIT"
+    if sf_id.endswith("_FULL"):
+        mt = re.match(r"^REF_([A-Z0-9]+)_", sf_id)
+        if mt:
+            scene = next(
+                (s for s in data.get("scenes", []) if s.get("id") == "REF"),
+                {},
+            )
+            thu_tu: list[str] = []
+            for f in scene.get("sfs", []):
+                rid = f.get("id", "")
+                portrait = re.match(r"^REF_([A-Z0-9]+)_PORTRAIT$", rid)
+                if portrait and portrait.group(1) not in thu_tu:
+                    thu_tu.append(portrait.group(1))
+            return "NV:PHU" if mt.group(1) in thu_tu[4:] else "NV:" + mt.group(1)
+    return "REF:BOI_CANH"
 
 
 def _ten_nhom(khoa: str, tat: dict | None = None) -> tuple[str, str]:
