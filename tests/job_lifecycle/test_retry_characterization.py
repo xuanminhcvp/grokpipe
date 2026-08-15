@@ -16,12 +16,17 @@ class RetryCharacterizationTest(unittest.TestCase):
         self.assertIn("dung_gen() != gen", quyet)
         self.assertIn("_bi_huy(ident, an=False)", quyet)
 
-        source = function_source(BOARD, "_xep_lai_sau")
-        self.assertIn("_quyet_xep_lai(item[1], gen)", source)
-        self.assertIn("_xep(Q, item)", source)
+        # Thân bộ hẹn giờ đã tách thành `_ban_xep_lai` (2026-08-14) để máy trạng
+        # thái Hypothesis bắn được xác định. Hợp đồng vẫn nguyên.
+        ban = function_source(BOARD, "_ban_xep_lai")
+        self.assertIn("_quyet_xep_lai(item[1], gen)", ban)
+        self.assertIn("_xep(", ban)
         # Bị từ chối xếp lại thì PHẢI sửa nhãn, không được bỏ về lặng lẽ:
         # nhãn 'đang chạy' còn lại là job ma, và nó chặn luôn nút Tạo lại.
-        self.assertIn("_dat_job(item[1]", source)
+        self.assertIn("_dat_job(item[1]", ban)
+
+        source = function_source(BOARD, "_xep_lai_sau")
+        self.assertIn("_ban_xep_lai", source)
 
     def test_retry_authorities_are_explicitly_counted(self):
         source = BOARD.read_text(encoding="utf-8")

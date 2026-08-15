@@ -1552,27 +1552,31 @@ def _xep_lai_sau(kind: str, item: tuple, giay: float) -> None:
     bấm dừng trong lúc chờ thì việc này biến mất theo.
     """
     gen = dung_gen()
-    Q = IMG_QUEUE if kind == "img" else VID_QUEUE
-
-    def _ban():
-        quyet = _quyet_xep_lai(item[1], gen)
-        if quyet == "xep":
-            _xep(Q, item)
-            return
-        # NHÃN PHẢI NÓI CÙNG SỰ THẬT VỚI HÀNG ĐỢI (vá 2026-08-14).
-        # Bản cũ chỉ `return`: thợ đã dán nhãn 'đang chạy · thử lại sau 20s'
-        # TRƯỚC khi hẹn giờ, nên việc bị từ chối xếp lại nằm lại vĩnh viễn với
-        # nhãn đó. Hai cái hỏng theo, đúng cặp triệu chứng user gặp:
-        #   · board hiện "đang chạy" mãi cho việc sẽ KHÔNG BAO GIỜ chạy nữa;
-        #   · `/api/generate` và nhánh tạo nhiều SF đều BỎ QUA ident đang
-        #     'running', nên bấm Tạo lại đúng những SF đó là im lặng không đẩy
-        #     gì vào Chrome.
-        _dat_job(item[1], {"state": "error",
-                           "msg": "đã dừng" if quyet == "dung" else "đã huỷ"})
-
-    t = threading.Timer(max(1.0, giay), _ban)
+    t = threading.Timer(max(1.0, giay), _ban_xep_lai, args=(kind, item, gen))
     t.daemon = True
     t.start()
+
+
+def _ban_xep_lai(kind: str, item: tuple, gen: int) -> str:
+    """THÂN của bộ hẹn giờ — tới giờ rồi thì làm gì. Trả về quyết định đã chọn.
+
+    Tách khỏi closure để máy trạng thái Hypothesis bắn được nó một cách xác
+    định, thay vì phải chờ đồng hồ thật mỗi bước."""
+    quyet = _quyet_xep_lai(item[1], gen)
+    if quyet == "xep":
+        _xep(IMG_QUEUE if kind == "img" else VID_QUEUE, item)
+        return quyet
+    # NHÃN PHẢI NÓI CÙNG SỰ THẬT VỚI HÀNG ĐỢI (vá 2026-08-14).
+    # Bản cũ chỉ `return`: thợ đã dán nhãn 'đang chạy · thử lại sau 20s'
+    # TRƯỚC khi hẹn giờ, nên việc bị từ chối xếp lại nằm lại vĩnh viễn với
+    # nhãn đó. Hai cái hỏng theo, đúng cặp triệu chứng user gặp:
+    #   · board hiện "đang chạy" mãi cho việc sẽ KHÔNG BAO GIỜ chạy nữa;
+    #   · `/api/generate` và nhánh tạo nhiều SF đều BỎ QUA ident đang
+    #     'running', nên bấm Tạo lại đúng những SF đó là im lặng không đẩy
+    #     gì vào Chrome.
+    _dat_job(item[1], {"state": "error",
+                       "msg": "đã dừng" if quyet == "dung" else "đã huỷ"})
+    return quyet
 
 
 def _acct_label() -> str:

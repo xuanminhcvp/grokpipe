@@ -56,20 +56,20 @@ class RetryLabelConsistencyTest(unittest.TestCase):
     # ---- nhãn phải khớp hàng đợi --------------------------------------
 
     def test_bo_hen_gio_doi_nhan_khi_tu_choi_xep_lai(self):
-        nguon = function_source(BOARD_PATH, "_xep_lai_sau")
+        nguon = function_source(BOARD_PATH, "_ban_xep_lai")
 
         self.assertIn("_quyet_xep_lai(item[1], gen)", nguon)
         self.assertIn('_dat_job(item[1], {"state": "error",', nguon)
         self.assertIn('"đã dừng" if quyet == "dung" else "đã huỷ"', nguon)
 
     def test_khong_con_duong_nao_bo_ve_lang_le_de_lai_nhan_chay(self):
-        nguon = function_source(BOARD_PATH, "_xep_lai_sau")
-        than_ban = nguon[nguon.index("def _ban():"):]
+        nguon = function_source(BOARD_PATH, "_ban_xep_lai")
 
-        # mọi nhánh thoát của `_ban` đều phải hoặc xếp lại, hoặc sửa nhãn
-        self.assertEqual(than_ban.count("return"), 2)
-        self.assertIn("_xep(Q, item)", than_ban)
-        self.assertIn("_dat_job(", than_ban)
+        # mọi nhánh thoát đều phải hoặc xếp lại, hoặc sửa nhãn — không có
+        # đường nào `return` trần để lại nhãn 'đang chạy'
+        self.assertNotIn("        return\n", nguon)
+        self.assertIn("_xep(", nguon)
+        self.assertIn("_dat_job(", nguon)
 
     def test_dung_tat_ca_giua_chung_thi_nhan_doi_thanh_da_dung_that(self):
         """Chạy đồng hồ THẬT — đây là đúng đường đã sinh ra 14 job ma."""
