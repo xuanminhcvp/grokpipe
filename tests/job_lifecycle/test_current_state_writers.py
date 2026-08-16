@@ -1,3 +1,4 @@
+import ast
 import unittest
 from pathlib import Path
 
@@ -5,6 +6,80 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class CurrentStateWriterInventoryTest(unittest.TestCase):
+    def test_phase2_shadow_core_has_no_production_authority(self):
+        forbidden_symbols = {
+            "IMG_QUEUE",
+            "VID_QUEUE",
+            "CHO_RIENG",
+            "PriorityQueue",
+            "_xep",
+            "_worker",
+            "_xoay_chrome",
+            "generate_lo",
+            "_gen_video",
+        }
+        forbidden_calls = forbidden_symbols | {
+            "put",
+            "put_nowait",
+            "submit",
+            "connect_over_cdp",
+            "rotate_account",
+            "assign_account",
+        }
+        forbidden_import_tokens = {
+            "account",
+            "browser",
+            "executor",
+            "hangdoi",
+            "http",
+            "playwright",
+            "provider",
+            "queue",
+            "requests",
+            "socket",
+            "urllib",
+        }
+        violations = []
+        for name in ("__init__.py", "store.py", "manager.py", "projection.py"):
+            path = ROOT / "sfboard/jobs" / name
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [node.module or ""]
+                else:
+                    modules = []
+                for module in modules:
+                    tokens = set(module.lower().replace("-", "_").split("."))
+                    if tokens & forbidden_import_tokens:
+                        violations.append(f"{name}:{node.lineno}:import {module}")
+
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    for alias in node.names:
+                        imported_name = alias.name.rsplit(".", 1)[-1]
+                        if imported_name in forbidden_symbols:
+                            violations.append(
+                                f"{name}:{node.lineno}:import {alias.name}"
+                            )
+
+                if isinstance(node, ast.Name) and node.id in forbidden_symbols:
+                    violations.append(f"{name}:{node.lineno}:{node.id}")
+                if isinstance(node, ast.Call):
+                    if isinstance(node.func, ast.Name):
+                        call_name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        call_name = node.func.attr
+                    else:
+                        call_name = ""
+                    if call_name in forbidden_calls:
+                        violations.append(f"{name}:{node.lineno}:call {call_name}")
+        self.assertEqual(
+            violations,
+            [],
+            f"Shadow core giành production authority: {violations}",
+        )
+
     def test_legacy_authority_markers_remain_visible_until_cutover(self):
         hangdoi = (ROOT / "sfboard/hangdoi.py").read_text(encoding="utf-8")
         board = (ROOT / "sfboard/sfboard.py").read_text(encoding="utf-8")
@@ -51,8 +126,6 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
         trong docstring — và một writer mới thêm vào chỉ làm con số tăng, tức
         làm test càng xanh hơn.
         """
-        import ast
-
         cay = ast.parse((ROOT / "sfboard/sfboard.py").read_text(encoding="utf-8"))
         trong_ham = {}
         for n in ast.walk(cay):

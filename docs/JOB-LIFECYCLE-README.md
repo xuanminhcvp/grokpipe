@@ -5,10 +5,12 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 
 ## Đọc trong 60 giây
 
-- Current phase: **Phase 0–1 đã triển khai trên branch lifecycle**.
+- Current phase: **Phase 2 shadow foundation đã triển khai; chưa cutover**.
 - Production authority vẫn là legacy: `JOBS`, `PriorityQueue`, worker, retry và auto.
-- `sfboard/jobs` mới chỉ là immutable domain model; production chưa import nó.
-- 4 known ambiguity còn được khóa bằng `expectedFailure`, chưa được coi là đã sửa:
+- Shadow `MemoryJobStore`/`JobManager` chỉ mirror legacy write và báo mismatch;
+  không enqueue, gọi provider, retry hoặc cấp tài khoản.
+- `GROKPIPE_JOB_MODE=shadow` là opt-in nội bộ; mặc định vẫn là `legacy`.
+- 4 known ambiguity vẫn được khóa bằng `expectedFailure`, chưa được coi là đã sửa:
   cancel identity lô, auto-video enqueue trùng, multi-copy identity và
   forced-account retry mất constraint. Race auto/stop đã có regression hành vi
   và được chặn tại critical section commit của auto producer.
@@ -87,8 +89,8 @@ hoặc tiêu credit.
 tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
 tưởng mình đã tăng độ an toàn của board.
 
-Kết quả hiện tại: **355 pass và đúng 4 `xfailed`** (Phase 0–1 lifecycle + sổ lỗi
-runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
+Kết quả hiện tại: **393 pass và đúng 4 `xfailed`** (Phase 2 shadow foundation +
+sổ lỗi runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
 cái PHẢI giữ nguyên là **đúng 4 `xfailed`**. Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm

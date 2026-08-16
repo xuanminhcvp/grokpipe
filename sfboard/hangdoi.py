@@ -48,8 +48,21 @@ class _Jobs(dict):
     khi_loi = None          # sfboard.py gắn hàm log vào đây lúc khởi động
     dan_nhan = None         # …và hàm dán nhãn tài khoản vào thông báo lỗi
     nhan_tk = None          # …và hàm trả về 'gpt-4 :9225' của luồng thợ đang chạy
+    shadow_observer = None  # Phase 2: quan sát fail-open, không có production authority
+    shadow_order_lock = threading.RLock()
 
     def __setitem__(self, k, v):
+        observer = self.shadow_observer
+        if observer is None:
+            return self._write_and_observe(k, v, None)
+        with self.shadow_order_lock:
+            return self._write_and_observe(k, v, observer)
+
+    def _write_and_observe(self, k, v, observer):
+        old_for_shadow = self.get(k)
+        if isinstance(old_for_shadow, dict):
+            old_for_shadow = dict(old_for_shadow)
+
         # XONG RỒI THÌ KHÔNG AI BÔI ĐỎ ĐƯỢC NỮA.
         #
         # `docs/JOB-LIFECYCLE-README.md` ghi 'done' là trạng thái CUỐI, nhưng
@@ -86,6 +99,12 @@ class _Jobs(dict):
         except Exception:
             pass                # móc hỏng KHÔNG được làm hỏng việc đặt trạng thái
         super().__setitem__(k, v)
+        try:
+            if observer:
+                new_for_shadow = dict(v) if isinstance(v, dict) else v
+                observer(k, old_for_shadow, new_for_shadow)
+        except Exception:
+            pass                # shadow tuyệt đối không đổi legacy behavior
 
     # ─────────────────────────── DẤU VẾT ───────────────────────────
     # Trước đây một job chỉ mang {"state", "msg"} — KHÔNG có giờ, không có tài
@@ -168,7 +187,11 @@ def vet_don(giu: int = 400) -> None:
         VET.pop(k, None)
 
 
-JOBS: dict[str, dict] = _Jobs()
+JOBS: _Jobs = _Jobs()
+
+
+def gan_shadow_observer(observer) -> None:
+    JOBS.shadow_observer = observer
 
 DA_HUY: set[str] = set()          # ident user đã huỷ, thợ phải bỏ qua
 HUY_LOCK = threading.Lock()
