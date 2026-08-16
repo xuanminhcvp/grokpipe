@@ -55,6 +55,12 @@ from .projection import (
     LegacyShadowProjection,
     ShadowMismatch,
 )
+from .compat import (
+    LegacyAction,
+    LegacyDeliveryResult,
+    LegacyEnqueueAdapter,
+    LegacyPlan,
+)
 
 __all__ = [
     "AccountLease",
@@ -94,6 +100,10 @@ __all__ = [
     "LEGAL_TRANSITIONS",
     "LEGACY_STATE_MAP",
     "LegacyShadowProjection",
+    "LegacyAction",
+    "LegacyDeliveryResult",
+    "LegacyEnqueueAdapter",
+    "LegacyPlan",
     "MemoryJobStore",
     "ProducerResult",
     "ProducerService",
