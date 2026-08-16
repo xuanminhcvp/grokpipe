@@ -24,7 +24,11 @@ from .models import (
 )
 from .errors import ErrorClass, ErrorFact
 from .store import (
+    ActiveJobConflict,
     EventConflict,
+    IdempotencyConflict,
+    IdempotencyRecord,
+    IntentWriteResult,
     JobAlreadyExists,
     JobNotFound,
     JobStore,
@@ -47,6 +51,7 @@ from .projection import (
 
 __all__ = [
     "AccountLease",
+    "ActiveJobConflict",
     "AssetId",
     "Attempt",
     "AttemptId",
@@ -63,6 +68,9 @@ __all__ = [
     "ErrorFact",
     "EventActor",
     "EventConflict",
+    "IdempotencyConflict",
+    "IdempotencyRecord",
+    "IntentWriteResult",
     "Job",
     "JobAlreadyExists",
     "JobId",
