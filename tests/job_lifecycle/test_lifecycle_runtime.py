@@ -1,16 +1,19 @@
 """Fake E2E cho authority mới; tuyệt đối không mở provider."""
 
+from contextlib import contextmanager
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 from sfboard.jobs.compat import LegacyAction, LegacyPlan
 from sfboard.jobs.errors import ErrorClass, ErrorFact
 from sfboard.jobs.models import (
-    AssetId, AttemptPhase, CreditConsumption, JobKind, JobOrigin, JobState,
+    AssetId, AttemptPhase, BatchMode, CreditConsumption, JobKind, JobOrigin,
+    JobId, JobState,
 )
-from sfboard.jobs.producer import CreateJobRequest
+from sfboard.jobs.producer import CreateBatchRequest, CreateJobRequest
 from sfboard.jobs.results import CommitDecision
 from sfboard.jobs.retry import RetryAction
 from sfboard.jobs.runtime import LifecycleRuntime
@@ -164,6 +167,64 @@ class LifecycleRuntimeTest(unittest.TestCase):
         self.assertEqual(replay.jobs[0].job_id, first.jobs[0].job_id)
         self.assertEqual(self.runtime.scheduler.active_executions(), ())
         self.assertEqual(len(self.repository.all_execution_records()), 1)
+
+    def test_partial_batch_chi_retry_member_thieu_khong_regress_member_xong(self):
+        members = tuple(
+            CreateJobRequest(
+                AssetId(f"SF-{index}"), JobKind.IMAGE, JobOrigin.MANUAL,
+                f"scope:partial:{index}", manual=True, replace_current=True,
+            )
+            for index in range(3)
+        )
+
+        def grouped_plan(result):
+            return LegacyPlan((LegacyAction(
+                "partial-group", ("LO:SF-0,SF-1,SF-2",),
+                tuple(job.job_id for job in result.jobs),
+                "img", "LO:SF-0,SF-1,SF-2", True,
+                state_idents=("SF-0", "SF-1", "SF-2"),
+            ),))
+
+        result = self.runtime.submit(
+            CreateBatchRequest(members, BatchMode.IMAGE_GROUP),
+            "partial-group", grouped_plan)
+        first_lease = self.runtime.lease_next(JobKind.IMAGE, now=0, ttl=30)
+        outputs = {
+            result.jobs[0].job_id: ("/tmp/0.png",),
+            result.jobs[1].job_id: ("/tmp/1.png",),
+        }
+
+        verdicts, decision = self.runtime.attempt_partially_succeeded(
+            first_lease.lease_id, outputs=outputs,
+            event_id=uuid4(), now=1)
+
+        self.assertEqual(set(verdicts), set(outputs))
+        self.assertEqual(decision.to_state, JobState.RETRY_WAIT)
+        self.assertEqual(
+            tuple(self.runtime.job(job.job_id).state for job in result.jobs),
+            (JobState.COMPLETED, JobState.COMPLETED, JobState.RETRY_WAIT),
+        )
+        versions = tuple(
+            self.runtime.job(job.job_id).version for job in result.jobs[:2])
+
+        second_lease = self.runtime.lease_next(
+            JobKind.IMAGE, now=decision.delay + 1, ttl=30)
+        final = self.runtime.attempt_succeeded(
+            second_lease.lease_id,
+            outputs={result.jobs[2].job_id: ("/tmp/2.png",)},
+            event_id=uuid4(), now=decision.delay + 2,
+        )
+
+        self.assertEqual(set(final), {result.jobs[2].job_id})
+        self.assertEqual(
+            tuple(self.runtime.job(job.job_id).state for job in result.jobs),
+            (JobState.COMPLETED,) * 3,
+        )
+        self.assertEqual(
+            tuple(self.runtime.job(job.job_id).version
+                  for job in result.jobs[:2]),
+            versions,
+        )
 
     def test_mat_phien_truoc_submit_noi_lai_ngay_tren_cung_account(self):
         self.submit()
@@ -320,6 +381,101 @@ class LifecycleRuntimeTest(unittest.TestCase):
             self.repository.attempt_for_lease(lease.lease_id).phase,
             AttemptPhase.PREPARING,
         )
+
+    def test_success_khong_duoc_bo_qua_output_job_ngoai_execution(self):
+        result = self.submit()
+        job_id = result.jobs[0].job_id
+        lease = self.runtime.lease_next(JobKind.IMAGE, now=0, ttl=30)
+
+        with self.assertRaisesRegex(ValueError, "JobId ngoài execution"):
+            self.runtime.attempt_succeeded(
+                lease.lease_id,
+                outputs={
+                    job_id: ("/tmp/a.png",),
+                    JobId.new(): ("/tmp/wrong.png",),
+                },
+                event_id=uuid4(), now=1,
+            )
+
+        self.assertEqual(self.runtime.job(job_id).state, JobState.RUNNING)
+
+    def test_commit_success_loi_thi_scheduler_duoc_nap_lai_de_thu_lai(self):
+        result = self.submit()
+        job_id = result.jobs[0].job_id
+        lease = self.runtime.lease_next(JobKind.IMAGE, now=0, ttl=30)
+        original_transaction = self.repository.transaction
+
+        @contextmanager
+        def fail_commit():
+            outer = self.repository._tx_depth == 0
+            with original_transaction():
+                yield self.repository
+                if outer:
+                    raise RuntimeError("simulated commit failure")
+
+        with patch.object(self.repository, "transaction", fail_commit):
+            with self.assertRaisesRegex(RuntimeError, "commit failure"):
+                self.runtime.attempt_succeeded(
+                    lease.lease_id, outputs=("/tmp/a.png",),
+                    event_id=uuid4(), now=1)
+
+        self.assertEqual(self.runtime.job(job_id).state, JobState.RUNNING)
+        verdicts = self.runtime.attempt_succeeded(
+            lease.lease_id, outputs=("/tmp/a.png",),
+            event_id=uuid4(), now=2)
+        self.assertIn(job_id, verdicts)
+        self.assertEqual(self.runtime.job(job_id).state, JobState.COMPLETED)
+
+    def test_commit_retry_loi_thi_scheduler_duoc_nap_lai_de_thu_lai(self):
+        result = self.submit()
+        job_id = result.jobs[0].job_id
+        lease = self.runtime.lease_next(JobKind.IMAGE, now=0, ttl=30)
+        error = ErrorFact(
+            ErrorClass.PROVIDER_TRANSIENT, "provider bận",
+            AttemptPhase.ATTACHING,
+        )
+        original_transaction = self.repository.transaction
+
+        @contextmanager
+        def fail_commit():
+            outer = self.repository._tx_depth == 0
+            with original_transaction():
+                yield self.repository
+                if outer:
+                    raise RuntimeError("simulated commit failure")
+
+        with patch.object(self.repository, "transaction", fail_commit):
+            with self.assertRaisesRegex(RuntimeError, "commit failure"):
+                self.runtime.attempt_failed(
+                    lease.lease_id, error, event_id=uuid4(), now=1)
+
+        self.assertEqual(self.runtime.job(job_id).state, JobState.RUNNING)
+        decision = self.runtime.attempt_failed(
+            lease.lease_id, error, event_id=uuid4(), now=2)
+        self.assertEqual(decision.action, RetryAction.RETRY)
+        self.assertEqual(self.runtime.job(job_id).state, JobState.RETRY_WAIT)
+
+    def test_commit_cancel_loi_thi_scheduler_duoc_nap_lai_de_thu_lai(self):
+        result = self.submit()
+        job_id = result.jobs[0].job_id
+        original_transaction = self.repository.transaction
+
+        @contextmanager
+        def fail_commit():
+            outer = self.repository._tx_depth == 0
+            with original_transaction():
+                yield self.repository
+                if outer:
+                    raise RuntimeError("simulated commit failure")
+
+        with patch.object(self.repository, "transaction", fail_commit):
+            with self.assertRaisesRegex(RuntimeError, "commit failure"):
+                self.runtime.cancel(job_id, event_id=uuid4(), now=1)
+
+        self.assertEqual(self.runtime.job(job_id).state, JobState.QUEUED)
+        verdict = self.runtime.cancel(job_id, event_id=uuid4(), now=2)
+        self.assertTrue(verdict.accepted)
+        self.assertEqual(self.runtime.job(job_id).state, JobState.CANCELLED)
 
     def test_cung_queue_ident_khac_scope_lease_dung_execution_dau_tien(self):
         first = self.submit("scope-1")

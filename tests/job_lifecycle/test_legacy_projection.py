@@ -376,7 +376,7 @@ class ShadowStartupTest(unittest.TestCase):
         source = function_source(ROOT / "sfboard/sfboard.py", "main")
         self.assertLess(
             source.index("_init_job_shadow()"),
-            source.index("threading.Thread(target=_supervisor"),
+            source.index("for target in _background_targets()"),
         )
 
     def test_reset_helper_initializes_legacy_adapter_for_import_harness(self):

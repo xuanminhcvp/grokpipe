@@ -1243,10 +1243,15 @@ def _make_lifecycle_repository(path):
 
 def _shutdown_job_lifecycle():
     global _JOB_REPOSITORY, _JOB_RUNTIME, _JOB_EXECUTOR_ADAPTER
+    global _JOB_ADAPTER, _JOB_PRODUCER, _JOB_SCHEDULER, _JOB_ACCOUNTS
     repository = _JOB_REPOSITORY
     _JOB_REPOSITORY = None
     _JOB_RUNTIME = None
     _JOB_EXECUTOR_ADAPTER = None
+    _JOB_ADAPTER = None
+    _JOB_PRODUCER = None
+    _JOB_SCHEDULER = None
+    _JOB_ACCOUNTS = None
     if repository is not None:
         try:
             repository.close()
@@ -1304,6 +1309,26 @@ def _lich_diagnostics() -> dict:
         return {"executions": 0, "theo_trang_thai": {}}
 
 
+def _runtime_queue_snapshot() -> dict:
+    if _JOB_MODE != "authoritative" or _JOB_SCHEDULER is None:
+        return {
+            "anh": thu_tu_hang(IMG_QUEUE),
+            "video": thu_tu_hang(VID_QUEUE),
+        }
+    from jobs.models import ExecutionState, JobKind
+
+    active = tuple(
+        execution for execution in _JOB_SCHEDULER.active_executions()
+        if execution.state in {ExecutionState.READY, ExecutionState.WAITING}
+    )
+    return {
+        "anh": [execution.queue_ident for execution in active
+                if execution.kind is JobKind.IMAGE],
+        "video": [execution.queue_ident for execution in active
+                  if execution.kind is JobKind.VIDEO],
+    }
+
+
 def _job_invariant_diagnostics(now=None) -> dict:
     """So snapshot queue/scheduler/UI và chỉ trả báo cáo, không tự sửa."""
     try:
@@ -1313,17 +1338,21 @@ def _job_invariant_diagnostics(now=None) -> dict:
 
         timestamp = time.time() if now is None else float(now)
         schedule = _JOB_SCHEDULER.invariant_snapshot(timestamp)
-        queue_idents = _y_trong_hang(IMG_QUEUE) | _y_trong_hang(VID_QUEUE)
-        with _CR_LOCK:
-            queue_idents.update(
-                ident for idents in CHO_RIENG.values()
-                for ident in tuple(idents)
-            )
         # Retry chưa tới `not_before` đang nằm ở transport timer chứ chưa ở
         # PriorityQueue. Coi nó là transport-wait để monitor không báo mất việc
         # giả, đồng thời dùng nó che nhãn `running · thử lại sau` hợp lệ.
         waiting = tuple(schedule["waiting_idents"])
-        queue_idents.update(waiting)
+        if _JOB_MODE == "authoritative":
+            # Durable scheduler CHÍNH LÀ transport; queue RAM legacy phải rỗng.
+            queue_idents = set(schedule["scheduled_idents"] + waiting)
+        else:
+            queue_idents = _y_trong_hang(IMG_QUEUE) | _y_trong_hang(VID_QUEUE)
+            with _CR_LOCK:
+                queue_idents.update(
+                    ident for idents in CHO_RIENG.values()
+                    for ident in tuple(idents)
+                )
+            queue_idents.update(waiting)
         with JOBS.shadow_order_lock:
             labels = {
                 str(key): str(value.get("state") or "")
@@ -1447,7 +1476,6 @@ def _init_job_shadow(mode=None):
 
             repository = _make_lifecycle_repository(_lifecycle_db_path())
             runtime = LifecycleRuntime(repository)
-            recovery_candidates = runtime.scheduler.active_executions()
             runtime.recover(now=time.time(), event_id=uuid.uuid4())
             executor_adapter = LegacyExecutorAdapter(runtime)
         except Exception as exc:
@@ -1472,7 +1500,7 @@ def _init_job_shadow(mode=None):
         _JOB_SCHEDULER = runtime.scheduler
         _JOB_ACCOUNTS = runtime.accounts
         _sync_runtime_accounts()
-        _restore_runtime_projection(recovery_candidates)
+        _restore_runtime_projection()
         return runtime
 
     if selected != "shadow":
@@ -1793,17 +1821,13 @@ def _runtime_project_jobs(job_ids):
         _runtime_project_state(label, projection[state])
 
 
-def _restore_runtime_projection(executions):
+def _restore_runtime_projection():
     """Dựng lại nhãn UI từ identity bền vững sau startup recovery."""
     if _JOB_RUNTIME is None:
         return
     by_asset = {}
-    for execution in executions:
-        for raw_job_id in execution.member_keys:
-            from jobs.models import JobId
-
-            job = _JOB_RUNTIME.job(JobId.parse(raw_job_id))
-            by_asset.setdefault(str(job.asset_id), []).append(job.job_id)
+    for job in _JOB_RUNTIME.projectable_jobs():
+        by_asset.setdefault(str(job.asset_id), []).append(job.job_id)
     for label, job_ids in by_asset.items():
         unique = tuple(dict.fromkeys(job_ids))
         _dat_job(label, {
@@ -2894,6 +2918,8 @@ def _gac_hang_doi():
     gen_truoc = dung_gen()
     while True:
         time.sleep(30)
+        if not _legacy_execution_enabled():
+            continue
         try:
             # "DỪNG TẤT CẢ" PHẢI THẮNG NGƯỜI GÁC. Người gác sinh ra để cứu việc
             # rơi khỏi hàng, nhưng sau cú bấm dừng thì việc rơi khỏi hàng là
@@ -3032,6 +3058,9 @@ def _supervisor():
     - Tài khoản 'cửa sổ Chrome đã đóng' mà Chrome đã mở lại → tự hồi sinh.
     - Tài khoản 'hết lượt' giữ nguyên đến khi user bấm 'Thử lại' trên giao diện."""
     while True:
+        if not _legacy_execution_enabled():
+            time.sleep(2)
+            continue
         try:
             _giu_du_tai_khoan()      # số tài khoản chạy được luôn bằng con số user đặt
         except Exception as e:
@@ -3334,6 +3363,8 @@ def _auto_runner():
         # Chờ tới vòng sau, NHƯNG tỉnh ngay nếu user vừa bật một scene.
         _AUTO_WAKE.wait(AUTO_PERIOD)
         _AUTO_WAKE.clear()
+        if not _legacy_execution_enabled():
+            continue
         cyc += 1
         try:
             with AUTO_LOCK:
@@ -5127,7 +5158,7 @@ class Handler(BaseHTTPRequestHandler):
             # việc đang chờ. Nhãn "chờ" tự nó là dấu vết đã ghi, không phải hàng
             # đợi — hai thứ lệch nhau được, và đúng lúc lệch là lúc user ngồi
             # nhìn Chrome rảnh mà việc không nhúc nhích.
-            _hang = {"anh": thu_tu_hang(IMG_QUEUE), "video": thu_tu_hang(VID_QUEUE)}
+            _hang = _runtime_queue_snapshot()
             _tho = {"img": {"song": 0, "ban": 0}, "vid": {"song": 0, "ban": 0}}
             for (_p, _k, _s), _t in list(WORKERS.items()):
                 if _k in _tho and _t.is_alive():
@@ -5153,8 +5184,12 @@ class Handler(BaseHTTPRequestHandler):
             # HÀNG ĐỢI ĐỨNG IM THÌ SOI Ở ĐÂY. Giao diện chỉ thấy JOBS, mà JOBS là
             # dấu vết đã ghi chứ không phải hiện trạng: việc có thể mang nhãn
             # "chờ" trong khi hàng đợi RAM đã rỗng (không ai nhấc nữa).
+            _hang = _runtime_queue_snapshot()
             self._json({
-                "hang_doi": {"anh": IMG_QUEUE.qsize(), "video": VID_QUEUE.qsize()},
+                "hang_doi": {
+                    "anh": len(_hang["anh"]),
+                    "video": len(_hang["video"]),
+                },
                 "tho": {f"{p}·{k}·{s}": t.is_alive()
                         for (p, k, s), t in list(WORKERS.items())},
                 "chet": dict(DEAD),
@@ -5307,6 +5342,9 @@ class Handler(BaseHTTPRequestHandler):
                         # Chỉ bản đầu ghi nhãn gộp; N bản vẫn xếp đủ N lượt.
                         state=_nhan if i == 0 else None,
                         state_idents=(_sf,),
+                        # Mỗi execution chỉ giữ một child, nhưng nhãn UI/shadow
+                        # đại diện cho TOÀN BỘ batch multi-copy.
+                        member_bindings=((_sf, ids), (_ident, ids)),
                     )
                     for i in range(_n)
                 ))
@@ -5336,10 +5374,19 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 cancelled, before = _runtime_cancel_labels(
                     active_labels, message="đã dừng")
+                remaining = [
+                    label for label in active_labels
+                    if label not in cancelled
+                    and any(
+                        not _JOB_RUNTIME.job(job_id).state.is_terminal
+                        for job_id in _runtime_job_ids_for_label(label)
+                    )
+                ]
                 self._json({
                     "ok": True,
                     "bo": sum(before[label] == "queued" for label in cancelled),
                     "dung": sum(before[label] == "running" for label in cancelled),
+                    "con_lai": remaining,
                     "dong_chrome": [],
                     "da_bam_stop": 0,
                 })
@@ -6374,6 +6421,18 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": False}, 404)
 
 
+def _legacy_execution_enabled() -> bool:
+    """Mode core-only không được tự khởi động bất kỳ authority legacy nào."""
+    return _JOB_MODE != "authoritative"
+
+
+def _background_targets():
+    targets = [_luu_ban_runner]
+    if _legacy_execution_enabled():
+        targets[0:0] = [_supervisor, _gac_hang_doi, _auto_runner]
+    return tuple(targets)
+
+
 def main():
     global BOARD, CDP_ENDPOINTS, GROK_ENDPOINTS, PROJECTS_ROOT, SERVE_PORT
     args = [a for a in sys.argv[1:]]
@@ -6427,22 +6486,23 @@ def main():
     # Chỉ làm một lần ở đây, không làm trong supervisor: nếu bạn cố ý đóng một
     # cửa sổ giữa chừng thì nó phải nằm im, không bị mở lại liên tục.
     opened = 0
-    for a in ACCOUNTS:
-        if a.get("enabled") and not _endpoint_alive(_ep(a)):
-            if _launch_chrome(a):
-                opened += 1
-    if opened:
-        print(f"  → đang mở {opened} cửa sổ Chrome cho các tài khoản đang bật…")
-        time.sleep(3 + opened)
+    if _legacy_execution_enabled():
+        for a in ACCOUNTS:
+            if a.get("enabled") and not _endpoint_alive(_ep(a)):
+                if _launch_chrome(a):
+                    opened += 1
+        if opened:
+            print(f"  → đang mở {opened} cửa sổ Chrome cho các tài khoản đang bật…")
+            time.sleep(3 + opened)
+    else:
+        print("  → authoritative core-only: không tự mở Chrome/provider")
     for a in ACCOUNTS:
         live = "sống" if _endpoint_alive(_ep(a)) else "chưa mở Chrome"
         onoff = "BẬT" if a.get("enabled") else "tắt"
         print(f"  · {a['id']:8s} {_KIND_NAME[a['kind']]:16s} port {a['port']}  [{onoff}, {live}]")
     # Supervisor tự mở/đóng luồng thợ theo trạng thái bật/tắt của từng tài khoản.
-    threading.Thread(target=_supervisor, daemon=True).start()
-    threading.Thread(target=_gac_hang_doi, daemon=True).start()
-    threading.Thread(target=_auto_runner, daemon=True).start()
-    threading.Thread(target=_luu_ban_runner, daemon=True).start()
+    for target in _background_targets():
+        threading.Thread(target=target, daemon=True).start()
     atexit.register(_shutdown_job_lifecycle)
     try:
         webbrowser.open(url)

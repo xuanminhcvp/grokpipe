@@ -157,3 +157,27 @@ class RetryPolicy:
                              reason_code="provider.transient",
                              to_state=JobState.RETRY_WAIT,
                              rotate_account=True)
+
+    def decide_partial(
+        self, history: AttemptHistory, kind: JobKind,
+    ) -> RetryDecision:
+        """Retry cả execution khi lô trả thiếu, không hồi sinh member đã xong."""
+        tran = self.tran_gui.get(kind, 5)
+        if history.submitted_attempts >= tran:
+            return RetryDecision(
+                RetryAction.FAIL,
+                reason_code=f"budget.exhausted.{tran}",
+                to_state=JobState.FAILED,
+            )
+        if history.whole_execution_retries >= self.tran_chay_lai:
+            return RetryDecision(
+                RetryAction.FAIL,
+                reason_code="budget.whole_execution",
+                to_state=JobState.FAILED,
+            )
+        return RetryDecision(
+            RetryAction.RETRY,
+            delay=_backoff(history.whole_execution_retries + 1),
+            reason_code="batch.partial",
+            to_state=JobState.RETRY_WAIT,
+        )

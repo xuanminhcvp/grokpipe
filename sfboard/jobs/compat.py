@@ -127,8 +127,12 @@ class LegacyEnqueueAdapter:
             self._bind_action(delivery_key, action)
 
     def _bind_action(self, delivery_key: str, action: LegacyAction) -> None:
-        pairs = [(legacy_key, action.job_ids) for legacy_key in action.legacy_keys]
-        pairs.extend(action.member_bindings or ())
+        explicit = dict(action.member_bindings or ())
+        pairs = [
+            (legacy_key, explicit.pop(legacy_key, action.job_ids))
+            for legacy_key in action.legacy_keys
+        ]
+        pairs.extend(explicit.items())
         for legacy_key, job_ids in pairs:
             if not job_ids:
                 continue

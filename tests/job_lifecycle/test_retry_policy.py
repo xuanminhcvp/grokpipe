@@ -103,6 +103,23 @@ class RetryPolicyTest(unittest.TestCase):
         self.assertEqual(d.action, RetryAction.FAIL)
         self.assertEqual(d.reason_code, "budget.whole_execution")
 
+    def test_partial_batch_dung_cung_tran_hai_lan_va_khong_xoay_account(self):
+        first = self.p.decide_partial(
+            AttemptHistory(attempts=1, submitted_attempts=1), JobKind.IMAGE)
+        exhausted = self.p.decide_partial(
+            AttemptHistory(
+                attempts=3, submitted_attempts=3,
+                whole_execution_retries=2,
+            ),
+            JobKind.IMAGE,
+        )
+
+        self.assertEqual(first.action, RetryAction.RETRY)
+        self.assertEqual(first.reason_code, "batch.partial")
+        self.assertFalse(first.rotate_account)
+        self.assertEqual(exhausted.action, RetryAction.FAIL)
+        self.assertEqual(exhausted.reason_code, "budget.whole_execution")
+
     # ───────────────────────────── giãn cách ──────────────────────────
 
     def test_gian_dan_roi_cham_tran(self):

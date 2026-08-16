@@ -74,6 +74,8 @@ class JobStore(Protocol):
 
     def get(self, job_id: JobId) -> Optional[Job]: ...
 
+    def all_jobs(self) -> Tuple[Job, ...]: ...
+
     def events_for(self, job_id: JobId) -> Tuple[JobEvent, ...]: ...
 
     def append_event(self, job_id: JobId, event: JobEvent) -> StoreWriteResult: ...
@@ -309,6 +311,10 @@ class MemoryJobStore:
     def get(self, job_id: JobId) -> Optional[Job]:
         with self._lock:
             return self._jobs.get(job_id)
+
+    def all_jobs(self) -> Tuple[Job, ...]:
+        with self._lock:
+            return tuple(self._jobs.values())
 
     def events_for(self, job_id: JobId) -> Tuple[JobEvent, ...]:
         with self._lock:

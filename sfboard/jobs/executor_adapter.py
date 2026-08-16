@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from .errors import ErrorClass, ErrorFact
 from .facts import RuntimeLease
-from .models import AttemptPhase, CreditConsumption, JobId
+from .models import AttemptPhase, CreditConsumption, JobId, JobKind, JobState
 from .results import CommitVerdict
 from .retry import RetryDecision
 from .runtime import LifecycleRuntime
@@ -105,6 +105,45 @@ class LegacyExecutorAdapter:
                 now=self.clock(),
             )
             return ExecutorRunOutcome(decision=decision)
+        unexpected = set(result.outputs) - set(lease.member_job_ids)
+        if unexpected:
+            decision = self.runtime.attempt_failed(
+                lease.lease_id,
+                ErrorFact(
+                    ErrorClass.PERMANENT,
+                    "executor trả output cho JobId ngoài execution",
+                    phase_now,
+                ),
+                event_id=uuid4(),
+                now=self.clock(),
+            )
+            return ExecutorRunOutcome(decision=decision)
+        pending = {
+            job_id for job_id in lease.member_job_ids
+            if self.runtime.job(job_id).state is JobState.RUNNING
+        }
+        delivered = {
+            job_id for job_id, outputs in result.outputs.items() if outputs
+        }
+        if pending - delivered:
+            if lease.kind is JobKind.VIDEO:
+                decision = self.runtime.attempt_failed(
+                    lease.lease_id,
+                    self.classify_exception(
+                        RuntimeError("video attempt không có output"),
+                        phase_now,
+                    ),
+                    event_id=uuid4(),
+                    now=self.clock(),
+                )
+                return ExecutorRunOutcome(decision=decision)
+            verdicts, decision = self.runtime.attempt_partially_succeeded(
+                lease.lease_id,
+                outputs=result.outputs,
+                event_id=uuid4(),
+                now=self.clock(),
+            )
+            return ExecutorRunOutcome(verdicts=verdicts, decision=decision)
         verdicts = self.runtime.attempt_succeeded(
             lease.lease_id,
             outputs=result.outputs,

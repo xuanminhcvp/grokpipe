@@ -9,7 +9,9 @@ from sfboard.jobs.errors import ErrorClass, ErrorFact
 from sfboard.jobs.executor_adapter import (
     ExecutorAttemptResult, LegacyExecutorAdapter,
 )
-from sfboard.jobs.models import AssetId, AttemptPhase, JobKind, JobOrigin, JobState
+from sfboard.jobs.models import (
+    AssetId, AttemptPhase, JobId, JobKind, JobOrigin, JobState,
+)
 from sfboard.jobs.producer import CreateJobRequest
 from sfboard.jobs.runtime import LifecycleRuntime
 from sfboard.jobs.sqlite_store import SQLiteLifecycleRepository
@@ -67,6 +69,32 @@ class ExecutorAdapterTest(unittest.TestCase):
         outcome = adapter.run_once(self.lease, fail)
 
         self.assertEqual(outcome.decision.reason_code, "validation.permanent")
+        self.assertEqual(self.runtime.job(self.job_id).state, JobState.FAILED)
+        self.assertEqual(self.runtime.scheduler.ready(now=999), ())
+
+    def test_zero_output_duoc_coi_la_partial_co_gioi_han(self):
+        adapter = LegacyExecutorAdapter(self.runtime, clock=lambda: 1)
+
+        outcome = adapter.run_once(
+            self.lease,
+            lambda _lease, _phase: ExecutorAttemptResult({}),
+        )
+
+        self.assertEqual(outcome.decision.reason_code, "batch.partial")
+        self.assertEqual(
+            self.runtime.job(self.job_id).state, JobState.RETRY_WAIT)
+
+    def test_output_job_id_ngoai_execution_fail_closed(self):
+        adapter = LegacyExecutorAdapter(self.runtime, clock=lambda: 1)
+
+        outcome = adapter.run_once(
+            self.lease,
+            lambda _lease, _phase: ExecutorAttemptResult({
+                JobId.new(): ("/tmp/wrong.png",),
+            }),
+        )
+
+        self.assertEqual(outcome.decision.reason_code, "permanent")
         self.assertEqual(self.runtime.job(self.job_id).state, JobState.FAILED)
         self.assertEqual(self.runtime.scheduler.ready(now=999), ())
 

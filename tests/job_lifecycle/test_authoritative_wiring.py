@@ -63,6 +63,16 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertIsNone(self.board._JOB_RUNTIME)
         self.assertIsNone(self.board._JOB_REPOSITORY)
 
+    def test_authoritative_startup_khong_mo_chrome_hay_legacy_services(self):
+        self.board._init_job_shadow("authoritative")
+
+        self.assertFalse(self.board._legacy_execution_enabled())
+        targets = self.board._background_targets()
+        self.assertNotIn(self.board._supervisor, targets)
+        self.assertNotIn(self.board._gac_hang_doi, targets)
+        self.assertNotIn(self.board._auto_runner, targets)
+        self.assertIn(self.board._luu_ban_runner, targets)
+
     def test_authoritative_fail_closed_khi_database_khong_mo_duoc(self):
         with mock.patch.object(
             self.board, "_make_lifecycle_repository",
@@ -88,6 +98,35 @@ class AuthoritativeWiringTest(unittest.TestCase):
             self.models.JobState.QUEUED,
         )
         self.assertEqual(self.board.JOBS["A"]["state"], "queued")
+
+    def test_authoritative_diagnostics_khong_coi_queue_legacy_la_transport(self):
+        self.board._init_job_shadow("authoritative")
+        self.board._producer_submit(self.request(), "diag-A", self.plan)
+
+        diagnostics = self.board._job_invariant_diagnostics(now=0)
+        handler = make_handler(self.board, "/api/chan-doan")
+        handler.do_GET()
+
+        self.assertNotIn("lich.thieu", diagnostics["theo_ma"])
+        self.assertNotIn("hang.thieu", diagnostics["theo_ma"])
+        self.assertNotIn("nhan.mo_coi", diagnostics["theo_ma"])
+        self.assertEqual(handler.captured[1]["hang_doi"]["anh"], 1)
+        self.assertEqual(handler.captured[1]["hang_doi"]["video"], 0)
+
+    def test_authoritative_api_jobs_hien_hang_durable_thay_queue_ram(self):
+        self.board._init_job_shadow("authoritative")
+        self.board._producer_submit(self.request(), "jobs-A", self.plan)
+        handler = make_handler(self.board, "/api/jobs")
+
+        with mock.patch.object(self.board, "_pl_dem", return_value={}), \
+                mock.patch.object(self.board, "_dan_ma_doc", return_value=False):
+            handler.do_GET()
+        code, body = handler.captured
+
+        self.assertEqual(code, 200)
+        self.assertEqual(body["hang"]["anh"], ["LO:A"])
+        self.assertEqual(body["hang"]["video"], [])
+        self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
 
     def test_authoritative_http_fake_tra_durable_id_khong_enqueue_legacy(self):
         self.board._init_job_shadow("authoritative")
@@ -159,6 +198,45 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(self.board.JOBS["SF-A"]["state"], "queued")
         self.assertEqual(self.board.JOBS["SF-A"]["job_id"], job_id)
         self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
+
+    def test_request_sau_shutdown_reopen_authoritative_khong_roi_ve_legacy(self):
+        self.board._init_job_shadow("authoritative")
+        first = self.board._producer_submit(
+            self.request(), "shutdown-reopen-A", self.plan)
+        self.board._shutdown_job_lifecycle()
+
+        replay = self.board._producer_submit(
+            self.request(), "shutdown-reopen-A", self.plan)
+
+        self.assertTrue(replay.replayed)
+        self.assertEqual(replay.jobs[0].job_id, first.jobs[0].job_id)
+        self.assertEqual(self.board._JOB_MODE, "authoritative")
+        self.assertIsNotNone(self.board._JOB_RUNTIME)
+        self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
+
+    def test_attention_van_hien_tren_ui_sau_nhieu_lan_restart(self):
+        self.board.ACCOUNTS = [{
+            "id": "fake", "port": 9222, "kind": "img",
+            "enabled": True, "tabs": 1,
+        }]
+        self.board._init_job_shadow("authoritative")
+        self.board._producer_submit(
+            self.request(), "attention-restart-A", self.plan)
+        lease = self.board._JOB_RUNTIME.lease_next(
+            self.models.JobKind.IMAGE, now=0, ttl=30)
+        self.board._JOB_RUNTIME.attempt_phase(
+            lease.lease_id,
+            self.models.AttemptPhase.SUBMITTED,
+            now=1,
+            consumes_credit=self.models.CreditConsumption.UNKNOWN,
+        )
+
+        for _ in range(2):
+            self.board._shutdown_job_lifecycle()
+            self.board.JOBS.clear()
+            self.board._init_job_shadow("authoritative")
+            self.assertEqual(self.board.JOBS["SF-A"]["state"], "error")
+            self.assertIn("không tự gửi lại", self.board.JOBS["SF-A"]["msg"])
 
     def test_authoritative_giu_fallback_video_sang_tai_khoan_anh(self):
         self.board.ACCOUNTS = [{
@@ -285,6 +363,47 @@ class AuthoritativeWiringTest(unittest.TestCase):
                 self.models.JobState.CANCELLED,
             )
 
+    def test_dung_het_an_toan_bao_ro_video_da_submit_con_chay(self):
+        self.board.ACCOUNTS = [{
+            "id": "fake", "port": 9222, "kind": "vid",
+            "enabled": True, "tabs": 1,
+        }]
+        self.board._init_job_shadow("authoritative")
+        request = self.producer.CreateJobRequest(
+            self.models.AssetId("V-A"), self.models.JobKind.VIDEO,
+            self.models.JobOrigin.MANUAL, "scope:stop-video:A", manual=True,
+        )
+
+        def video_plan(result):
+            return self.compat.LegacyPlan((self.compat.LegacyAction(
+                "stop-video:A", ("V-A",), (result.jobs[0].job_id,),
+                "vid", "V-A", True,
+            ),))
+
+        result = self.board._producer_submit(
+            request, "stop-video-A", video_plan)
+        lease = self.board._JOB_RUNTIME.lease_next(
+            self.models.JobKind.VIDEO, now=0, ttl=30)
+        self.board._JOB_RUNTIME.attempt_phase(
+            lease.lease_id,
+            self.models.AttemptPhase.SUBMITTED,
+            now=1,
+            consumes_credit=self.models.CreditConsumption.UNKNOWN,
+        )
+        self.board._runtime_project_jobs(lease.member_job_ids)
+        stop = make_handler(self.board, "/api/dung-het")
+
+        stop.do_POST()
+
+        body = stop.captured[1]
+        self.assertEqual(body["con_lai"], ["V-A"])
+        self.assertEqual(body["dung"], 0)
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(result.jobs[0].job_id).state,
+            self.models.JobState.RUNNING,
+        )
+        self.assertEqual(self.board.JOBS["V-A"]["state"], "running")
+
     def test_authoritative_dung_viec_anh_dang_chay_huy_runtime_lease(self):
         self.board.ACCOUNTS = [{
             "id": "fake", "port": 9222, "kind": "img",
@@ -369,6 +488,92 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertTrue(replay.replayed)
         self.assertEqual(runtime.scheduler.active_executions(), ())
         self.assertEqual(self.board.JOBS["A"]["state"], "done")
+
+    def test_adapter_partial_group_chi_retry_member_thieu(self):
+        self.board.ACCOUNTS = [{
+            "id": "fake", "port": 9222, "kind": "img",
+            "enabled": True, "tabs": 1,
+        }]
+        self.board._init_job_shadow("authoritative")
+        members = tuple(
+            self.producer.CreateJobRequest(
+                self.models.AssetId(asset), self.models.JobKind.IMAGE,
+                self.models.JobOrigin.MANUAL, f"scope:{asset}", manual=True,
+                replace_current=True,
+            )
+            for asset in ("SF-A", "SF-B")
+        )
+
+        def grouped_plan(result):
+            ids = tuple(job.job_id for job in result.jobs)
+            return self.compat.LegacyPlan((self.compat.LegacyAction(
+                "group:A:B", ("LO:SF-A,SF-B",), ids,
+                "img", "LO:SF-A,SF-B", True,
+                state_idents=("SF-A", "SF-B"),
+                member_bindings=(("SF-A", (ids[0],)), ("SF-B", (ids[1],))),
+            ),))
+
+        request = self.producer.CreateBatchRequest(
+            members, self.models.BatchMode.IMAGE_GROUP)
+        result = self.board._producer_submit(
+            request, "partial-adapter-A-B", grouped_plan)
+
+        def execute(_lease, _phase):
+            return self.executor_adapter.ExecutorAttemptResult({
+                result.jobs[0].job_id: ("/tmp/A.png",),
+            })
+
+        outcome = self.board._run_authoritative_once(
+            self.models.JobKind.IMAGE, execute, now=0, ttl=30)
+
+        self.assertEqual(outcome.decision.reason_code, "batch.partial")
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(result.jobs[0].job_id).state,
+            self.models.JobState.COMPLETED,
+        )
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(result.jobs[1].job_id).state,
+            self.models.JobState.RETRY_WAIT,
+        )
+        self.assertEqual(self.board.JOBS["SF-A"]["state"], "done")
+        self.assertEqual(self.board.JOBS["SF-B"]["state"], "queued")
+
+    def test_video_zero_output_sau_submit_vao_attention_khong_partial_retry(self):
+        self.board.ACCOUNTS = [{
+            "id": "fake", "port": 9222, "kind": "vid",
+            "enabled": True, "tabs": 1,
+        }]
+        self.board._init_job_shadow("authoritative")
+        request = self.producer.CreateJobRequest(
+            self.models.AssetId("V-A"), self.models.JobKind.VIDEO,
+            self.models.JobOrigin.MANUAL, "scope:video-zero:A", manual=True,
+        )
+
+        def video_plan(result):
+            return self.compat.LegacyPlan((self.compat.LegacyAction(
+                "video-zero:A", ("V-A",), (result.jobs[0].job_id,),
+                "vid", "V-A", True,
+            ),))
+
+        result = self.board._producer_submit(
+            request, "video-zero-A", video_plan)
+
+        def execute(_lease, phase):
+            phase(
+                self.models.AttemptPhase.SUBMITTED,
+                consumes_credit=self.models.CreditConsumption.UNKNOWN,
+            )
+            return self.executor_adapter.ExecutorAttemptResult({})
+
+        outcome = self.board._run_authoritative_once(
+            self.models.JobKind.VIDEO, execute, now=0, ttl=30)
+
+        self.assertEqual(outcome.decision.reason_code, "outcome.unknown")
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(result.jobs[0].job_id).state,
+            self.models.JobState.NEEDS_ATTENTION,
+        )
+        self.assertEqual(self.board._JOB_RUNTIME.scheduler.ready(now=999), ())
 
     def test_executor_adapter_loi_chi_phat_fact_khong_tu_retry(self):
         self.board._init_job_shadow("authoritative")

@@ -260,6 +260,11 @@ class AutoCharacterizationTest(unittest.TestCase):
             self.assertEqual(len(set(body["job_ids"])), 3)
             self.assertIsNotNone(body["batch_id"])
             self.assertEqual(self.m.IMG_QUEUE.qsize(), 3)
+            self.assertEqual(
+                {str(job.job_id)
+                 for job in self.m._JOB_SHADOW.jobs_for("SF-S1-01")},
+                set(body["job_ids"]),
+            )
 
             h2 = make_handler(self.m, "/api/generate?sf=SF-S1-01&n=3")
             h2.headers["Idempotency-Key"] = "multi-copy"

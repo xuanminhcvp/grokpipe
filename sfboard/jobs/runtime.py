@@ -7,11 +7,12 @@ result commit.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 import threading
 import time
-from typing import Callable, Mapping, Optional, Tuple, Union
+from typing import Callable, cast, Iterator, Mapping, Optional, Tuple, Union
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from .accounts import AccountAllocator, NoAccountAvailable
@@ -100,6 +101,16 @@ class LifecycleRuntime:
         self.scheduler = Scheduler(self.repository)
         self._restore_constraints()
 
+    @contextmanager
+    def _coordinated_transaction(self) -> Iterator[None]:
+        """Giữ cache scheduler khớp SQLite nếu commit/rollback thất bại."""
+        try:
+            with self.repository.transaction():
+                yield
+        except Exception:
+            self._reset_scheduler_after_rollback()
+            raise
+
     def _transition(
         self,
         job_id: JobId,
@@ -186,6 +197,14 @@ class LifecycleRuntime:
 
     def job(self, job_id: JobId):
         return self.manager.get(job_id)
+
+    def projectable_jobs(self):
+        """Snapshot durable cho compatibility UI sau restart."""
+        with self._lock:
+            return tuple(
+                job for job in self.repository.all_jobs()
+                if not job.state.is_terminal
+            )
 
     def _member_job_ids(self, execution) -> Tuple[JobId, ...]:
         return tuple(JobId.parse(value) for value in execution.member_keys)
@@ -351,14 +370,19 @@ class LifecycleRuntime:
             if replay is not None:
                 return replay  # type: ignore[return-value]
             lease = self._active_lease(lease_id)
+            if (isinstance(outputs, Mapping)
+                    and not set(outputs).issubset(lease.member_job_ids)):
+                raise ValueError("success output chứa JobId ngoài execution")
             attempt = self.repository.attempt_for_lease(lease_id)
             if attempt is None:
                 raise RuntimeLeaseNotFound(lease_id)
             timestamp = self.clock() if now is None else float(now)
             verdicts = {}
-            with self.repository.transaction():
+            with self._coordinated_transaction():
                 for job_id in lease.member_job_ids:
                     job = self.manager.get(job_id)
+                    if job.state is not JobState.RUNNING:
+                        continue
                     job_outputs = (
                         outputs.get(job_id, ())
                         if isinstance(outputs, Mapping) else outputs
@@ -392,6 +416,100 @@ class LifecycleRuntime:
             self._fact_results[event_id] = verdicts
             return verdicts
 
+    def attempt_partially_succeeded(
+        self,
+        lease_id: str,
+        *,
+        outputs: Mapping[JobId, Tuple[str, ...]],
+        event_id: UUID,
+        now: float,
+    ) -> Tuple[Mapping[JobId, CommitVerdict], RetryDecision]:
+        """Commit member có output và chỉ retry/fail các member còn thiếu."""
+        with self._lock:
+            replay = self._fact_results.get(event_id)
+            if replay is not None:
+                return replay  # type: ignore[return-value]
+            lease = self._active_lease(lease_id)
+            member_ids = set(lease.member_job_ids)
+            if not set(outputs).issubset(member_ids):
+                raise ValueError("partial output chứa JobId ngoài execution")
+            attempt = self.repository.attempt_for_lease(lease_id)
+            if attempt is None:
+                raise RuntimeLeaseNotFound(lease_id)
+            active_jobs = tuple(
+                self.manager.get(job_id) for job_id in lease.member_job_ids
+                if self.manager.get(job_id).state is JobState.RUNNING
+            )
+            delivered = tuple(
+                job for job in active_jobs if outputs.get(job.job_id)
+            )
+            missing = tuple(
+                job for job in active_jobs if not outputs.get(job.job_id)
+            )
+            if not missing:
+                raise ValueError("partial fact cần ít nhất một member thiếu")
+
+            history_items = self.repository.attempts_for_execution(
+                lease.execution_id)
+            submitted_attempts = sum(
+                item.submitted_at is not None for item in history_items)
+            if attempt.submitted_at is None:
+                submitted_attempts += 1
+            history = AttemptHistory(
+                attempts=max(len(history_items) - 1, submitted_attempts),
+                submitted_attempts=submitted_attempts,
+                whole_execution_retries=sum(
+                    item.attempt_id != attempt.attempt_id
+                    and item.outcome is AttemptOutcome.ERROR
+                    for item in history_items
+                ),
+            )
+            decision = self.retry.decide_partial(history, lease.kind)
+            verdicts = {}
+            with self._coordinated_transaction():
+                for job in delivered:
+                    job_outputs = outputs[job.job_id]
+                    verdict = self.results.commit(ResultFact(
+                        work_key=str(job.asset_id),
+                        lease_id=lease_id,
+                        outputs=job_outputs,
+                        job_state=job.state,
+                        replace_current=job.replace_current,
+                        started_at=lease.started_at,
+                    ))
+                    verdicts[job.job_id] = verdict
+                    self._transition(
+                        job.job_id, JobState.COMPLETED,
+                        event_id=_event_id(event_id, job.job_id, "success"),
+                        actor=EventActor.WORKER,
+                        event_type="attempt.succeeded",
+                        reason_code=verdict.reason_code,
+                    )
+                for job in missing:
+                    self._transition(
+                        job.job_id, cast(JobState, decision.to_state),
+                        event_id=_event_id(
+                            event_id, job.job_id, decision.action.value),
+                        actor=EventActor.WORKER,
+                        event_type="attempt.partial",
+                        reason_code=decision.reason_code,
+                    )
+                self._finish_attempt(
+                    attempt,
+                    now=now,
+                    outcome=AttemptOutcome.ERROR,
+                    success_implies_submit=True,
+                )
+                if decision.action is RetryAction.RETRY:
+                    self.scheduler.release(
+                        lease_id, not_before=float(now) + decision.delay)
+                else:
+                    self.scheduler.finish(lease_id)
+            self._release_runtime_lease(lease)
+            outcome = (verdicts, decision)
+            self._fact_results[event_id] = outcome
+            return outcome
+
     def attempt_failed(
         self,
         lease_id: str,
@@ -424,12 +542,12 @@ class LifecycleRuntime:
                 if decision.action is RetryAction.NEEDS_ATTENTION
                 else AttemptOutcome.ERROR
             )
-            with self.repository.transaction():
+            with self._coordinated_transaction():
                 self._finish_attempt(
                     attempt, now=now, outcome=outcome)
                 for job_id in lease.member_job_ids:
                     self._transition(
-                        job_id, decision.to_state,
+                        job_id, cast(JobState, decision.to_state),
                         event_id=_event_id(event_id, job_id, decision.action.value),
                         actor=EventActor.WORKER,
                         event_type="attempt.failed",
@@ -487,7 +605,7 @@ class LifecycleRuntime:
                     self._fact_results[event_id] = verdict
                     return verdict
                 member_job_ids = runtime_lease.member_job_ids
-                with self.repository.transaction():
+                with self._coordinated_transaction():
                     self._finish_attempt(
                         attempt, now=now, outcome=AttemptOutcome.CANCELLED)
                     cancelled = []
@@ -528,7 +646,7 @@ class LifecycleRuntime:
                 for execution in cancellable
                 for member in execution.member_keys
             ))
-            with self.repository.transaction():
+            with self._coordinated_transaction():
                 self.scheduler.cancel_member(str(job_id))
                 cancelled = []
                 for member_job_id in member_job_ids:

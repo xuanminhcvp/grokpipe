@@ -752,6 +752,13 @@ class SQLiteLifecycleRepository:
             ).fetchone()
             return _job_from(row["doc"]) if row is not None else None
 
+    def all_jobs(self) -> Tuple[Job, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT doc FROM lifecycle_jobs ORDER BY rowid ASC"
+            ).fetchall()
+            return tuple(_job_from(row["doc"]) for row in rows)
+
     def events_for(self, job_id: JobId) -> Tuple[JobEvent, ...]:
         with self._lock:
             rows = self._conn.execute(
