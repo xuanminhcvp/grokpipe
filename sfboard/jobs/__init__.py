@@ -23,6 +23,16 @@ from .models import (
     JobEvent,
 )
 from .errors import ErrorClass, ErrorFact
+from .store import (
+    EventConflict,
+    JobAlreadyExists,
+    JobNotFound,
+    JobStore,
+    MemoryJobStore,
+    StoreInvariantError,
+    StoreWriteResult,
+    VersionConflict,
+)
 
 __all__ = [
     "AccountLease",
@@ -41,10 +51,18 @@ __all__ = [
     "ErrorClass",
     "ErrorFact",
     "EventActor",
+    "EventConflict",
     "Job",
+    "JobAlreadyExists",
     "JobId",
     "JobKind",
+    "JobNotFound",
     "JobOrigin",
     "JobEvent",
     "JobState",
+    "JobStore",
+    "MemoryJobStore",
+    "StoreInvariantError",
+    "StoreWriteResult",
+    "VersionConflict",
 ]
