@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 from uuid import uuid4
 
 from sfboard.jobs.models import (
@@ -72,6 +73,15 @@ class MemoryJobStoreTest(unittest.TestCase):
             self.store.append_event(
                 job.job_id, make_event(job, event_id=event_id, reason="two")
             )
+
+    def test_create_replay_rejects_changed_job_payload(self):
+        job = make_job()
+        event = make_event(job, reason="created")
+        self.store.create(job, event)
+
+        changed = replace(job, forced_account_id="account-two")
+        with self.assertRaises(EventConflict):
+            self.store.create(changed, event)
 
     def test_duplicate_job_with_new_event_is_rejected(self):
         job = make_job()

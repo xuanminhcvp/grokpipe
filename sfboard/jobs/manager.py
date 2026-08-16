@@ -1,36 +1,41 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from uuid import UUID
 
 from .models import EventActor, Job, JobEvent, JobId, JobOrigin, JobState
 from .store import JobNotFound, JobStore, StoreWriteResult, VersionConflict
 
 
-LEGAL_TRANSITIONS = {
-    JobState.CREATED: {JobState.QUEUED, JobState.FAILED, JobState.CANCELLED},
-    JobState.QUEUED: {JobState.RUNNING, JobState.FAILED, JobState.CANCELLED},
-    JobState.RUNNING: {
+LEGAL_TRANSITIONS = MappingProxyType({
+    JobState.CREATED: frozenset(
+        {JobState.QUEUED, JobState.FAILED, JobState.CANCELLED}
+    ),
+    JobState.QUEUED: frozenset(
+        {JobState.RUNNING, JobState.FAILED, JobState.CANCELLED}
+    ),
+    JobState.RUNNING: frozenset({
         JobState.COMPLETED,
         JobState.RETRY_WAIT,
         JobState.FAILED,
         JobState.CANCELLED,
         JobState.NEEDS_ATTENTION,
-    },
-    JobState.RETRY_WAIT: {
+    }),
+    JobState.RETRY_WAIT: frozenset({
         JobState.QUEUED,
         JobState.FAILED,
         JobState.CANCELLED,
-    },
-    JobState.NEEDS_ATTENTION: {
+    }),
+    JobState.NEEDS_ATTENTION: frozenset({
         JobState.COMPLETED,
         JobState.FAILED,
         JobState.CANCELLED,
-    },
-    JobState.COMPLETED: set(),
-    JobState.FAILED: set(),
-    JobState.CANCELLED: set(),
-}
+    }),
+    JobState.COMPLETED: frozenset(),
+    JobState.FAILED: frozenset(),
+    JobState.CANCELLED: frozenset(),
+})
 
 
 class IllegalTransition(RuntimeError):

@@ -1232,42 +1232,51 @@ def _init_job_shadow(mode=None):
     ).strip().lower()
     hangdoi.gan_shadow_observer(None)
     _JOB_SHADOW = None
+    _JOB_MODE = "legacy"
     if selected != "shadow":
         if selected != "legacy":
             _LOG.warning(
                 "job mode %r chưa được Phase 2 hỗ trợ — giữ legacy",
                 selected,
             )
-        _JOB_MODE = "legacy"
         return None
 
-    from jobs.manager import JobManager
-    from jobs.models import JobKind
-    from jobs.projection import LegacyShadowProjection
-    from jobs.store import MemoryJobStore
+    try:
+        from jobs.manager import JobManager
+        from jobs.models import JobKind
+        from jobs.projection import LegacyShadowProjection
+        from jobs.store import MemoryJobStore
 
-    def kind_of(legacy_key):
-        if legacy_key.startswith("LO:"):
+        def kind_of(legacy_key):
+            if legacy_key.startswith("LO:"):
+                return JobKind.IMAGE
+            if _loai_viec(legacy_key) == "vid":
+                return JobKind.VIDEO
             return JobKind.IMAGE
-        if _loai_viec(legacy_key) == "vid":
-            return JobKind.VIDEO
-        return JobKind.IMAGE
 
-    def log_mismatch(item):
-        _LOG.warning(
-            "shadow lifecycle lệch %s: %s → %s (%s)",
-            item.legacy_key,
-            item.current_state.value,
-            item.target_state.value,
-            item.reason_code,
+        def log_mismatch(item):
+            _LOG.warning(
+                "shadow lifecycle lệch %s: %s → %s (%s)",
+                item.legacy_key,
+                item.current_state.value,
+                item.target_state.value,
+                item.reason_code,
+            )
+
+        projection = LegacyShadowProjection(
+            JobManager(MemoryJobStore()),
+            kind_of,
+            log_mismatch,
         )
+        hangdoi.gan_shadow_observer(projection.observe)
+    except Exception as exc:
+        hangdoi.gan_shadow_observer(None)
+        _LOG.warning(
+            "không khởi tạo được job shadow (%s) — giữ legacy",
+            type(exc).__name__,
+        )
+        return None
 
-    projection = LegacyShadowProjection(
-        JobManager(MemoryJobStore()),
-        kind_of,
-        log_mismatch,
-    )
-    hangdoi.gan_shadow_observer(projection.observe)
     _JOB_MODE = "shadow"
     _JOB_SHADOW = projection
     return projection

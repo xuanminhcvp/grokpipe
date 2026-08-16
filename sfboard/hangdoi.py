@@ -49,8 +49,16 @@ class _Jobs(dict):
     dan_nhan = None         # …và hàm dán nhãn tài khoản vào thông báo lỗi
     nhan_tk = None          # …và hàm trả về 'gpt-4 :9225' của luồng thợ đang chạy
     shadow_observer = None  # Phase 2: quan sát fail-open, không có production authority
+    shadow_order_lock = threading.RLock()
 
     def __setitem__(self, k, v):
+        observer = self.shadow_observer
+        if observer is None:
+            return self._write_and_observe(k, v, None)
+        with self.shadow_order_lock:
+            return self._write_and_observe(k, v, observer)
+
+    def _write_and_observe(self, k, v, observer):
         old_for_shadow = self.get(k)
         if isinstance(old_for_shadow, dict):
             old_for_shadow = dict(old_for_shadow)
@@ -92,9 +100,9 @@ class _Jobs(dict):
             pass                # móc hỏng KHÔNG được làm hỏng việc đặt trạng thái
         super().__setitem__(k, v)
         try:
-            if self.shadow_observer:
+            if observer:
                 new_for_shadow = dict(v) if isinstance(v, dict) else v
-                self.shadow_observer(k, old_for_shadow, new_for_shadow)
+                observer(k, old_for_shadow, new_for_shadow)
         except Exception:
             pass                # shadow tuyệt đối không đổi legacy behavior
 
@@ -179,7 +187,7 @@ def vet_don(giu: int = 400) -> None:
         VET.pop(k, None)
 
 
-JOBS: dict[str, dict] = _Jobs()
+JOBS: _Jobs = _Jobs()
 
 
 def gan_shadow_observer(observer) -> None:

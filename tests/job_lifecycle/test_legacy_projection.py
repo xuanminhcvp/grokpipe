@@ -1,4 +1,7 @@
+import os
+import threading
 import unittest
+from unittest.mock import patch
 
 from sfboard.jobs.manager import JobManager
 from sfboard.jobs.models import JobKind, JobState
@@ -144,6 +147,48 @@ class LegacyObserverBoundaryTest(unittest.TestCase):
         self.assertEqual(seen, [])
         self.assertEqual(self.h.JOBS["A"]["state"], "done")
 
+    def test_concurrent_callbacks_follow_legacy_commit_order(self):
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        second_attempting = threading.Event()
+        second_entered = threading.Event()
+        seen = []
+
+        def observer(_key, _old, new):
+            state = new["state"]
+            if state == "queued":
+                first_entered.set()
+                release_first.wait(2)
+            elif state == "running":
+                second_entered.set()
+            seen.append(state)
+
+        def write_running():
+            second_attempting.set()
+            self.h.JOBS["A"] = {"state": "running", "msg": "chạy"}
+
+        self.h.gan_shadow_observer(observer)
+        first = threading.Thread(
+            target=lambda: self.h.JOBS.__setitem__(
+                "A", {"state": "queued", "msg": "chờ"}
+            )
+        )
+        second = threading.Thread(target=write_running)
+        first.start()
+        self.assertTrue(first_entered.wait(1))
+        second.start()
+        self.assertTrue(second_attempting.wait(1))
+
+        running_overtook_queued = second_entered.wait(0.3)
+        release_first.set()
+        for thread in (first, second):
+            thread.join(2)
+            self.assertFalse(thread.is_alive())
+
+        self.assertFalse(running_overtook_queued)
+        self.assertEqual(seen, ["queued", "running"])
+        self.assertEqual(self.h.JOBS["A"]["state"], "running")
+
 
 class ShadowStartupTest(unittest.TestCase):
     def setUp(self):
@@ -157,13 +202,16 @@ class ShadowStartupTest(unittest.TestCase):
         self.m.BOARD = self.board_old
 
     def test_default_legacy_mode_has_no_observer(self):
-        result = self.m._init_job_shadow("legacy")
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GROKPIPE_JOB_MODE", None)
+            result = self.m._init_job_shadow()
         self.assertIsNone(result)
         self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
         self.assertEqual(self.m._job_shadow_diagnostics()["mode"], "legacy")
 
     def test_shadow_mode_attaches_projection_without_queue_dependency(self):
-        projection = self.m._init_job_shadow("shadow")
+        with patch.dict(os.environ, {"GROKPIPE_JOB_MODE": "shadow"}):
+            projection = self.m._init_job_shadow()
         self.assertIsNotNone(projection)
         self.m.JOBS["A"] = {"state": "queued", "msg": "chờ"}
         diagnostics = self.m._job_shadow_diagnostics()
@@ -171,7 +219,23 @@ class ShadowStartupTest(unittest.TestCase):
         self.assertEqual(diagnostics["tracked_jobs"], 1)
 
     def test_authoritative_or_unknown_mode_fails_safe_to_legacy(self):
-        self.assertIsNone(self.m._init_job_shadow("authoritative"))
+        for mode in ("authoritative", "future-mode"):
+            with self.subTest(mode=mode):
+                self.assertIsNone(self.m._init_job_shadow(mode))
+                self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
+                self.assertEqual(
+                    self.m._job_shadow_diagnostics()["mode"],
+                    "legacy",
+                )
+
+    def test_shadow_init_failure_falls_back_to_legacy(self):
+        self.assertIsNotNone(self.m._init_job_shadow("shadow"))
+        with patch(
+            "jobs.projection.LegacyShadowProjection",
+            side_effect=RuntimeError("shadow unavailable"),
+        ):
+            result = self.m._init_job_shadow("shadow")
+        self.assertIsNone(result)
         self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
         self.assertEqual(self.m._job_shadow_diagnostics()["mode"], "legacy")
 

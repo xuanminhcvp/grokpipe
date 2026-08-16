@@ -35,6 +35,25 @@ def seed_manager(state):
 
 
 class JobManagerTransitionTest(unittest.TestCase):
+    def test_transition_policy_cannot_be_mutated_by_callers(self):
+        completed_targets = LEGAL_TRANSITIONS[JobState.COMPLETED]
+        try:
+            with self.assertRaises(AttributeError):
+                completed_targets.add(JobState.CREATED)
+        finally:
+            if hasattr(completed_targets, "discard"):
+                completed_targets.discard(JobState.CREATED)
+
+        original = LEGAL_TRANSITIONS[JobState.COMPLETED]
+        try:
+            with self.assertRaises(TypeError):
+                LEGAL_TRANSITIONS[JobState.COMPLETED] = frozenset(
+                    {JobState.CREATED}
+                )
+        finally:
+            if isinstance(LEGAL_TRANSITIONS, dict):
+                LEGAL_TRANSITIONS[JobState.COMPLETED] = original
+
     def test_transition_table_matches_approved_state_machine(self):
         expected = {
             JobState.CREATED: {

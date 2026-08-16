@@ -7,32 +7,64 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class CurrentStateWriterInventoryTest(unittest.TestCase):
     def test_phase2_shadow_core_has_no_production_authority(self):
-        forbidden_names = {
+        forbidden_symbols = {
             "IMG_QUEUE",
             "VID_QUEUE",
             "CHO_RIENG",
+            "PriorityQueue",
             "_xep",
             "_worker",
             "_xoay_chrome",
             "generate_lo",
             "_gen_video",
         }
+        forbidden_calls = forbidden_symbols | {
+            "put",
+            "put_nowait",
+            "submit",
+            "connect_over_cdp",
+            "rotate_account",
+            "assign_account",
+        }
+        forbidden_import_tokens = {
+            "account",
+            "browser",
+            "executor",
+            "http",
+            "playwright",
+            "provider",
+            "queue",
+            "requests",
+            "socket",
+            "urllib",
+        }
         violations = []
-        for name in ("store.py", "manager.py", "projection.py"):
+        for name in ("__init__.py", "store.py", "manager.py", "projection.py"):
             path = ROOT / "sfboard/jobs" / name
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
-                symbol = None
-                if isinstance(node, ast.Name):
-                    symbol = node.id
-                elif isinstance(node, ast.Attribute):
-                    symbol = node.attr
-                elif isinstance(node, ast.alias):
-                    symbol = node.name
-                if symbol in forbidden_names or (
-                    symbol is not None and "playwright" in symbol.lower()
-                ):
-                    violations.append(f"{name}:{node.lineno}:{symbol}")
+                if isinstance(node, ast.Import):
+                    modules = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    modules = [node.module or ""]
+                else:
+                    modules = []
+                for module in modules:
+                    tokens = set(module.lower().replace("-", "_").split("."))
+                    if tokens & forbidden_import_tokens:
+                        violations.append(f"{name}:{node.lineno}:import {module}")
+
+                if isinstance(node, ast.Name) and node.id in forbidden_symbols:
+                    violations.append(f"{name}:{node.lineno}:{node.id}")
+                if isinstance(node, ast.Call):
+                    if isinstance(node.func, ast.Name):
+                        call_name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        call_name = node.func.attr
+                    else:
+                        call_name = ""
+                    if call_name in forbidden_calls:
+                        violations.append(f"{name}:{node.lineno}:call {call_name}")
         self.assertEqual(
             violations,
             [],
