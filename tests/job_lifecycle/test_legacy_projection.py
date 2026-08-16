@@ -2,9 +2,18 @@ import os
 import threading
 import unittest
 from unittest.mock import patch
+from uuid import uuid4
 
-from sfboard.jobs.manager import JobManager
-from sfboard.jobs.models import JobKind, JobState
+from sfboard.jobs.manager import JobManager, TransitionCommand
+from sfboard.jobs.models import (
+    AssetId,
+    EventActor,
+    Job,
+    JobId,
+    JobKind,
+    JobOrigin,
+    JobState,
+)
 from sfboard.jobs.projection import LegacyShadowProjection
 from sfboard.jobs.store import MemoryJobStore
 from helpers import (
@@ -17,6 +26,18 @@ from helpers import (
 )
 
 
+def make_domain_job(asset):
+    return Job(
+        JobId.new(), AssetId(asset), JobKind.IMAGE, JobOrigin.MANUAL,
+    )
+
+
+def make_and_create(manager, asset):
+    job = make_domain_job(asset)
+    manager.create_job(job, uuid4(), EventActor.MANAGER, "producer.accepted")
+    return job
+
+
 class LegacyProjectionTest(unittest.TestCase):
     def setUp(self):
         self.store = MemoryJobStore()
@@ -25,6 +46,69 @@ class LegacyProjectionTest(unittest.TestCase):
             self.manager,
             lambda key: JobKind.VIDEO if key.startswith("V-") else JobKind.IMAGE,
         )
+
+    def test_bind_reuses_command_created_job(self):
+        job = make_domain_job("A")
+        self.manager.create_job(job, uuid4(), EventActor.MANAGER, "producer.accepted")
+        self.projection.bind("A", (job.job_id,))
+        self.projection.observe("A", None, {"state": "queued", "msg": "chờ"})
+        self.assertEqual(self.projection.job_for("A").job_id, job.job_id)
+
+    def test_group_binding_projects_write_to_each_member(self):
+        jobs = tuple(make_and_create(self.manager, asset) for asset in ("A", "B"))
+        self.projection.bind("LO:A,B", tuple(job.job_id for job in jobs))
+        self.projection.observe(
+            "LO:A,B", None, {"state": "queued", "msg": "chờ"}
+        )
+        self.assertEqual(
+            tuple(job.state for job in self.projection.jobs_for("LO:A,B")),
+            (JobState.QUEUED, JobState.QUEUED),
+        )
+
+    def test_active_binding_collision_records_mismatch_and_keeps_original(self):
+        first = make_and_create(self.manager, "A")
+        second = make_and_create(self.manager, "A")
+        self.projection.bind("A", (first.job_id,))
+        self.projection.bind("A", (second.job_id,))
+        self.assertEqual(self.projection.job_for("A").job_id, first.job_id)
+        self.assertEqual(self.projection.diagnostics()["mismatches"], 1)
+
+    def test_group_member_conflict_does_not_block_other_member_projection(self):
+        first, second = (
+            make_and_create(self.manager, asset) for asset in ("A", "B")
+        )
+        self.projection.bind("LO:A,B", (first.job_id, second.job_id))
+        self.manager.transition(
+            TransitionCommand(
+                first.job_id,
+                first.version,
+                JobState.QUEUED,
+                EventActor.MANAGER,
+                "test.transition",
+                "test.queued",
+                uuid4(),
+            )
+        )
+        first = self.manager.get(first.job_id)
+        self.manager.transition(
+            TransitionCommand(
+                first.job_id,
+                first.version,
+                JobState.RUNNING,
+                EventActor.MANAGER,
+                "test.transition",
+                "test.running",
+                uuid4(),
+            )
+        )
+
+        self.projection.observe(
+            "LO:A,B", None, {"state": "queued", "msg": "chờ"}
+        )
+
+        self.assertEqual(self.manager.get(first.job_id).state, JobState.RUNNING)
+        self.assertEqual(self.manager.get(second.job_id).state, JobState.QUEUED)
+        self.assertEqual(self.projection.diagnostics()["mismatches"], 1)
 
     def test_first_write_bootstraps_current_legacy_state(self):
         self.projection.observe("A", None, {"state": "queued", "msg": "chờ"})
