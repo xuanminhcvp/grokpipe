@@ -438,11 +438,11 @@
       <ol class="steps">
         <li>Producer command + idempotency + legacy adapter. <span class="tag done">XONG 2026-08-16</span></li>
         <li>Scheduler sở hữu queue/execution lease. <span class="tag done">XONG 2026-08-16 · lịch + lease chạy quan sát</span></li>
-        <li>Account allocation và forced-account constraint. <span class="tag now">TIẾP THEO</span></li>
-        <li>Executor/attempt/result commit có typed outcome. <span class="tag todo">chưa</span></li>
-        <li>Cancel, stop-all và retry chỉ còn một authority. <span class="tag todo">chưa</span></li>
-        <li>Persistence/outbox/recovery sau restart. <span class="tag todo">chưa</span></li>
-        <li>Bật authoritative, theo dõi, rồi xoá writer legacy cũ. <span class="tag todo">chưa</span></li>
+        <li>Account allocation và forced-account constraint. <span class="tag done">XONG 2026-08-16</span></li>
+        <li>Executor/attempt/result commit có typed outcome. <span class="tag now">MODULE XONG · executor chưa nối</span></li>
+        <li>Cancel, stop-all và retry chỉ còn một authority. <span class="tag now">MODULE XONG · chưa cầm quyền</span></li>
+        <li>Persistence/outbox/recovery sau restart. <span class="tag now">MODULE XONG · chưa nối startup</span></li>
+        <li>Bật authoritative, theo dõi, rồi xoá writer legacy cũ. <span class="tag todo">chờ user chốt</span></li>
       </ol>
       <p class="note">
         <strong>Đã xong trước bước 1:</strong> test khoá hành vi hiện tại, domain model/identity,
@@ -460,6 +460,14 @@
         nên bấm hai lần hoặc gửi lại vì mạng chớp đều trả về đúng job cũ. Một phép kiểm AST canh
         không cho ai lén gọi <span class="mono">_xep</span> lại. Hai trong bốn bug đang bị khoá đã
         được sửa. Bước 2 thêm lịch theo <span class="mono">execution_id</span> và lease có hạn: nó trả lời được "ảnh này thuộc lô vật lý nào" nên bấm huỷ một ảnh trong lô đang chờ giờ gỡ đúng lô — trước đó server báo "đã huỷ 0 lô" mà ảnh vẫn ra. Còn đúng một bug bị khoá, nằm ở bước 3 (ép tài khoản).
+      </p>
+      <p class="note">
+        <strong>Trạng thái hôm nay:</strong> mọi mảnh của kiến trúc đích đã tồn tại và có test —
+        producer, lịch execution + lease, ngân sách thử lại, cấp tài khoản, cửa nhận kết quả,
+        lịch bền vững qua restart, và người gác chỉ-quan-sát. Bốn bug từng bị khoá bằng
+        <span class="mono">expectedFailure</span> đã hết. Thứ CHƯA làm là <em>trao quyền</em>:
+        executor vẫn tự ghi trạng thái, thợ vẫn tự quyết thử lại, hàng chờ vẫn nằm trong RAM.
+        Bước cuối đổi hành vi thật và có thể tốn credit, nên nó chờ bạn chốt chứ không tự bật.
       </p>
       <p class="note">
         <strong>Rollback:</strong> trong thời gian migration, đặt

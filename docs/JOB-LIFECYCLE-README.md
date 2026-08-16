@@ -5,7 +5,8 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 
 ## Đọc trong 60 giây
 
-- Current phase: **Phase 4 scheduler/lease đã triển khai; chưa cutover**.
+- Current phase: **Lõi vòng đời đã đủ bộ (Phase 1–5, 9–11 dạng module thuần);
+  CHƯA cutover — legacy vẫn thực thi.**
 - Production **execution** authority vẫn là legacy: `PriorityQueue`, worker,
   retry timer, cancel/stop và account rotation.
 - **Đã đổi chủ:** năm đường tạo HTTP (`/api/generate`, `/api/master`,
@@ -23,9 +24,14 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
   `PriorityQueue` legacy vẫn là thứ đưa việc tới thợ.
 - `/api/huy-viec` tra lô vật lý bằng HÀNG ĐỢI THẬT + lịch, không quét `JOBS` nữa
   — sửa đúng ca "bấm huỷ báo 0 lô mà ảnh vẫn ra".
-- 1 known ambiguity còn khóa bằng `expectedFailure`: forced-account retry mất
-  constraint (Phase 5). Ba cái kia (auto-video enqueue trùng, multi-copy
-  identity, cancel identity lô) đã sửa và có regression hành vi thật.
+- **KHÔNG còn `expectedFailure` nào.** Cả bốn known ambiguity đã sửa và có
+  regression hành vi thật: auto-video enqueue trùng, multi-copy identity,
+  cancel identity lô, forced-account qua retry.
+- **Lõi đã có, chưa cầm quyền:** `retry.py` (một ngân sách, đếm theo số lần ĐÃ
+  BẤM GỬI), `accounts.py` (capability · sức khoẻ · ràng buộc ép), `results.py`
+  (loại kết quả về muộn), `persistence.py` (lịch SQLite + kế hoạch hồi phục),
+  `monitor.py` (chỉ báo, cấm sửa). Production vẫn chạy đường legacy — xem
+  "Còn lại gì trước cutover" bên dưới.
 - Không refactor production trước khi xác định phase, owner và regression test.
 
 ## Quy trình sửa lỗi bắt buộc
@@ -101,13 +107,29 @@ hoặc tiêu credit.
 tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
 tưởng mình đã tăng độ an toàn của board.
 
-Kết quả hiện tại: **499 pass và đúng 1 `xfailed`** (Phase 4 scheduler/lease +
+Kết quả hiện tại: **569 pass, KHÔNG còn `xfailed`** (Phase 4 scheduler/lease +
 sổ lỗi runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
-cái PHẢI giữ nguyên là **đúng 1 `xfailed`** cho tới Phase 5 (forced-account).
-Một expected
+cái PHẢI giữ nguyên là **không có `xfailed` mới**. Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
+
+## Còn lại gì trước cutover
+
+Lõi mới đã đủ bộ và có test, nhưng **quyền thực thi vẫn là legacy**. Ba việc còn
+lại, theo đúng thứ tự:
+
+1. **Executor phát fact thay vì tự ghi state.** `_generate_lo_ruot` và
+   `_gen_video` vẫn ghi thẳng `JOBS` và tự xếp lại. Đây là phần cuối còn giữ
+   quyền lifecycle trong tay executor.
+2. **Bật `RetryPolicy` và `AccountAllocator` làm authority.** Hai module đã có
+   test đầy đủ nhưng chưa thay `VID_MAX_TRY`/`_HOAN`/`_xoay_chrome`.
+3. **Cutover sang lịch bền vững.** `persistence.py` chạy được nhưng chưa được
+   nối vào startup: hàng chờ vẫn nằm trong RAM.
+
+Cutover phải làm lúc hàng đợi RỖNG, có backup, và chỉ sau khi chạy shadow đủ một
+chu kỳ workload thật không lệch. Đây là thay đổi hành vi có thể tốn credit —
+không tự bật.
 
 ## Sổ lỗi runtime (`.grokpipe/runtime-bugs/`)
 
@@ -161,6 +183,11 @@ bằng TDD, mỗi lần chỉ hạ đúng một expected failure ở đúng phas
 - [Legacy adapter](../sfboard/jobs/compat.py): nơi DUY NHẤT ý định chạm hàng đợi cũ.
 - [Scheduler](../sfboard/jobs/scheduler.py): lịch theo `execution_id`, lease atomic,
   và quan hệ thành viên ⇢ lô vật lý.
+- [RetryPolicy](../sfboard/jobs/retry.py): một ngân sách thử lại duy nhất.
+- [AccountAllocator](../sfboard/jobs/accounts.py): capability · sức khoẻ · ép tài khoản.
+- [ResultCommit](../sfboard/jobs/results.py): nhận hay loại kết quả về muộn.
+- [Persistence](../sfboard/jobs/persistence.py): lịch SQLite + kế hoạch hồi phục.
+- [InvariantMonitor](../sfboard/jobs/monitor.py): chỉ báo lệch, cấm mutate.
 - [Lifecycle tests](../tests/job_lifecycle/): executable legacy/domain contract.
 - [Legacy queue/state](../sfboard/hangdoi.py) và [runtime/API](../sfboard/sfboard.py):
   production authority hiện tại.
