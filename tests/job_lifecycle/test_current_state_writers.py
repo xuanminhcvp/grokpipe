@@ -30,6 +30,7 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
             "account",
             "browser",
             "executor",
+            "hangdoi",
             "http",
             "playwright",
             "provider",
@@ -53,6 +54,14 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
                     tokens = set(module.lower().replace("-", "_").split("."))
                     if tokens & forbidden_import_tokens:
                         violations.append(f"{name}:{node.lineno}:import {module}")
+
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    for alias in node.names:
+                        imported_name = alias.name.rsplit(".", 1)[-1]
+                        if imported_name in forbidden_symbols:
+                            violations.append(
+                                f"{name}:{node.lineno}:import {alias.name}"
+                            )
 
                 if isinstance(node, ast.Name) and node.id in forbidden_symbols:
                     violations.append(f"{name}:{node.lineno}:{node.id}")
