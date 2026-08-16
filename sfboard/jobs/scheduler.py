@@ -434,6 +434,16 @@ class Scheduler:
                 "leased_idents": tuple(leased),
             }
 
+    def active_executions(self) -> Tuple[ScheduledExecution, ...]:
+        """Bản chụp active theo thứ tự lịch, dùng cho startup recovery."""
+        with self._lock:
+            return tuple(
+                execution for execution in sorted(
+                    self._by_id.values(), key=lambda item: item.seq,
+                )
+                if execution.state is not ExecutionState.FINISHED
+            )
+
     def diagnostics(self) -> dict:
         with self._lock:
             dem: dict[str, int] = {}

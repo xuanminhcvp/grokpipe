@@ -27,3 +27,10 @@ class CancelVerdict:
     accepted: bool
     reason_code: str
     cancelled_job_ids: Tuple[JobId, ...] = ()
+
+
+@dataclass(frozen=True)
+class RecoverySummary:
+    retried: int = 0
+    needs_attention: int = 0
+    untouched: int = 0

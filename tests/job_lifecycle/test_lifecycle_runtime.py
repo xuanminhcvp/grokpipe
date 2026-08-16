@@ -148,6 +148,23 @@ class LifecycleRuntimeTest(unittest.TestCase):
         self.assertEqual(first.jobs, second.jobs)
         self.assertEqual(len(self.repository.all_execution_records()), 1)
 
+    def test_same_key_sau_completed_khong_tao_execution_moi(self):
+        first = self.submit("completed-key")
+        lease = self.runtime.lease_next(JobKind.IMAGE, now=0, ttl=30)
+        self.runtime.attempt_succeeded(
+            lease.lease_id,
+            outputs=("/tmp/a.png",),
+            event_id=uuid4(),
+            now=1,
+        )
+
+        replay = self.submit("completed-key")
+
+        self.assertTrue(replay.replayed)
+        self.assertEqual(replay.jobs[0].job_id, first.jobs[0].job_id)
+        self.assertEqual(self.runtime.scheduler.active_executions(), ())
+        self.assertEqual(len(self.repository.all_execution_records()), 1)
+
     def test_mat_phien_truoc_submit_noi_lai_ngay_tren_cung_account(self):
         self.submit()
         first = self.runtime.lease_next(JobKind.IMAGE, now=0, ttl=30)

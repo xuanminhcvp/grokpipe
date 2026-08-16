@@ -35,6 +35,7 @@ import sys
 import queue
 import threading
 import time
+import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
@@ -428,6 +429,7 @@ def _save_accounts():
         with open(ACC_PATH, "w", encoding="utf-8") as f:
             json.dump({"accounts": ACCOUNTS, "tran_ref": TRAN_REF},
                       f, ensure_ascii=False, indent=2)
+    _sync_runtime_accounts()
 
 
 # ---- Bộ đếm bản/ngày cho từng tài khoản ---------------------------------
@@ -1214,10 +1216,71 @@ _JOB_SHADOW = None
 _JOB_PRODUCER = None
 _JOB_ADAPTER = None
 _JOB_ACCOUNTS = None
+_JOB_REPOSITORY = None
+_JOB_RUNTIME = None
+_JOB_EXECUTOR_ADAPTER = None
 # Lịch theo execution_id. Ở Phase 4 nó CHỈ QUAN SÁT: `PriorityQueue` legacy vẫn
 # là thứ đưa việc tới thợ. Giá trị dùng được ngay là quan hệ "thành viên ⇢ lô
 # vật lý" (xem `_lo_chua`) và số liệu lease trong `/api/chan-doan`.
 _JOB_SCHEDULER = None
+
+
+class LifecycleStartupError(RuntimeError):
+    pass
+
+
+def _lifecycle_db_path():
+    project_dir = getattr(BOARD, "dir", None)
+    if not project_dir:
+        project_dir = os.path.dirname(os.path.abspath(BOARD.path))
+    return os.path.join(project_dir, ".grokpipe", "job-lifecycle.sqlite3")
+
+
+def _make_lifecycle_repository(path):
+    from jobs.sqlite_store import SQLiteLifecycleRepository
+    return SQLiteLifecycleRepository(path)
+
+
+def _shutdown_job_lifecycle():
+    global _JOB_REPOSITORY, _JOB_RUNTIME, _JOB_EXECUTOR_ADAPTER
+    repository = _JOB_REPOSITORY
+    _JOB_REPOSITORY = None
+    _JOB_RUNTIME = None
+    _JOB_EXECUTOR_ADAPTER = None
+    if repository is not None:
+        try:
+            repository.close()
+        except Exception:                   # noqa: BLE001
+            pass
+
+
+def _sync_runtime_accounts():
+    if _JOB_RUNTIME is None:
+        return
+    with ACC_LOCK:
+        accounts = [dict(account) for account in ACCOUNTS]
+    has_enabled_video = any(
+        account.get("kind") == "vid" and account.get("enabled")
+        for account in accounts
+    )
+    known = set()
+    for account in accounts:
+        account_id = str(account.get("port") or "").strip()
+        if not account_id:
+            continue
+        known.add(account_id)
+        _JOB_RUNTIME.accounts.register(
+            account_id,
+            allow_video=(
+                account.get("kind") == "vid"
+                or (account.get("kind") == "img" and not has_enabled_video)
+            ),
+            max_slots=max(1, int(account.get("tabs") or 1)),
+        )
+        _JOB_RUNTIME.accounts.set_enabled(
+            account_id, bool(account.get("enabled")))
+    for account_id in set(_JOB_RUNTIME.accounts.accounts()) - known:
+        _JOB_RUNTIME.accounts.forget(account_id)
 
 
 def _job_shadow_diagnostics() -> dict:
@@ -1356,10 +1419,17 @@ def _make_accounts():
 
 def _init_job_shadow(mode=None):
     global _JOB_MODE, _JOB_SHADOW, _JOB_PRODUCER, _JOB_ADAPTER
-    global _JOB_SCHEDULER, _JOB_ACCOUNTS
+    global _JOB_SCHEDULER, _JOB_ACCOUNTS, _JOB_REPOSITORY, _JOB_RUNTIME
+    global _JOB_EXECUTOR_ADAPTER
     selected = str(
         mode or os.environ.get("GROKPIPE_JOB_MODE", "legacy")
     ).strip().lower()
+    if (_JOB_MODE == "authoritative" and selected != "authoritative"
+            and _JOB_RUNTIME is not None
+            and _JOB_RUNTIME.scheduler.active_executions()):
+        raise LifecycleStartupError(
+            "không rollback khi còn execution authoritative active")
+    _shutdown_job_lifecycle()
     hangdoi.gan_shadow_observer(None)
     _JOB_SHADOW = None
     _JOB_PRODUCER = None
@@ -1369,6 +1439,42 @@ def _init_job_shadow(mode=None):
     # chờ để `/api/huy-viec` tra ra lô vật lý và để board có số liệu.
     _JOB_SCHEDULER = _make_scheduler()
     _JOB_ACCOUNTS = _make_accounts()
+    if selected == "authoritative":
+        repository = None
+        try:
+            from jobs.executor_adapter import LegacyExecutorAdapter
+            from jobs.runtime import LifecycleRuntime
+
+            repository = _make_lifecycle_repository(_lifecycle_db_path())
+            runtime = LifecycleRuntime(repository)
+            recovery_candidates = runtime.scheduler.active_executions()
+            runtime.recover(now=time.time(), event_id=uuid.uuid4())
+            executor_adapter = LegacyExecutorAdapter(runtime)
+        except Exception as exc:
+            if repository is not None:
+                try:
+                    repository.close()
+                except Exception:           # noqa: BLE001
+                    pass
+            _JOB_MODE = "legacy"
+            _JOB_REPOSITORY = None
+            _JOB_RUNTIME = None
+            _JOB_EXECUTOR_ADAPTER = None
+            raise LifecycleStartupError(
+                f"không khởi tạo được authoritative lifecycle: "
+                f"{type(exc).__name__}"
+            ) from exc
+        _JOB_MODE = "authoritative"
+        _JOB_REPOSITORY = repository
+        _JOB_RUNTIME = runtime
+        _JOB_EXECUTOR_ADAPTER = executor_adapter
+        _JOB_PRODUCER = runtime.producer
+        _JOB_SCHEDULER = runtime.scheduler
+        _JOB_ACCOUNTS = runtime.accounts
+        _sync_runtime_accounts()
+        _restore_runtime_projection(recovery_candidates)
+        return runtime
+
     if selected != "shadow":
         if selected != "legacy":
             _LOG.warning(
@@ -1520,10 +1626,51 @@ def _lich_huy_ident(kind, ident):
         pass
 
 
+def _authoritative_submit(request_or_batch, idempotency_key, plan_factory):
+    if _JOB_RUNTIME is None:
+        raise RuntimeError("authoritative lifecycle chưa khởi tạo")
+    planned = []
+
+    def capture_plan(result):
+        plan = plan_factory(result)
+        planned.append(plan)
+        return plan
+
+    result = _JOB_RUNTIME.submit(
+        request_or_batch, idempotency_key, capture_plan)
+    plan = planned[0]
+    label_jobs = {}
+    for action in plan.actions:
+        state_idents = tuple(action.state_idents or action.legacy_keys)
+        bindings = dict(action.member_bindings or ())
+        for index, ident in enumerate(state_idents):
+            bound = tuple(bindings.get(ident) or ())
+            if not bound:
+                bound = ((action.job_ids[index],)
+                         if len(state_idents) == len(action.job_ids)
+                         and index < len(action.job_ids)
+                         else action.job_ids)
+            label_jobs.setdefault(ident, []).extend(bound)
+    for ident, bound in label_jobs.items():
+        unique = tuple(dict.fromkeys(bound))
+        payload = {"state": "queued", "msg": "chờ lịch bền vững"}
+        if unique:
+            payload["job_id"] = str(unique[0])
+            payload["job_ids"] = [str(job_id) for job_id in unique]
+        _dat_job(ident, payload)
+    _runtime_project_jobs(tuple(
+        job_id for bound in label_jobs.values() for job_id in bound
+    ))
+    return result
+
+
 def _producer_submit(request_or_batch, idempotency_key, plan_factory):
     global _JOB_ADAPTER
     if _JOB_ADAPTER is None:
         _init_job_shadow(_JOB_MODE)
+    if _JOB_MODE == "authoritative" and _JOB_RUNTIME is not None:
+        return _authoritative_submit(
+            request_or_batch, idempotency_key, plan_factory)
     if _JOB_MODE == "shadow" and _JOB_PRODUCER is not None:
         from jobs.producer import CreateBatchRequest
 
@@ -1540,6 +1687,162 @@ def _producer_submit(request_or_batch, idempotency_key, plan_factory):
     _JOB_ADAPTER.deliver_legacy(plan)
     _dang_ky_lich(plan)
     return None
+
+
+def _run_authoritative_once(kind, execute, *, now=None, ttl=LEASE_TTL):
+    """Lease và chạy đúng một attempt qua adapter; không chạm queue legacy."""
+    if (_JOB_MODE != "authoritative" or _JOB_RUNTIME is None
+            or _JOB_EXECUTOR_ADAPTER is None):
+        raise RuntimeError("authoritative lifecycle chưa khởi tạo")
+    _sync_runtime_accounts()
+    timestamp = time.time() if now is None else float(now)
+    lease = _JOB_RUNTIME.lease_next(
+        kind, now=timestamp, ttl=float(ttl))
+    if lease is None:
+        return None
+    _runtime_project_jobs(lease.member_job_ids)
+    try:
+        return _JOB_EXECUTOR_ADAPTER.run_once(lease, execute)
+    finally:
+        _runtime_project_jobs(lease.member_job_ids)
+
+
+def _runtime_job_ids_for_label(label):
+    if _JOB_RUNTIME is None:
+        return ()
+    from jobs.models import JobId
+
+    payload = JOBS.get(label) or {}
+    raw_ids = payload.get("job_ids") or (
+        [payload.get("job_id")] if payload.get("job_id") else [])
+    parsed = []
+    for raw in raw_ids:
+        try:
+            parsed.append(JobId.parse(str(raw)))
+        except (TypeError, ValueError):
+            continue
+    return tuple(dict.fromkeys(parsed))
+
+
+def _runtime_cancel_label(label, *, now=None):
+    if _JOB_MODE != "authoritative" or _JOB_RUNTIME is None:
+        raise RuntimeError("authoritative lifecycle chưa khởi tạo")
+    timestamp = time.time() if now is None else float(now)
+    verdicts = []
+    for job_id in _runtime_job_ids_for_label(label):
+        verdicts.append(_JOB_RUNTIME.cancel(
+            job_id, event_id=uuid.uuid4(), now=timestamp))
+    return tuple(verdicts)
+
+
+def _runtime_project_state(label, state):
+    payload = dict(state)
+    current = JOBS.get(label) or {}
+    for key in ("job_id", "job_ids"):
+        if key in current:
+            payload[key] = current[key]
+    _dat_job(label, payload)
+
+
+def _runtime_project_jobs(job_ids):
+    """Chiếu durable state ra nhãn cũ; tuyệt đối không quyết transition."""
+    if _JOB_RUNTIME is None:
+        return
+    from jobs.models import JobState
+
+    wanted = set(job_ids)
+    with JOBS.shadow_order_lock:
+        labels = tuple(
+            (str(label), _runtime_job_ids_for_label(label))
+            for label, value in tuple(JOBS.items())
+            if isinstance(value, dict)
+        )
+    rank = {
+        JobState.NEEDS_ATTENTION: 6,
+        JobState.FAILED: 5,
+        JobState.RUNNING: 4,
+        JobState.RETRY_WAIT: 3,
+        JobState.QUEUED: 2,
+        JobState.CREATED: 1,
+        JobState.CANCELLED: 0,
+        JobState.COMPLETED: 0,
+    }
+    projection = {
+        JobState.CREATED: {"state": "queued", "msg": "chờ lịch bền vững"},
+        JobState.QUEUED: {"state": "queued", "msg": "chờ lịch bền vững"},
+        JobState.RUNNING: {"state": "running", "msg": "đang chạy"},
+        JobState.RETRY_WAIT: {"state": "queued", "msg": "lỗi → chờ thử lại"},
+        JobState.NEEDS_ATTENTION: {
+            "state": "error", "msg": "cần kiểm tra — không tự gửi lại",
+        },
+        JobState.COMPLETED: {"state": "done", "msg": "xong"},
+        JobState.FAILED: {"state": "error", "msg": "thất bại"},
+        JobState.CANCELLED: {"state": "error", "msg": "đã dừng"},
+    }
+    for label, bound_ids in labels:
+        relevant = tuple(job_id for job_id in bound_ids if job_id in wanted)
+        if not relevant:
+            continue
+        states = tuple(_JOB_RUNTIME.job(job_id).state for job_id in bound_ids)
+        if states and all(state is JobState.COMPLETED for state in states):
+            state = JobState.COMPLETED
+        elif states and all(state is JobState.CANCELLED for state in states):
+            state = JobState.CANCELLED
+        else:
+            state = max(states, key=lambda item: rank[item])
+        _runtime_project_state(label, projection[state])
+
+
+def _restore_runtime_projection(executions):
+    """Dựng lại nhãn UI từ identity bền vững sau startup recovery."""
+    if _JOB_RUNTIME is None:
+        return
+    by_asset = {}
+    for execution in executions:
+        for raw_job_id in execution.member_keys:
+            from jobs.models import JobId
+
+            job = _JOB_RUNTIME.job(JobId.parse(raw_job_id))
+            by_asset.setdefault(str(job.asset_id), []).append(job.job_id)
+    for label, job_ids in by_asset.items():
+        unique = tuple(dict.fromkeys(job_ids))
+        _dat_job(label, {
+            "state": "queued",
+            "msg": "khôi phục từ lịch bền vững",
+            "job_id": str(unique[0]),
+            "job_ids": [str(job_id) for job_id in unique],
+        })
+    _runtime_project_jobs(tuple(
+        job_id for job_ids in by_asset.values() for job_id in job_ids
+    ))
+
+
+def _runtime_cancel_labels(labels, *, message, now=None):
+    labels = tuple(dict.fromkeys(str(label) for label in labels if label))
+    before = {label: (JOBS.get(label) or {}).get("state") for label in labels}
+    verdicts_by_label = {}
+    for label in labels:
+        verdicts_by_label[label] = _runtime_cancel_label(label, now=now)
+    cancelled = []
+    if _JOB_RUNTIME is not None:
+        from jobs.models import JobState
+
+        for label in labels:
+            job_ids = _runtime_job_ids_for_label(label)
+            states = tuple(
+                _JOB_RUNTIME.job(job_id).state for job_id in job_ids)
+            all_cancelled = states and all(
+                state is JobState.CANCELLED for state in states)
+            accepted = any(
+                verdict.accepted for verdict in verdicts_by_label[label])
+            completed_partial_cancel = (
+                accepted and states and all(state.is_terminal for state in states)
+            )
+            if all_cancelled or completed_partial_cancel:
+                _runtime_project_state(
+                    label, {"state": "error", "msg": message})
+                cancelled.append(label)
+    return tuple(cancelled), before
 
 
 def _board_identity() -> str:
@@ -2315,6 +2618,11 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
     kind='vid' → lấy việc từ VID_QUEUE, chạy trên tài khoản Grok.
     Tự nghỉ khi tài khoản bị tắt trên giao diện hoặc bị đánh dấu chết;
     supervisor sẽ mở thợ mới khi tài khoản được bật/hồi sinh."""
+    if _JOB_MODE == "authoritative":
+        # Executor cũ tự retry/ghi terminal. Cho nó chạy trong mode mới sẽ tạo
+        # authority thứ hai; fail-closed tới khi worker gọi adapter một-attempt.
+        _LOG.error("legacy worker bị chặn trong authoritative mode")
+        return
     _TL.endpoint = endpoint
     _TL.kind = kind
     _TL.slot = slot          # chỗ ngồi: quyết định thợ này lái TAB NÀO
@@ -4992,7 +5300,7 @@ class Handler(BaseHTTPRequestHandler):
                     LegacyAction(
                         action_id=f"generate:{_ident}:{i}",
                         legacy_keys=(_sf, _ident),
-                        job_ids=ids,
+                        job_ids=(ids[i],) if i < len(ids) else (),
                         queue_kind="img",
                         queue_ident=_ident,
                         manual=True,
@@ -5015,6 +5323,27 @@ class Handler(BaseHTTPRequestHandler):
             # Cùng critical section với chỗ auto COMMIT JOBS + queue. Nếu auto
             # commit trước thì cú vét bên dưới dọn nó; nếu stop vào trước thì
             # snapshot auto cũ thấy generation/identity lệch và tự bỏ.
+            if _JOB_MODE == "authoritative":
+                with AUTO_LOCK:
+                    tang_dung_gen()
+                    AUTO.clear()
+                TAY_SF.clear()
+                active_labels = tuple(
+                    key for key, value in tuple(JOBS.items())
+                    if isinstance(value, dict)
+                    and value.get("state") in ("queued", "running")
+                    and _runtime_job_ids_for_label(key)
+                )
+                cancelled, before = _runtime_cancel_labels(
+                    active_labels, message="đã dừng")
+                self._json({
+                    "ok": True,
+                    "bo": sum(before[label] == "queued" for label in cancelled),
+                    "dung": sum(before[label] == "running" for label in cancelled),
+                    "dong_chrome": [],
+                    "da_bam_stop": 0,
+                })
+                return
             with AUTO_LOCK:
                 tang_dung_gen()  # thợ đang chạy dở soi số này, thấy đổi là không thử lại
                 AUTO.clear()
@@ -5072,6 +5401,27 @@ class Handler(BaseHTTPRequestHandler):
             # chờ" khi có 300 video xếp hàng thì báo "đã bỏ 0 việc" mà hàng video
             # vẫn chạy tiếp — lối duy nhất để dừng là "Dừng tất cả", kéo theo
             # đóng sạch Chrome và giết luôn việc ảnh đang chạy dở.
+            if _JOB_MODE == "authoritative":
+                queued = tuple(
+                    key for key, value in tuple(JOBS.items())
+                    if isinstance(value, dict)
+                    and value.get("state") == "queued"
+                    and _runtime_job_ids_for_label(key)
+                )
+                cancelled, _before = _runtime_cancel_labels(
+                    queued, message="đã huỷ khỏi hàng đợi")
+                running = [
+                    key for key, value in tuple(JOBS.items())
+                    if isinstance(value, dict)
+                    and value.get("state") == "running"
+                ]
+                self._json({
+                    "ok": True,
+                    "bo": len(cancelled),
+                    "cho_da_huy": len(cancelled),
+                    "dang_chay": running,
+                })
+                return
             bo = 0
             for Q in (IMG_QUEUE, VID_QUEUE):
                 try:
@@ -5126,6 +5476,20 @@ class Handler(BaseHTTPRequestHandler):
             sf = (q.get("sf", [""])[0] or "").strip()
             if JOBS.get(sf, {}).get("state") != "running":
                 self._json({"ok": False, "err": "việc này không đang chạy"}); return
+            if _JOB_MODE == "authoritative":
+                verdicts = _runtime_cancel_label(sf)
+                accepted = any(verdict.accepted for verdict in verdicts)
+                if not accepted:
+                    reason = (
+                        verdicts[0].reason_code if verdicts
+                        else "không tìm thấy durable job cho việc này")
+                    self._json({"ok": False, "err": reason})
+                    return
+                is_video = BOARD.get_shot(sf)[0] is not None
+                _runtime_project_state(
+                    sf, {"state": "error", "msg": "đã dừng riêng"})
+                self._json({"ok": True, "sf": sf, "video": is_video})
+                return
             with HUY_LOCK:
                 DUNG_RIENG.add(sf)
             # VIDEO CHỈ DỪNG ĐƯỢC TRƯỚC KHI SUBMIT. Sau khi đã bấm gửi thì Grok
@@ -5148,6 +5512,33 @@ class Handler(BaseHTTPRequestHandler):
             sf = (q.get("sf", [""])[0] or "").strip()
             if not sf:
                 self._json({"ok": False, "err": "thiếu tham số sf"}); return
+            if _JOB_MODE == "authoritative":
+                verdicts = _runtime_cancel_label(sf)
+                accepted = tuple(
+                    verdict for verdict in verdicts if verdict.accepted)
+                if not verdicts:
+                    self._json({
+                        "ok": False,
+                        "err": "không tìm thấy durable job cho việc này",
+                    })
+                    return
+                if not accepted:
+                    self._json({
+                        "ok": False,
+                        "err": verdicts[0].reason_code,
+                    })
+                    return
+                _runtime_project_state(
+                    sf, {"state": "error", "msg": "đã huỷ riêng việc này"})
+                if BOARD.get_shot(sf)[0] is not None:
+                    self._json({"ok": True, "video": True})
+                else:
+                    self._json({
+                        "ok": True,
+                        "bo_lo": len(accepted),
+                        "con_lai": 0,
+                    })
+                return
             if JOBS.get(sf, {}).get("state") == "running":
                 self._json({"ok": False, "err": "việc này ĐANG CHẠY — không cắt giữa "
                                                 "chừng được. Dùng '⏹ Dừng tất cả'."}); return
@@ -6028,6 +6419,7 @@ def main():
     print(f"Phim    : {BOARD.dir}")
     print(f"Dữ liệu : {BOARD.path}")
     _init_accounts()
+    _sync_runtime_accounts()
     _dem_nap()
     print(f"Tài khoản: {ACC_PATH}  (quản lý bật/tắt/mở Chrome ngay trên board — nút ⚙ Tài khoản)")
     print(f"Đếm ngày : {DEM_PATH}  (số bản mỗi tài khoản làm được trong ngày — đọc cột 'cao nhất')")
@@ -6051,6 +6443,7 @@ def main():
     threading.Thread(target=_gac_hang_doi, daemon=True).start()
     threading.Thread(target=_auto_runner, daemon=True).start()
     threading.Thread(target=_luu_ban_runner, daemon=True).start()
+    atexit.register(_shutdown_job_lifecycle)
     try:
         webbrowser.open(url)
     except Exception:

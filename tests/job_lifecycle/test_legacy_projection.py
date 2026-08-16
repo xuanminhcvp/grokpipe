@@ -344,15 +344,13 @@ class ShadowStartupTest(unittest.TestCase):
         self.assertIsNotNone(self.m._JOB_ADAPTER)
         self.assertIsNone(self.m._JOB_PRODUCER)
 
-    def test_authoritative_or_unknown_mode_fails_safe_to_legacy(self):
-        for mode in ("authoritative", "future-mode"):
-            with self.subTest(mode=mode):
-                self.assertIsNone(self.m._init_job_shadow(mode))
-                self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
-                self.assertEqual(
-                    self.m._job_shadow_diagnostics()["mode"],
-                    "legacy",
-                )
+    def test_unknown_mode_fails_safe_to_legacy(self):
+        self.assertIsNone(self.m._init_job_shadow("future-mode"))
+        self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
+        self.assertEqual(
+            self.m._job_shadow_diagnostics()["mode"],
+            "legacy",
+        )
 
     def test_shadow_init_failure_falls_back_to_legacy(self):
         self.assertIsNotNone(self.m._init_job_shadow("shadow"))

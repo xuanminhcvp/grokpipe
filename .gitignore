@@ -97,3 +97,6 @@ day-rieng.sh
 
 # công cụ Serena — trạng thái/cache cục bộ
 .serena/
+
+# SQLite lifecycle cục bộ của từng project (không đưa vào Git)
+**/.grokpipe/job-lifecycle.sqlite3*

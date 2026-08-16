@@ -11,13 +11,13 @@ from dataclasses import replace
 from datetime import datetime, timezone
 import threading
 import time
-from typing import Callable, Mapping, Optional, Tuple
+from typing import Callable, Mapping, Optional, Tuple, Union
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from .accounts import AccountAllocator, NoAccountAvailable
 from .compat import LegacyPlan
 from .errors import ErrorClass, ErrorFact
-from .facts import CancelVerdict, RuntimeLease
+from .facts import CancelVerdict, RecoverySummary, RuntimeLease
 from .manager import JobManager, TransitionCommand
 from .models import (
     Attempt,
@@ -140,37 +140,42 @@ class LifecycleRuntime:
                             request_or_batch, idempotency_key)
                     )
                     plan = plan_factory(result)
-                    for action in plan.actions:
-                        execution = self.scheduler.schedule(
-                            JobKind.IMAGE if action.queue_kind == "img"
-                            else JobKind.VIDEO,
-                            action.queue_ident,
-                            tuple(str(job_id) for job_id in action.job_ids),
-                            scope_key=(
-                                f"{result.idempotency_key}:{action.action_id}"),
-                        )
-                        jobs = tuple(
-                            self.manager.get(job_id) for job_id in action.job_ids)
-                        for job in jobs:
-                            if job.state is JobState.CREATED:
-                                self._transition(
-                                    job.job_id, JobState.QUEUED,
-                                    event_id=_event_id(
-                                        result.idempotency_key, job.job_id,
-                                        "queued"),
-                                    actor=EventActor.SCHEDULER,
-                                    event_type="execution.scheduled",
-                                    reason_code="producer.accepted",
-                                )
-                        forced = next(
-                            (job.forced_account_id for job in jobs
-                             if job.forced_account_id), None)
-                        if forced:
-                            self.accounts.force(
-                                str(execution.execution_id), forced,
-                                any(job.allow_account_fallback for job in jobs),
+                    if result.delivery_required:
+                        for action in plan.actions:
+                            execution = self.scheduler.schedule(
+                                JobKind.IMAGE if action.queue_kind == "img"
+                                else JobKind.VIDEO,
+                                action.queue_ident,
+                                tuple(str(job_id) for job_id in action.job_ids),
+                                scope_key=(
+                                    f"{result.idempotency_key}:"
+                                    f"{action.action_id}"),
                             )
-                    self.producer.mark_delivered(result.idempotency_key)
+                            jobs = tuple(
+                                self.manager.get(job_id)
+                                for job_id in action.job_ids)
+                            for job in jobs:
+                                if job.state is JobState.CREATED:
+                                    self._transition(
+                                        job.job_id, JobState.QUEUED,
+                                        event_id=_event_id(
+                                            result.idempotency_key, job.job_id,
+                                            "queued"),
+                                        actor=EventActor.SCHEDULER,
+                                        event_type="execution.scheduled",
+                                        reason_code="producer.accepted",
+                                    )
+                            forced = next(
+                                (job.forced_account_id for job in jobs
+                                 if job.forced_account_id), None)
+                            if forced:
+                                self.accounts.force(
+                                    str(execution.execution_id), forced,
+                                    any(
+                                        job.allow_account_fallback
+                                        for job in jobs),
+                                )
+                        self.producer.mark_delivered(result.idempotency_key)
                 return replace(
                     result,
                     jobs=tuple(self.manager.get(job.job_id) for job in result.jobs),
@@ -333,7 +338,9 @@ class LifecycleRuntime:
         self,
         lease_id: str,
         *,
-        outputs: Tuple[str, ...],
+        outputs: Union[
+            Tuple[str, ...], Mapping[JobId, Tuple[str, ...]],
+        ],
         event_id: UUID,
         now: Optional[float] = None,
     ) -> Mapping[JobId, CommitVerdict]:
@@ -352,10 +359,17 @@ class LifecycleRuntime:
             with self.repository.transaction():
                 for job_id in lease.member_job_ids:
                     job = self.manager.get(job_id)
+                    job_outputs = (
+                        outputs.get(job_id, ())
+                        if isinstance(outputs, Mapping) else outputs
+                    )
+                    if not job_outputs:
+                        raise ValueError(
+                            f"success fact thiếu output cho job {job_id}")
                     verdict = self.results.commit(ResultFact(
                         work_key=str(job.asset_id),
                         lease_id=lease_id,
-                        outputs=outputs,
+                        outputs=job_outputs,
                         job_state=job.state,
                         replace_current=job.replace_current,
                         started_at=lease.started_at,
@@ -534,6 +548,80 @@ class LifecycleRuntime:
                 True, "execution.cancelled", tuple(cancelled))
             self._fact_results[event_id] = verdict
             return verdict
+
+    def recover(
+        self,
+        *,
+        now: float,
+        event_id: UUID,
+    ) -> RecoverySummary:
+        """Thu hồi lease của tiến trình cũ theo phase, không tự resubmit mù."""
+        with self._lock:
+            retried = 0
+            attention = 0
+            untouched = 0
+            try:
+                with self.repository.transaction():
+                    for execution in self.scheduler.active_executions():
+                        if execution.state is not ExecutionState.LEASED:
+                            untouched += 1
+                            continue
+                        lease_id = execution.lease_id
+                        if not lease_id:
+                            raise RuntimeLeaseNotFound(
+                                str(execution.execution_id))
+                        attempt = self.repository.attempt_for_lease(lease_id)
+                        unknown = attempt is None
+                        submitted = (
+                            attempt is not None
+                            and attempt.submitted_at is not None
+                        )
+                        target = (
+                            JobState.NEEDS_ATTENTION if submitted or unknown
+                            else JobState.RETRY_WAIT
+                        )
+                        for job_id in self._member_job_ids(execution):
+                            current = self.manager.get(job_id)
+                            if current.state is JobState.RUNNING:
+                                self._transition(
+                                    job_id,
+                                    target,
+                                    event_id=_event_id(
+                                        event_id, job_id,
+                                        "recovery.attention"
+                                        if submitted or unknown
+                                        else "recovery.retry"),
+                                    actor=EventActor.RECOVERY,
+                                    event_type="startup.recovered",
+                                    reason_code=(
+                                        "recovery.post_submit_unknown"
+                                        if submitted else
+                                        "recovery.missing_attempt"
+                                        if unknown else
+                                        "recovery.pre_submit_retry"),
+                                )
+                        if attempt is not None and (
+                            attempt.phase is not AttemptPhase.FINISHED
+                        ):
+                            self._finish_attempt(
+                                attempt,
+                                now=now,
+                                outcome=(
+                                    AttemptOutcome.UNKNOWN if submitted
+                                    else AttemptOutcome.ERROR),
+                            )
+                        if submitted or unknown:
+                            self.scheduler.finish(lease_id)
+                            attention += 1
+                        else:
+                            self.scheduler.release(
+                                lease_id, not_before=float(now))
+                            retried += 1
+            except Exception:
+                self._reset_scheduler_after_rollback()
+                raise
+            self._restore_constraints()
+            return RecoverySummary(retried, attention, untouched)
 
     def note_user_mutation(self, asset_id: str, *, now: float) -> None:
         self.results.note_user_mutation(asset_id, now)
