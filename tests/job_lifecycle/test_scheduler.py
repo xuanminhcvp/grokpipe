@@ -20,13 +20,14 @@ class SchedulerTest(unittest.TestCase):
         self.s = Scheduler()
 
     def xep(self, ident, members=None, *, kind=JobKind.IMAGE, priority=0,
-            not_before=0.0):
+            not_before=0.0, scope_key=None):
         return self.s.schedule(
             kind=kind,
             queue_ident=ident,
             member_keys=tuple(members if members is not None else [ident]),
             priority=priority,
             not_before=not_before,
+            scope_key=scope_key,
         )
 
     # ───────────────────────────── lịch ──────────────────────────────
@@ -59,6 +60,23 @@ class SchedulerTest(unittest.TestCase):
 
         self.assertEqual(moi.state, ExecutionState.READY)
         self.assertEqual(len(self.s.ready(now=0)), 1)
+
+    def test_scope_active_chan_nhan_ban_du_queue_ident_khac(self):
+        cu = self.xep("LO:A", ["A"], scope_key="asset:A")
+
+        lap = self.xep("LO:A-rerun", ["A"], scope_key="asset:A")
+
+        self.assertEqual(lap.execution_id, cu.execution_id)
+        self.assertEqual(len(self.s.ready(now=0)), 1)
+
+    def test_scope_terminal_cho_execution_rerun_identity_moi(self):
+        cu = self.xep("LO:A", ["A"], scope_key="asset:A")
+        lease = self.s.lease_next(JobKind.IMAGE, now=0, ttl=30)
+        self.s.finish(lease.lease_id)
+
+        moi = self.xep("LO:A-rerun", ["A"], scope_key="asset:A")
+
+        self.assertNotEqual(moi.execution_id, cu.execution_id)
 
     # ───────────────────────────── lease ─────────────────────────────
 

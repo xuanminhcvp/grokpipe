@@ -11,20 +11,25 @@ Hai luật ở đây:
 """
 
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
 from sfboard.jobs.persistence import (
-    DurableExecution, SqliteSchedule, build_recovery_plan,
+    DurableExecution, ScheduleConflict, ScheduleVersionConflict,
+    SqliteSchedule, build_recovery_plan,
 )
 
 
 def exe(ident, *, kind="img", state="ready", priority=0, members=None,
-        not_before=0.0, forced=None):
+        not_before=0.0, forced=None, execution_id=None, scope_key=None,
+        version=0):
     return DurableExecution(
-        execution_id=f"exe-{kind}-{ident}", kind=kind, queue_ident=ident,
+        execution_id=execution_id or f"exe-{kind}-{ident}",
+        kind=kind, queue_ident=ident,
         member_keys=tuple(members or [ident]), priority=priority,
         not_before=not_before, state=state, forced_account=forced,
+        scope_key=scope_key or ident, version=version,
     )
 
 
@@ -92,6 +97,64 @@ class SqliteScheduleTest(unittest.TestCase):
 
         self.assertEqual(len(con), 1)
         self.assertEqual(con[0].priority, 5)
+
+    def test_rerun_cung_queue_ident_giu_execution_identity_moi(self):
+        """Compatibility label không được biến thành identity bền vững."""
+        self.s.upsert(exe(
+            "SF-A", execution_id="exec-old", state="finished"))
+        self.s.upsert(exe(
+            "SF-A", execution_id="exec-rerun", state="ready"))
+
+        rows = self.s.all_executions()
+
+        self.assertEqual(
+            {(row.execution_id, row.state) for row in rows},
+            {("exec-old", "finished"), ("exec-rerun", "ready")},
+        )
+
+    def test_hai_execution_active_cung_scope_bi_chan(self):
+        self.s.insert(exe(
+            "LO:A", execution_id="exec-1", scope_key="asset:A"))
+
+        with self.assertRaises(ScheduleConflict):
+            self.s.insert(exe(
+                "LO:A-rerun", execution_id="exec-2", scope_key="asset:A"))
+
+    def test_compare_and_set_tu_choi_version_cu(self):
+        self.s.insert(exe("LO:A", execution_id="exec-1"))
+        updated = self.s.compare_and_set(
+            "exec-1", expected_version=0, state="leased",
+            lease_id="lease-1", lease_expires_at=100.0)
+
+        self.assertEqual(updated.version, 1)
+        with self.assertRaises(ScheduleVersionConflict):
+            self.s.compare_and_set(
+                "exec-1", expected_version=0, state="finished")
+
+    def test_hai_thread_cas_cung_version_chi_mot_ben_thang(self):
+        self.s.insert(exe("LO:A", execution_id="exec-1"))
+        barrier = threading.Barrier(2)
+        outcomes = []
+
+        def update(state):
+            barrier.wait()
+            try:
+                self.s.compare_and_set(
+                    "exec-1", expected_version=0, state=state)
+                outcomes.append("ok")
+            except ScheduleVersionConflict:
+                outcomes.append("stale")
+
+        threads = [
+            threading.Thread(target=update, args=("leased",)),
+            threading.Thread(target=update, args=("finished",)),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=2)
+
+        self.assertEqual(sorted(outcomes), ["ok", "stale"])
 
     def test_anh_va_video_cung_ten_khong_dam_nhau(self):
         self.s.upsert(exe("X", kind="img"))

@@ -53,6 +53,7 @@ class ScheduledExecution:
     not_before: float
     seq: int
     state: ExecutionState
+    scope_key: str = ""
     version: int = 0
     lease_id: Optional[str] = None
     lease_expires_at: Optional[float] = None
@@ -77,6 +78,7 @@ class Scheduler:
         self._seq = itertools.count()
         self._by_id: dict[ExecutionId, ScheduledExecution] = {}
         self._by_ident: dict[Tuple[str, str], ExecutionId] = {}
+        self._by_scope: dict[Tuple[str, str], ExecutionId] = {}
         self._by_lease: dict[str, ExecutionId] = {}
         # Lease ĐÃ TỪNG có thật rồi bị thu hồi. Giữ lại để phân biệt "token của
         # thợ zombie" (StaleLease — có thật, đã hết hiệu lực) với "token bịa"
@@ -93,6 +95,7 @@ class Scheduler:
         member_keys: Tuple[str, ...],
         priority: int = 0,
         not_before: float = 0.0,
+        scope_key: Optional[str] = None,
     ) -> ScheduledExecution:
         """Đặt lịch cho một execution. Cùng ident đang sống thì trả lại bản cũ.
 
@@ -105,6 +108,13 @@ class Scheduler:
             raise ValueError("member_keys không được rỗng")
         with self._lock:
             khoa = (kind.value, queue_ident)
+            pham_vi = (kind.value, (scope_key or queue_ident).strip())
+            scope_id = self._by_scope.get(pham_vi)
+            if scope_id is not None:
+                cu = self._by_id[scope_id]
+                if cu.state in (ExecutionState.READY, ExecutionState.LEASED,
+                                ExecutionState.WAITING):
+                    return cu
             cu_id = self._by_ident.get(khoa)
             if cu_id is not None:
                 cu = self._by_id[cu_id]
@@ -120,9 +130,11 @@ class Scheduler:
                 not_before=float(not_before),
                 seq=next(self._seq),
                 state=ExecutionState.READY,
+                scope_key=pham_vi[1],
             )
             self._by_id[exe.execution_id] = exe
             self._by_ident[khoa] = exe.execution_id
+            self._by_scope[pham_vi] = exe.execution_id
             return exe
 
     # ──────────────────────────── tra cứu ────────────────────────────
