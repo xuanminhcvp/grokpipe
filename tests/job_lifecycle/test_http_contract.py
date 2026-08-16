@@ -50,7 +50,7 @@ class HttpContractTest(unittest.TestCase):
         self.assertEqual(set(body["hang"]), {"anh", "video"})
         self.assertEqual(set(body["tho"]), {"img", "vid"})
 
-    def test_diagnostics_keeps_legacy_keys_and_adds_only_bug_bridge(self):
+    def test_diagnostics_keeps_legacy_keys_and_adds_shadow_status(self):
         handler = make_handler(self.m, "/api/chan-doan")
         handler.do_GET()
         code, body = handler.captured
@@ -67,12 +67,14 @@ class HttpContractTest(unittest.TestCase):
                 "job_cho",
                 "job_chay",
                 "bug_bridge",
+                "job_shadow",
             },
         )
         self.assertEqual(
             set(body["bug_bridge"]),
             {"mode", "pending", "last_sync_at", "last_error", "created", "updated"},
         )
+        self.assertIn(body["job_shadow"]["mode"], {"legacy", "shadow"})
 
     def test_cancel_route_keeps_response_keys(self):
         """GỌI handler thật, so status + khoá của body.

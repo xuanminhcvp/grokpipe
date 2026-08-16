@@ -4,7 +4,14 @@ from sfboard.jobs.manager import JobManager
 from sfboard.jobs.models import JobKind, JobState
 from sfboard.jobs.projection import LegacyShadowProjection
 from sfboard.jobs.store import MemoryJobStore
-from helpers import load_hangdoi, reset_legacy_state
+from helpers import (
+    FakeBoard,
+    ROOT,
+    function_source,
+    load_hangdoi,
+    load_sfboard,
+    reset_legacy_state,
+)
 
 
 class LegacyProjectionTest(unittest.TestCase):
@@ -136,3 +143,41 @@ class LegacyObserverBoundaryTest(unittest.TestCase):
         self.h.JOBS["A"] = {"state": "error", "msg": "late"}
         self.assertEqual(seen, [])
         self.assertEqual(self.h.JOBS["A"]["state"], "done")
+
+
+class ShadowStartupTest(unittest.TestCase):
+    def setUp(self):
+        self.m = load_sfboard()
+        self.board_old = self.m.BOARD
+        self.m.BOARD = FakeBoard()
+        self.m._init_job_shadow("legacy")
+
+    def tearDown(self):
+        self.m._init_job_shadow("legacy")
+        self.m.BOARD = self.board_old
+
+    def test_default_legacy_mode_has_no_observer(self):
+        result = self.m._init_job_shadow("legacy")
+        self.assertIsNone(result)
+        self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
+        self.assertEqual(self.m._job_shadow_diagnostics()["mode"], "legacy")
+
+    def test_shadow_mode_attaches_projection_without_queue_dependency(self):
+        projection = self.m._init_job_shadow("shadow")
+        self.assertIsNotNone(projection)
+        self.m.JOBS["A"] = {"state": "queued", "msg": "chờ"}
+        diagnostics = self.m._job_shadow_diagnostics()
+        self.assertEqual(diagnostics["mode"], "shadow")
+        self.assertEqual(diagnostics["tracked_jobs"], 1)
+
+    def test_authoritative_or_unknown_mode_fails_safe_to_legacy(self):
+        self.assertIsNone(self.m._init_job_shadow("authoritative"))
+        self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
+        self.assertEqual(self.m._job_shadow_diagnostics()["mode"], "legacy")
+
+    def test_main_initializes_shadow_before_worker_threads(self):
+        source = function_source(ROOT / "sfboard/sfboard.py", "main")
+        self.assertLess(
+            source.index("_init_job_shadow()"),
+            source.index("threading.Thread(target=_supervisor"),
+        )

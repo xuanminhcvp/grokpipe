@@ -1209,6 +1209,69 @@ BOARD_LOCK = threading.RLock()      # nhiều thợ cùng ghi sf-board.json
 _LOG = logging.getLogger("sfboard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
 
+_JOB_MODE = "legacy"
+_JOB_SHADOW = None
+
+
+def _job_shadow_diagnostics() -> dict:
+    if _JOB_SHADOW is None:
+        return {
+            "mode": _JOB_MODE,
+            "observed_writes": 0,
+            "tracked_jobs": 0,
+            "mismatches": 0,
+            "recent_mismatches": [],
+        }
+    return _JOB_SHADOW.diagnostics()
+
+
+def _init_job_shadow(mode=None):
+    global _JOB_MODE, _JOB_SHADOW
+    selected = str(
+        mode or os.environ.get("GROKPIPE_JOB_MODE", "legacy")
+    ).strip().lower()
+    hangdoi.gan_shadow_observer(None)
+    _JOB_SHADOW = None
+    if selected != "shadow":
+        if selected != "legacy":
+            _LOG.warning(
+                "job mode %r chưa được Phase 2 hỗ trợ — giữ legacy",
+                selected,
+            )
+        _JOB_MODE = "legacy"
+        return None
+
+    from jobs.manager import JobManager
+    from jobs.models import JobKind
+    from jobs.projection import LegacyShadowProjection
+    from jobs.store import MemoryJobStore
+
+    def kind_of(legacy_key):
+        if legacy_key.startswith("LO:"):
+            return JobKind.IMAGE
+        if _loai_viec(legacy_key) == "vid":
+            return JobKind.VIDEO
+        return JobKind.IMAGE
+
+    def log_mismatch(item):
+        _LOG.warning(
+            "shadow lifecycle lệch %s: %s → %s (%s)",
+            item.legacy_key,
+            item.current_state.value,
+            item.target_state.value,
+            item.reason_code,
+        )
+
+    projection = LegacyShadowProjection(
+        JobManager(MemoryJobStore()),
+        kind_of,
+        log_mismatch,
+    )
+    hangdoi.gan_shadow_observer(projection.observe)
+    _JOB_MODE = "shadow"
+    _JOB_SHADOW = projection
+    return projection
+
 
 # ---- SỔ LỖI CHO GIAO DIỆN ------------------------------------------------
 # Mọi WARNING/ERROR chảy vào đây, để hộp 🐞 trên board đọc được mà không phải
@@ -4235,6 +4298,7 @@ class Handler(BaseHTTPRequestHandler):
                 "job_cho": sum(1 for v in JOBS.values() if v.get("state") == "queued"),
                 "job_chay": sum(1 for v in JOBS.values() if v.get("state") == "running"),
                 "bug_bridge": runtime_bug_diagnostics()["bug_bridge"],
+                "job_shadow": _job_shadow_diagnostics(),
             })
         elif u.path == "/api/projects":
             self._json({
@@ -5247,6 +5311,7 @@ def main():
     # đúng thứ tự, và một mốc đổi để biết cache còn dùng được.
     hangdoi.gan_nguon_board(
         BOARD.read, lambda: os.path.getmtime(BOARD.path))
+    _init_job_shadow()
     if not PROJECTS_ROOT:
         PROJECTS_ROOT = os.path.dirname(BOARD.dir)
     if "--port" not in args:
