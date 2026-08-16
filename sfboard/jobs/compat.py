@@ -73,6 +73,7 @@ class LegacyEnqueueAdapter:
                     True,
                     tuple(action.action_id for action in plan.actions),
                 )
+            self._bind_plan(key, plan)
             for action in plan.actions:
                 self._run_action(key, action)
             self._mark_delivered(key)
@@ -87,20 +88,30 @@ class LegacyEnqueueAdapter:
         self._validate_plan(plan, None)
         key = "legacy:" + uuid4().hex
         lock = self._lock_for(key)
-        with lock:
-            for action in plan.actions:
-                self._run_action(key, action)
-            return LegacyDeliveryResult(
-                True,
-                False,
-                tuple(action.action_id for action in plan.actions),
-            )
+        try:
+            with lock:
+                self._bind_plan(key, plan)
+                for action in plan.actions:
+                    self._run_action(key, action)
+                return LegacyDeliveryResult(
+                    True,
+                    False,
+                    tuple(action.action_id for action in plan.actions),
+                )
+        finally:
+            with self._locks_guard:
+                self._locks.pop(key, None)
+                self._completed_steps.pop(key, None)
 
     def _lock_for(self, key: str) -> threading.Lock:
         with self._locks_guard:
             return self._locks.setdefault(key, threading.Lock())
 
-    def _run_action(self, delivery_key: str, action: LegacyAction) -> None:
+    def _bind_plan(self, delivery_key: str, plan: LegacyPlan) -> None:
+        for action in plan.actions:
+            self._bind_action(delivery_key, action)
+
+    def _bind_action(self, delivery_key: str, action: LegacyAction) -> None:
         for legacy_key in action.legacy_keys:
             self._run_step(
                 delivery_key,
@@ -109,6 +120,8 @@ class LegacyEnqueueAdapter:
                     legacy_key, action.job_ids
                 ),
             )
+
+    def _run_action(self, delivery_key: str, action: LegacyAction) -> None:
         state = action.state
         if state is not None:
             self._run_step(

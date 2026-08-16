@@ -55,6 +55,8 @@ class LegacyEnqueueAdapterTest(unittest.TestCase):
         self.marked = []
         self.counts = {}
         self.fail_once_on = None
+        self.fail_next_enqueue = False
+        self.events = []
         self.adapter = LegacyEnqueueAdapter(
             set_job_state=self._set_job_state,
             enqueue_image=self._enqueue_image,
@@ -65,12 +67,17 @@ class LegacyEnqueueAdapterTest(unittest.TestCase):
         )
 
     def _record_enqueue(self, action_key, queue_ident):
+        self.events.append("enqueue:" + queue_ident)
         self.counts[action_key] = self.counts.get(action_key, 0) + 1
+        if self.fail_next_enqueue:
+            self.fail_next_enqueue = False
+            raise RuntimeError("queue unavailable")
         if action_key == self.fail_once_on and self.counts[action_key] == 1:
             raise RuntimeError("queue unavailable")
         self.enqueued.append((action_key, queue_ident))
 
     def _set_job_state(self, ident, state, action_key):
+        self.events.append("state:" + ident)
         self.states.append((action_key, ident, dict(state)))
 
     def _enqueue_image(self, ident, manual, action_key):
@@ -83,6 +90,7 @@ class LegacyEnqueueAdapterTest(unittest.TestCase):
         self._record_enqueue(action_key, ident)
 
     def _bind_projection(self, legacy_key, job_ids):
+        self.events.append("bind:" + legacy_key)
         self.bound.append((legacy_key, job_ids))
 
     def _mark_delivered(self, key):
@@ -154,6 +162,41 @@ class LegacyEnqueueAdapterTest(unittest.TestCase):
         self.adapter.deliver_legacy(plan)
         self.adapter.deliver_legacy(plan)
         self.assertEqual(len(self.enqueued), 2)
+
+    def test_binds_entire_plan_before_state_or_enqueue(self):
+        result = make_two_job_result("intent-bind-order")
+        self.adapter.deliver(result, make_two_action_plan(result))
+        self.assertEqual(
+            self.events,
+            [
+                "bind:A-0",
+                "bind:A-1",
+                "state:LO:A-0",
+                "enqueue:LO:A-0",
+                "state:LO:A-1",
+                "enqueue:LO:A-1",
+            ],
+        )
+
+    def test_legacy_delivery_cleans_nonce_caches_after_each_call(self):
+        baseline = (len(self.adapter._locks), len(self.adapter._completed_steps))
+        plan = make_legacy_plan()
+        for _ in range(3):
+            self.adapter.deliver_legacy(plan)
+        self.assertEqual(len(self.enqueued), 3)
+        self.assertEqual(
+            (len(self.adapter._locks), len(self.adapter._completed_steps)), baseline
+        )
+
+    def test_failed_legacy_delivery_cleans_nonce_caches(self):
+        baseline = (len(self.adapter._locks), len(self.adapter._completed_steps))
+        self.fail_next_enqueue = True
+        with self.assertRaises(RuntimeError):
+            self.adapter.deliver_legacy(make_legacy_plan())
+        self.assertEqual(sum(self.counts.values()), 1)
+        self.assertEqual(
+            (len(self.adapter._locks), len(self.adapter._completed_steps)), baseline
+        )
 
     def test_invalid_shadow_plan_has_no_callbacks(self):
         result = make_producer_result("intent-invalid")
