@@ -410,6 +410,30 @@ class Scheduler:
             self._remember(cancelled)
             return True
 
+    def invariant_snapshot(self, now: float) -> dict:
+        """Snapshot chỉ đọc cho monitor; không thu hồi lease hay đổi state."""
+        with self._lock:
+            due = []
+            waiting = []
+            leased = []
+            for execution in sorted(
+                self._by_id.values(), key=lambda item: item.seq,
+            ):
+                if execution.state is ExecutionState.LEASED:
+                    leased.append(execution.queue_ident)
+                elif execution.state in {
+                    ExecutionState.READY, ExecutionState.WAITING,
+                }:
+                    if execution.not_before <= float(now):
+                        due.append(execution.queue_ident)
+                    else:
+                        waiting.append(execution.queue_ident)
+            return {
+                "scheduled_idents": tuple(due),
+                "waiting_idents": tuple(waiting),
+                "leased_idents": tuple(leased),
+            }
+
     def diagnostics(self) -> dict:
         with self._lock:
             dem: dict[str, int] = {}

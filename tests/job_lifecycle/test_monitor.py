@@ -8,6 +8,8 @@ thuần: vào ba danh sách, ra danh sách lệch. Không có đường nào đ�
 import unittest
 
 from sfboard.jobs.monitor import Finding, InvariantMonitor, Severity
+from sfboard.jobs.models import JobKind
+from sfboard.jobs.scheduler import Scheduler
 
 
 class InvariantMonitorTest(unittest.TestCase):
@@ -85,6 +87,22 @@ class InvariantMonitorTest(unittest.TestCase):
 
         with self.assertRaises(Exception):
             f.code = "y"
+
+    def test_scheduler_snapshot_tach_due_retry_wait_va_lease(self):
+        scheduler = Scheduler()
+        due = scheduler.schedule(
+            JobKind.IMAGE, "LO:due", ("due",), not_before=0)
+        waiting = scheduler.schedule(
+            JobKind.IMAGE, "LO:wait", ("wait",), not_before=100)
+        leased = scheduler.schedule(
+            JobKind.IMAGE, "LO:run", ("run",), not_before=0)
+        scheduler.lease_ident(JobKind.IMAGE, leased.queue_ident, now=10, ttl=30)
+
+        snapshot = scheduler.invariant_snapshot(now=50)
+
+        self.assertEqual(snapshot["scheduled_idents"], (due.queue_ident,))
+        self.assertEqual(snapshot["waiting_idents"], (waiting.queue_ident,))
+        self.assertEqual(snapshot["leased_idents"], (leased.queue_ident,))
 
 
 if __name__ == "__main__":

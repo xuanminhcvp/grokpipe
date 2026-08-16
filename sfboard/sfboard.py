@@ -1241,6 +1241,64 @@ def _lich_diagnostics() -> dict:
         return {"executions": 0, "theo_trang_thai": {}}
 
 
+def _job_invariant_diagnostics(now=None) -> dict:
+    """So snapshot queue/scheduler/UI và chỉ trả báo cáo, không tự sửa."""
+    try:
+        if _JOB_SCHEDULER is None:
+            raise RuntimeError("scheduler chưa khởi tạo")
+        from jobs.monitor import InvariantMonitor
+
+        timestamp = time.time() if now is None else float(now)
+        schedule = _JOB_SCHEDULER.invariant_snapshot(timestamp)
+        queue_idents = _y_trong_hang(IMG_QUEUE) | _y_trong_hang(VID_QUEUE)
+        with _CR_LOCK:
+            queue_idents.update(
+                ident for idents in CHO_RIENG.values()
+                for ident in tuple(idents)
+            )
+        # Retry chưa tới `not_before` đang nằm ở transport timer chứ chưa ở
+        # PriorityQueue. Coi nó là transport-wait để monitor không báo mất việc
+        # giả, đồng thời dùng nó che nhãn `running · thử lại sau` hợp lệ.
+        waiting = tuple(schedule["waiting_idents"])
+        queue_idents.update(waiting)
+        with JOBS.shadow_order_lock:
+            labels = {
+                str(key): str(value.get("state") or "")
+                for key, value in tuple(JOBS.items())
+                if isinstance(value, dict)
+            }
+        monitor = InvariantMonitor()
+        findings = monitor.check(
+            sorted(queue_idents),
+            schedule["scheduled_idents"] + waiting,
+            labels,
+            schedule["leased_idents"] + waiting,
+        )
+        payload = monitor.summary(findings)
+        payload["findings"] = [
+            {
+                "ma": finding.code,
+                "muc": finding.severity.value,
+                "doi_tuong": finding.subject,
+                "chi_tiet": finding.detail,
+            }
+            for finding in findings[:20]
+        ]
+        return payload
+    except Exception as exc:                # noqa: BLE001
+        return {
+            "tong": 1,
+            "nang_nhat": "error",
+            "theo_ma": {"monitor.error": 1},
+            "findings": [{
+                "ma": "monitor.error",
+                "muc": "error",
+                "doi_tuong": "lifecycle",
+                "chi_tiet": f"không đọc được snapshot: {type(exc).__name__}",
+            }],
+        }
+
+
 def _legacy_enqueue_private_image(port, ident, manual, _action_key):
     del manual
     port = int(port)
@@ -4800,6 +4858,7 @@ class Handler(BaseHTTPRequestHandler):
                 "bug_bridge": runtime_bug_diagnostics()["bug_bridge"],
                 "job_shadow": _job_shadow_diagnostics(),
                 "lich": _lich_diagnostics(),
+                "invariants": _job_invariant_diagnostics(),
             })
         elif u.path == "/api/projects":
             self._json({

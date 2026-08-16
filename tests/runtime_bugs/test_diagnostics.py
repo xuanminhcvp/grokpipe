@@ -1,6 +1,8 @@
 import json
 
+from helpers import load_sfboard, reset_legacy_state
 from sfboard.jobs.bugtool import diagnostics_snapshot
+from sfboard.jobs.models import JobKind
 from sfboard.jobs.runtime_journal import default_journal_path
 
 
@@ -75,3 +77,31 @@ def test_diagnostics_never_runs_bd_and_never_writes_state(tmp_path):
     diagnostics_snapshot(tmp_path)
 
     assert not (tmp_path / ".grokpipe" / "runtime-bugs" / "bridge-state.json").exists()
+
+
+def test_board_invariants_bao_queue_co_viec_ma_lich_thieu():
+    board = load_sfboard()
+    reset_legacy_state(board)
+    board._xep(board.IMG_QUEUE, ("img", "LO:A", 0, False))
+
+    payload = board._job_invariant_diagnostics(now=0)
+
+    assert payload["theo_ma"] == {"lich.thieu": 1}
+    assert payload["findings"][0]["doi_tuong"] == "LO:A"
+
+
+def test_board_invariants_khong_bao_sai_khi_retry_dang_cho_not_before():
+    board = load_sfboard()
+    reset_legacy_state(board)
+    execution = board._JOB_SCHEDULER.schedule(
+        JobKind.IMAGE, "LO:A", ("A",), not_before=0)
+    lease = board._JOB_SCHEDULER.lease_ident(
+        JobKind.IMAGE, "LO:A", now=0, ttl=30)
+    board._JOB_SCHEDULER.release(lease.lease_id, not_before=100)
+    board._dat_job("A", {"state": "running", "msg": "thử lại sau"})
+
+    payload = board._job_invariant_diagnostics(now=50)
+
+    assert payload["tong"] == 0
+    assert payload["theo_ma"] == {}
+    assert board._JOB_SCHEDULER.get(execution.execution_id).not_before == 100

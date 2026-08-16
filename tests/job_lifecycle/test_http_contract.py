@@ -69,6 +69,7 @@ class HttpContractTest(unittest.TestCase):
                 "bug_bridge",
                 "job_shadow",
                 "lich",
+                "invariants",
             },
         )
         self.assertEqual(set(body["lich"]), {"executions", "theo_trang_thai"})
@@ -77,6 +78,10 @@ class HttpContractTest(unittest.TestCase):
             {"mode", "pending", "last_sync_at", "last_error", "created", "updated"},
         )
         self.assertIn(body["job_shadow"]["mode"], {"legacy", "shadow"})
+        self.assertEqual(
+            set(body["invariants"]),
+            {"tong", "nang_nhat", "theo_ma", "findings"},
+        )
 
     def test_cancel_route_keeps_response_keys(self):
         """GỌI handler thật, so status + khoá của body.
