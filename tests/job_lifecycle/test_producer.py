@@ -48,6 +48,30 @@ def terminal_job(job, store, target):
     return current
 
 
+class InterleavingMemoryJobStore(MemoryJobStore):
+    """Calls one test hook after a producer has read its scoped parent."""
+
+    def __init__(self):
+        super().__init__()
+        self.after_scope_read = None
+        self.before_intent_write = None
+
+    def latest_for_scope(self, scope_fingerprint):
+        latest = super().latest_for_scope(scope_fingerprint)
+        hook = self.after_scope_read
+        if hook is not None:
+            self.after_scope_read = None
+            hook()
+        return latest
+
+    def create_intent(self, *args, **kwargs):
+        hook = self.before_intent_write
+        if hook is not None:
+            self.before_intent_write = None
+            hook()
+        return super().create_intent(*args, **kwargs)
+
+
 class ProducerServiceTest(unittest.TestCase):
     def setUp(self):
         self.store = MemoryJobStore()
@@ -86,6 +110,35 @@ class ProducerServiceTest(unittest.TestCase):
         rerun = self.service.create_job(image_request(), "key-2")
         self.assertNotEqual(rerun.jobs[0].job_id, first.jobs[0].job_id)
         self.assertEqual(rerun.jobs[0].rerun_of, first.jobs[0].job_id)
+
+    def test_manual_rerun_rebuilds_parent_when_scope_changes_before_write(self):
+        store = InterleavingMemoryJobStore()
+        service = ProducerService(store)
+        root = service.create_job(image_request(), "root")
+        terminal_job(root.jobs[0], store, JobState.COMPLETED)
+
+        middle = []
+
+        def create_and_terminal_middle():
+            created = service.create_job(image_request(), "middle")
+            middle.append(terminal_job(created.jobs[0], store, JobState.COMPLETED))
+
+        store.after_scope_read = create_and_terminal_middle
+        late = service.create_job(image_request(), "late")
+
+        self.assertEqual(late.jobs[0].rerun_of, middle[0].job_id)
+
+    def test_manual_rerun_rebuilds_parent_when_existing_scope_turns_terminal(self):
+        store = InterleavingMemoryJobStore()
+        service = ProducerService(store)
+        root = service.create_job(image_request(), "root")
+
+        store.before_intent_write = lambda: terminal_job(
+            root.jobs[0], store, JobState.COMPLETED
+        )
+        late = service.create_job(image_request(), "late")
+
+        self.assertEqual(late.jobs[0].rerun_of, root.jobs[0].job_id)
 
     def test_auto_after_failed_replays_terminal_job(self):
         request = image_request(origin=JobOrigin.AUTO, manual=False)

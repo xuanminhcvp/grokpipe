@@ -36,6 +36,10 @@ class ActiveJobConflict(JobStoreError):
     pass
 
 
+class StaleScopeParent(JobStoreError):
+    pass
+
+
 class StoreInvariantError(JobStoreError):
     pass
 
@@ -87,6 +91,9 @@ class JobStore(Protocol):
         record: IdempotencyRecord,
         batch: Optional[Batch],
         jobs_and_events: Tuple[Tuple[Job, JobEvent], ...],
+        *,
+        expected_scope_job_ids: Optional[Tuple[JobId, ...]] = None,
+        check_scope_parent: bool = False,
     ) -> IntentWriteResult: ...
 
     def get_intent(self, key: str) -> Optional[IdempotencyRecord]: ...
@@ -181,6 +188,9 @@ class MemoryJobStore:
         record: IdempotencyRecord,
         batch: Optional[Batch],
         jobs_and_events: Tuple[Tuple[Job, JobEvent], ...],
+        *,
+        expected_scope_job_ids: Optional[Tuple[JobId, ...]] = None,
+        check_scope_parent: bool = False,
     ) -> IntentWriteResult:
         with self._lock:
             exact = self._intents.get(record.key)
@@ -191,6 +201,15 @@ class MemoryJobStore:
 
             self._validate_intent(record, batch, jobs_and_events)
             scope_key = self._scope_intents.get(record.scope_fingerprint)
+            if check_scope_parent:
+                actual_terminal_parent = None
+                if scope_key is not None:
+                    scoped = self._intents[scope_key]
+                    scoped_jobs = tuple(self._jobs[job_id] for job_id in scoped.job_ids)
+                    if all(job.state.is_terminal for job in scoped_jobs):
+                        actual_terminal_parent = scoped.job_ids
+                if actual_terminal_parent != expected_scope_job_ids:
+                    raise StaleScopeParent(record.scope_fingerprint)
             if scope_key is not None:
                 scoped = self._intents[scope_key]
                 scoped_jobs = tuple(self._jobs[job_id] for job_id in scoped.job_ids)

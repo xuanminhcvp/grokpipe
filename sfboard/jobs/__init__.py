@@ -35,6 +35,7 @@ from .store import (
     MemoryJobStore,
     StoreInvariantError,
     StoreWriteResult,
+    StaleScopeParent,
     VersionConflict,
 )
 from .manager import (
@@ -99,6 +100,7 @@ __all__ = [
     "ShadowMismatch",
     "StoreInvariantError",
     "StoreWriteResult",
+    "StaleScopeParent",
     "TransitionCommand",
     "VersionConflict",
 ]

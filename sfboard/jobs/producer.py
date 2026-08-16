@@ -24,7 +24,7 @@ from .models import (
     JobKind,
     JobOrigin,
 )
-from .store import IdempotencyRecord, JobNotFound, JobStore
+from .store import IdempotencyRecord, JobNotFound, JobStore, StaleScopeParent
 
 
 @dataclass(frozen=True)
@@ -137,37 +137,49 @@ class ProducerService:
         )
         key = self._resolve_key(requests, scope_fingerprint, idempotency_key)
 
-        if rerun_of is None and all(request.manual for request in requests):
-            rerun_of = self._terminal_scope_job_ids(scope_fingerprint, len(requests))
-
-        batch_id = BatchId.new() if mode is not None else None
-        jobs = tuple(
-            self._make_job(
-                request,
-                batch_id=batch_id,
-                rerun_of=rerun_of[index] if rerun_of else None,
-                copy_index=index if mode is BatchMode.MULTI_COPY else None,
+        rebuild_parent = rerun_of is None and all(request.manual for request in requests)
+        while True:
+            parent_job_ids = (
+                self._terminal_scope_job_ids(scope_fingerprint, len(requests))
+                if rebuild_parent
+                else rerun_of
             )
-            for index, request in enumerate(requests)
-        )
-        batch = (
-            Batch(batch_id, jobs[0].kind, mode, tuple(job.job_id for job in jobs))
-            if batch_id is not None
-            else None
-        )
-        record = IdempotencyRecord(
-            key=key,
-            fingerprint=fingerprint,
-            scope_fingerprint=scope_fingerprint,
-            job_ids=tuple(job.job_id for job in jobs),
-            batch_id=batch_id,
-            delivered=False,
-        )
-        write = self.store.create_intent(
-            record,
-            batch,
-            tuple((job, self._make_event(job)) for job in jobs),
-        )
+            batch_id = BatchId.new() if mode is not None else None
+            jobs = tuple(
+                self._make_job(
+                    request,
+                    batch_id=batch_id,
+                    rerun_of=parent_job_ids[index] if parent_job_ids else None,
+                    copy_index=index if mode is BatchMode.MULTI_COPY else None,
+                )
+                for index, request in enumerate(requests)
+            )
+            batch = (
+                Batch(batch_id, jobs[0].kind, mode, tuple(job.job_id for job in jobs))
+                if batch_id is not None
+                else None
+            )
+            record = IdempotencyRecord(
+                key=key,
+                fingerprint=fingerprint,
+                scope_fingerprint=scope_fingerprint,
+                job_ids=tuple(job.job_id for job in jobs),
+                batch_id=batch_id,
+                delivered=False,
+            )
+            try:
+                write = self.store.create_intent(
+                    record,
+                    batch,
+                    tuple((job, self._make_event(job)) for job in jobs),
+                    expected_scope_job_ids=parent_job_ids,
+                    check_scope_parent=rebuild_parent,
+                )
+            except StaleScopeParent:
+                if not rebuild_parent:
+                    raise
+                continue
+            break
         return ProducerResult(
             jobs=write.jobs,
             batch=write.batch,
