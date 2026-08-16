@@ -1429,11 +1429,35 @@ def _lich_nhan(kind, ident):
         return None
 
 
-def _lich_tra(lease):
+def _lich_tra(lease, outcome="finished", not_before=0.0):
+    """Đóng hoặc trả lease theo KẾT QUẢ THẬT của lượt.
+
+    Retry không phải terminal: execution giữ nguyên identity và quay về READY
+    với `not_before`. Đánh FINISHED rồi để timer xếp lén vào queue làm lịch mất
+    dấu đúng lúc cần quan sát retry nhất.
+    """
     if lease is None or _JOB_SCHEDULER is None:
         return
     try:
-        _JOB_SCHEDULER.finish(lease.lease_id)
+        if outcome == "retry":
+            _JOB_SCHEDULER.release(
+                lease.lease_id, not_before=float(not_before))
+        else:
+            _JOB_SCHEDULER.finish(lease.lease_id)
+    except Exception:                       # noqa: BLE001
+        pass
+
+
+def _lich_huy_ident(kind, ident):
+    """Kết thúc execution đang chờ khi timer bị stop/cancel/stale."""
+    if _JOB_SCHEDULER is None:
+        return
+    try:
+        from jobs.models import JobKind
+        exe = _JOB_SCHEDULER.get_by_ident(
+            ident, JobKind.IMAGE if kind == "img" else JobKind.VIDEO)
+        if exe is not None:
+            _JOB_SCHEDULER.cancel_execution(exe.execution_id)
     except Exception:                       # noqa: BLE001
         pass
 
@@ -2167,6 +2191,7 @@ def _ban_xep_lai(kind: str, item: tuple, gen: int, dau: float | None) -> str:
     # xếp lại chứ không riêng nhánh ghi nhãn: xếp lại một việc đã xong cũng là
     # một lượt render thừa.
     if (JOBS.get(item[1]) or {}).get("t") != dau:
+        _lich_huy_ident(kind, item[1])
         return "nhuong"
     quyet = _quyet_xep_lai(item[1], gen)
     if quyet == "xep":
@@ -2192,6 +2217,7 @@ def _ban_xep_lai(kind: str, item: tuple, gen: int, dau: float | None) -> str:
     #     gì vào Chrome.
     _dat_job(item[1], {"state": "error",
                        "msg": "đã dừng" if quyet == "dung" else "đã huỷ"})
+    _lich_huy_ident(kind, item[1])
     return quyet
 
 
@@ -2278,6 +2304,8 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
         # legacy vẫn là thứ đưa việc tới đây. Nó trả lời được câu mà `JOBS`
         # không trả lời nổi: việc này đang do ai cầm, cầm từ bao giờ.
         _lease = _lich_nhan(kind, ident)
+        _lease_outcome = "finished"
+        _lease_not_before = 0.0
         # Ghi sổ NGAY khi nhận việc, gỡ ở `finally` — để `_giu_du_tai_khoan()`
         # biết cửa sổ này đang bận mà đừng đóng ngang.
         _ban_vao(endpoint)
@@ -2382,6 +2410,8 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                     "exc": e,
                 })
             else:
+                _lease_outcome = "retry"
+                _lease_not_before = time.time() + cho
                 _dat_job(ident, {"state": "running",
                                  "msg": f"{_loi_gon(e)} → đổi tài khoản, thử lại "
                                         f"sau {cho}s (lần {tries + 1}){ghi_chu}"})
@@ -2402,7 +2432,9 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                 })
         finally:
             _ban_ra(endpoint)
-            _lich_tra(_lease)
+            _lich_tra(
+                _lease, outcome=_lease_outcome,
+                not_before=_lease_not_before)
             if tu_hang:                 # việc lấy từ CHO_RIENG không qua queue
                 QUEUE.task_done()
         if stop:
