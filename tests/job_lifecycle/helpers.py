@@ -37,6 +37,8 @@ def load_sfboard():
 
 
 def reset_legacy_state(module) -> None:
+    if hasattr(module, "gan_shadow_observer"):
+        module.gan_shadow_observer(None)
     for name in ("JOBS", "VET", "DA_HUY", "DUNG_RIENG", "TAY_SF", "_HOAN"):
         value = getattr(module, name, None)
         if value is not None:

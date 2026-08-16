@@ -4,6 +4,7 @@ from sfboard.jobs.manager import JobManager
 from sfboard.jobs.models import JobKind, JobState
 from sfboard.jobs.projection import LegacyShadowProjection
 from sfboard.jobs.store import MemoryJobStore
+from helpers import load_hangdoi, reset_legacy_state
 
 
 class LegacyProjectionTest(unittest.TestCase):
@@ -97,3 +98,41 @@ class LegacyProjectionTest(unittest.TestCase):
             "A",
         )
         self.assertNotIn("xong", str(diagnostics))
+
+
+class LegacyObserverBoundaryTest(unittest.TestCase):
+    def setUp(self):
+        self.h = load_hangdoi()
+        reset_legacy_state(self.h)
+
+    def tearDown(self):
+        self.h.gan_shadow_observer(None)
+        reset_legacy_state(self.h)
+
+    def test_observer_runs_after_stamped_legacy_write(self):
+        seen = []
+        self.h.gan_shadow_observer(
+            lambda key, old, new: seen.append((key, old, new))
+        )
+        self.h.JOBS["A"] = {"state": "queued", "msg": "chờ"}
+        self.assertEqual(seen[0][0], "A")
+        self.assertIsNone(seen[0][1])
+        self.assertIn("t", seen[0][2])
+        self.assertEqual(self.h.JOBS["A"], seen[0][2])
+
+    def test_observer_exception_never_blocks_legacy_write(self):
+        def broken(_key, _old, _new):
+            raise RuntimeError("shadow down")
+
+        self.h.gan_shadow_observer(broken)
+        self.h.JOBS["A"] = {"state": "queued", "msg": "chờ"}
+        self.assertEqual(self.h.JOBS["A"]["state"], "queued")
+
+    def test_done_to_error_guard_does_not_emit_fake_shadow_write(self):
+        seen = []
+        self.h.gan_shadow_observer(lambda *args: seen.append(args))
+        self.h.JOBS["A"] = {"state": "done", "msg": "xong"}
+        seen.clear()
+        self.h.JOBS["A"] = {"state": "error", "msg": "late"}
+        self.assertEqual(seen, [])
+        self.assertEqual(self.h.JOBS["A"]["state"], "done")
