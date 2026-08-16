@@ -70,3 +70,45 @@ Job lifecycle gate: PASS
 
 None for Task 1. Producer delivery and legacy enqueue remain intentionally out
 of scope for later Phase 3 tasks.
+
+## Review fix round 1
+
+### RED evidence
+
+Added `test_scope_replay_rejects_invalid_alias_before_write`. Before the fix,
+the targeted command produced the expected failure:
+
+```text
+AssertionError: StoreInvariantError not raised
+1 failed, 13 passed
+```
+
+The failure proved that a whitespace-only alias key was accepted through the
+scope replay branch before validation.
+
+### GREEN evidence
+
+```text
+14 passed
+```
+
+`./.venv/bin/python3 -m compileall -q sfboard/jobs` exited 0. The full
+lifecycle gate also passed with `399 passed, 4 xfailed`.
+
+### Commit
+
+`27b13bf6396dac9f76d5b73dc1e7b60cddd56a87 fix: validate scope intent replays before aliasing`
+
+### Self-review
+
+- Exact-key replay remains before validation and therefore preserves its prior
+  valid replay behavior.
+- All new-key paths now call `_validate_intent` before examining
+  `jobs_and_events[0]`, looking up scope state, or writing an alias.
+- The regression test asserts both the expected invariant error and absence of
+  the invalid alias/job after rejection.
+
+### Concerns
+
+None. The fix does not add a lifecycle writer, retry path, queue action, or
+production authority.
