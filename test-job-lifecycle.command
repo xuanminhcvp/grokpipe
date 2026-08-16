@@ -41,7 +41,13 @@ COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
   sfboard/jobs/runtime_sentry.py \
   sfboard/jobs/beads_bridge.py \
   sfboard/jobs/bugtool.py \
-  sfboard/jobs/runtime_service.py
+  sfboard/jobs/runtime_service.py \
+  sfboard/jobs/store.py \
+  sfboard/jobs/manager.py \
+  sfboard/jobs/projection.py \
+  sfboard/jobs/producer.py \
+  sfboard/jobs/compat.py \
+  sfboard/chay-anh.py
 
 echo "Job lifecycle gate: PASS"
 echo "  (coverage ở trên CHỈ đo sfboard/jobs — không đo sfboard.py lẫn executors)"

@@ -30,6 +30,28 @@ class _BlockingBoard:
         return None
 
 
+class _ReadyVideoBoard:
+    """Board trơ: shot đã có start frame, chưa có video.
+
+    `co_anh=False` dùng cho nhánh ảnh — SF chưa có file nên auto coi là còn
+    thiếu và sẽ xếp lô."""
+
+    path = __file__
+
+    def __init__(self, scene, co_anh=True):
+        self.scene = scene
+        self.co_anh = co_anh
+
+    def read(self):
+        return {"scenes": [self.scene]}
+
+    def find_file(self, _asset_id):
+        return "/fake/start-frame.png" if self.co_anh else None
+
+    def video_file(self, _shot_id):
+        return None
+
+
 class _ObservedLock:
     """Lock thật có thêm tín hiệu khi thread stop bắt đầu chờ acquire."""
 
@@ -62,14 +84,28 @@ class AutoCharacterizationTest(unittest.TestCase):
         self.m.AUTO.clear()
         reset_legacy_state(self.m)
 
-    @unittest.expectedFailure
     def test_auto_video_blocks_both_running_and_queued(self):
-        source = function_source(BOARD, "_auto_scene")
-        normalized = " ".join(source.split())
-        self.assertIn(
-            'JOBS.get(sh["id"], {}).get("state") in ("running", "queued")',
-            normalized,
-        )
+        """Auto video phải bỏ qua CẢ `queued`, không riêng `running`.
+
+        Chỉ chặn `running` thì shot đang nằm chờ được xếp thêm lượt nữa — và
+        với video, lượt thừa là một lần trừ credit cho đúng shot sắp dựng xong.
+        """
+        shot = {"id": "V-S1-01", "sf": "SF-S1-01", "prompt": "máy lia"}
+        scene = {"id": "S1", "sfs": [], "shots": [shot]}
+        self.m.BOARD = _ReadyVideoBoard(scene)
+        self.m._auto_vid_doc = lambda: True
+        st = {"try": {}, "last": {}, "stat": {}}
+        with self.m.AUTO_LOCK:
+            self.m.AUTO[scene["id"]] = st
+
+        for nhan in ("queued", "running"):
+            with self.subTest(nhan=nhan):
+                self.m._dat_job(shot["id"], {"state": nhan, "msg": "đang có việc"})
+
+                self.m._auto_scene(scene, st, 1)
+
+                self.assertEqual(self.m.VID_QUEUE.qsize(), 0)
+                self.assertNotIn(shot["id"], st["try"])
 
     def test_auto_image_checks_running_and_queued(self):
         source = function_source(BOARD, "_auto_scene")
@@ -204,11 +240,90 @@ class AutoCharacterizationTest(unittest.TestCase):
         self.assertEqual(self.m.IMG_QUEUE.qsize(), 0)
         self.assertEqual(self.m.JOBS["REF_LORETTA_PORTRAIT"]["msg"], "đã dừng")
 
-    @unittest.expectedFailure
     def test_multi_copy_enqueue_uses_distinct_job_identity_per_copy(self):
-        source = BOARD.read_text(encoding="utf-8")
-        generate_route = source[
-            source.index('elif u.path == "/api/generate"') :
-            source.index('elif u.path == "/api/dung-het"')
-        ]
-        self.assertTrue("copy_index" in generate_route or "job_id" in generate_route)
+        """Ba bản song song là BA job khác nhau, không phải một ident xếp ba lần.
+
+        Cùng một ident cho ba bản thì kết quả bản này ghi đè trạng thái bản kia,
+        và mọi cú vét hàng chỉ nhìn thấy một việc.
+        """
+        from helpers import FakeBoard
+
+        self.m.BOARD = FakeBoard()
+        self.m._init_job_shadow("shadow")
+        try:
+            h = make_handler(self.m, "/api/generate?sf=SF-S1-01&n=3")
+            h.headers["Idempotency-Key"] = "multi-copy"
+            h.do_POST()
+            code, body = h.captured
+
+            self.assertEqual(code, 200)
+            self.assertEqual(len(set(body["job_ids"])), 3)
+            self.assertIsNotNone(body["batch_id"])
+            self.assertEqual(self.m.IMG_QUEUE.qsize(), 3)
+
+            h2 = make_handler(self.m, "/api/generate?sf=SF-S1-01&n=3")
+            h2.headers["Idempotency-Key"] = "multi-copy"
+            h2.do_POST()
+
+            self.assertEqual(h2.captured[1]["job_ids"], body["job_ids"])
+            self.assertEqual(self.m.IMG_QUEUE.qsize(), 3)
+        finally:
+            self.m._init_job_shadow("legacy")
+
+    def test_auto_video_failed_intent_is_not_revived_by_next_scan(self):
+        """Auto là NGƯỜI TẠO, không phải người thử lại.
+
+        Shot đã hỏng mà vòng quét sau lại xếp tiếp thì auto tự cầm quyền retry —
+        đúng thứ Phase 9 mới được giao cho RetryPolicy. Job cũ phải giữ nguyên
+        định danh, không có job mới nào mọc ra.
+        """
+        shot = {"id": "V-S1-01", "sf": "SF-S1-01", "prompt": "máy lia"}
+        scene = {"id": "S1", "sfs": [], "shots": [shot]}
+        st = {"try": {}, "last": {}, "stat": {}}
+        self.m.BOARD = _ReadyVideoBoard(scene)
+        self.m._auto_vid_doc = lambda: True
+        self.m._init_job_shadow("shadow")
+        try:
+            with self.m.AUTO_LOCK:
+                self.m.AUTO[scene["id"]] = st
+            self.m._auto_scene(scene, st, 1)
+            job_dau = self.m._JOB_SHADOW.job_for(shot["id"])
+
+            self.m._dat_job(shot["id"], {"state": "error", "msg": "provider hỏng"})
+            while not self.m.VID_QUEUE.empty():
+                self.m.VID_QUEUE.get_nowait()
+                self.m.VID_QUEUE.task_done()
+
+            self.m._auto_scene(scene, st, 20)
+
+            self.assertEqual(self.m.VID_QUEUE.qsize(), 0)
+            self.assertEqual(
+                self.m._JOB_SHADOW.job_for(shot["id"]).job_id, job_dau.job_id
+            )
+        finally:
+            self.m._init_job_shadow("legacy")
+
+    def test_auto_image_failed_intent_is_not_revived_by_next_scan(self):
+        scene = {"id": "S1", "sfs": [{"id": "SF-S1-01", "refs": {}}], "shots": []}
+        st = {"try": {}, "last": {}, "stat": {}}
+        self.m.BOARD = _ReadyVideoBoard(scene, co_anh=False)
+        self.m._init_job_shadow("shadow")
+        try:
+            with self.m.AUTO_LOCK:
+                self.m.AUTO[scene["id"]] = st
+            self.m._auto_scene(scene, st, 1)
+            job_dau = self.m._JOB_SHADOW.job_for("SF-S1-01")
+
+            self.m._dat_job("SF-S1-01", {"state": "error", "msg": "lô hỏng"})
+            while not self.m.IMG_QUEUE.empty():
+                self.m.IMG_QUEUE.get_nowait()
+                self.m.IMG_QUEUE.task_done()
+
+            self.m._auto_scene(scene, st, 20)
+
+            self.assertEqual(self.m.IMG_QUEUE.qsize(), 0)
+            self.assertEqual(
+                self.m._JOB_SHADOW.job_for("SF-S1-01").job_id, job_dau.job_id
+            )
+        finally:
+            self.m._init_job_shadow("legacy")

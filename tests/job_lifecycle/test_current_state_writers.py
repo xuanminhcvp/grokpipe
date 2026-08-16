@@ -40,7 +40,11 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
             "urllib",
         }
         violations = []
-        for name in ("__init__.py", "store.py", "manager.py", "projection.py"):
+        # Phase 3 thêm `producer.py` và `compat.py` vào lõi — chúng cũng KHÔNG
+        # được cầm quyền hàng đợi/provider/tài khoản. `compat.py` chỉ gọi
+        # callback được tiêm từ runtime, không tự biết hàng đợi là gì.
+        for name in ("__init__.py", "store.py", "manager.py", "projection.py",
+                     "producer.py", "compat.py"):
             path = ROOT / "sfboard/jobs" / name
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
@@ -108,7 +112,11 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
     #
     # Thêm/bớt chỗ ghi thì sửa bảng này VÀ nói rõ trong PR vì sao authority đổi.
     WRITER_CHO_PHEP = {
-        "do_POST": 9,             # các endpoint tạo/huỷ/dừng
+        # Chỉ còn các endpoint HUỶ/DỪNG ghi thẳng. Năm đường TẠO
+        # (`/api/generate`, `/api/master`, `/api/tao-lo`, `/api/genvideo`,
+        # `/api/video-lo`) đã đi qua command boundary từ Phase 3, nên nhãn của
+        # chúng do adapter đặt — bớt ba chỗ ghi thẳng ở đây.
+        "do_POST": 6,             # các endpoint huỷ/dừng
         "_generate_lo_ruot": 6,   # kết quả từng ảnh của một lô
         "_gen_video": 5,
         "_enqueue": 2,
@@ -116,8 +124,71 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
         "_gac_hang_doi": 2,
         "_pl_gan": 1,
         "_dat_nhan_lo": 1,        # nhãn CHUNG của lô, đi qua một cửa
-        "_auto_scene": 1,
+        # `_auto_scene` đã RỜI danh sách này ở Phase 3: auto chỉ còn gửi lệnh
+        # tạo, nhãn do adapter đặt. Người quét không còn là một authority.
     }
+
+    # Năm đường TẠO của HTTP + người quét auto. Đây là danh sách producer đã
+    # chuyển sang command boundary ở Phase 3; thêm đường tạo mới thì thêm vào
+    # đây, đừng để nó tự gọi `_xep`.
+    PRODUCER_ROUTES = {
+        "/api/generate", "/api/master", "/api/tao-lo",
+        "/api/genvideo", "/api/video-lo",
+    }
+
+    @staticmethod
+    def _ten_route(test):
+        """`elif u.path == "/api/…"` → tên route; nhánh khác trả None."""
+        if not isinstance(test, ast.Compare) or len(test.ops) != 1:
+            return None
+        trai, phai = test.left, (test.comparators[0] if test.comparators else None)
+        if (isinstance(test.ops[0], ast.Eq)
+                and isinstance(trai, ast.Attribute)
+                and isinstance(trai.value, ast.Name) and trai.value.id == "u"
+                and trai.attr == "path"
+                and isinstance(phai, ast.Constant) and isinstance(phai.value, str)):
+            return phai.value
+        return None
+
+    def test_phase3_producers_use_one_compatibility_boundary(self):
+        """Producer KHÔNG được tự xếp hàng hay tự ghi nhãn.
+
+        Đây là bất biến "mỗi lifecycle fact có đúng một authority" ở dạng chạy
+        được: đường tạo chỉ gửi ý định, còn việc chạm hàng đợi là của adapter.
+        Thêm một `_xep(...)` cho tiện trong nhánh endpoint là mở lại đúng cửa
+        đã sinh ra bug bấm-hai-lần.
+        """
+        cay = ast.parse((ROOT / "sfboard/sfboard.py").read_text(encoding="utf-8"))
+        vung = []
+        for n in ast.walk(cay):
+            if isinstance(n, ast.FunctionDef) and n.name == "_auto_scene":
+                vung.append(("_auto_scene", n.body))
+            if isinstance(n, ast.FunctionDef) and n.name == "do_POST":
+                for nhanh in ast.walk(n):
+                    route = (self._ten_route(nhanh.test)
+                             if isinstance(nhanh, ast.If) else None)
+                    if route in self.PRODUCER_ROUTES:
+                        vung.append((route, nhanh.body))
+
+        pham = []
+        for chu, than in vung:
+            for cau in than:
+                for n in ast.walk(cau):
+                    if isinstance(n, ast.Call):
+                        ten = (n.func.id if isinstance(n.func, ast.Name)
+                               else n.func.attr if isinstance(n.func, ast.Attribute)
+                               else "")
+                        if ten in {"_xep", "_enqueue"}:
+                            pham.append(f"{chu}:{n.lineno}:gọi {ten}")
+                    dich = (n.targets if isinstance(n, ast.Assign)
+                            else [n.target] if isinstance(n, (ast.AugAssign, ast.AnnAssign))
+                            else [])
+                    if any(isinstance(t, ast.Subscript)
+                           and isinstance(t.value, ast.Name) and t.value.id == "JOBS"
+                           for t in dich):
+                        pham.append(f"{chu}:{n.lineno}:ghi JOBS")
+
+        self.assertEqual(pham, [], "producer đang tự cầm quyền hàng đợi/nhãn")
 
     def test_every_direct_jobs_write_stays_auditable(self):
         """Đếm theo TỪNG HÀM bằng cây cú pháp, không đếm chuỗi `"JOBS["`.

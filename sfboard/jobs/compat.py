@@ -21,6 +21,21 @@ class LegacyAction:
     manual: bool
     state: Optional[Mapping[str, object]] = None
     forced_account_id: Optional[str] = None
+    # Ident ĐƯỢC GHI TRẠNG THÁI, khi khác ident xếp hàng.
+    #
+    # `/api/generate` xếp `LO:SF-x` nhưng chỉ ghi nhãn cho `SF-x`; `/api/tao-lo`
+    # xếp `LO:a,b` và ghi nhãn cho từng thành viên. Dùng chung một ident cho cả
+    # hai việc thì `dat_job` rải thêm khoá lô vào `JOBS` — hàng đợi trên giao
+    # diện đếm dôi ra một dòng so với bản legacy.
+    state_idents: Optional[Tuple[str, ...]] = None
+    # Bind RIÊNG từng khoá legacy vào đúng job của nó.
+    #
+    # `legacy_keys` bind cả cụm job cho một khoá — đúng với khoá lô `LO:a,b` và
+    # với nhiều bản song song của cùng một SF. Nhưng khoá THÀNH VIÊN `SF-a` chỉ
+    # được trỏ vào job của chính nó: projection chuyển trạng thái cho MỌI job
+    # đang bind vào khoá, nên bind nhầm là mỗi lần legacy ghi nhãn cho `SF-a`
+    # lại kéo theo job của `SF-b`.
+    member_bindings: Optional[Tuple[Tuple[str, Tuple[JobId, ...]], ...]] = None
 
 
 @dataclass(frozen=True)
@@ -112,27 +127,32 @@ class LegacyEnqueueAdapter:
             self._bind_action(delivery_key, action)
 
     def _bind_action(self, delivery_key: str, action: LegacyAction) -> None:
-        for legacy_key in action.legacy_keys:
+        pairs = [(legacy_key, action.job_ids) for legacy_key in action.legacy_keys]
+        pairs.extend(action.member_bindings or ())
+        for legacy_key, job_ids in pairs:
+            if not job_ids:
+                continue
             self._run_step(
                 delivery_key,
                 f"{action.action_id}:bind:{legacy_key}",
-                lambda legacy_key=legacy_key: self._bind_projection(
-                    legacy_key, action.job_ids
+                lambda legacy_key=legacy_key, job_ids=job_ids: self._bind_projection(
+                    legacy_key, job_ids
                 ),
             )
 
     def _run_action(self, delivery_key: str, action: LegacyAction) -> None:
         state = action.state
         if state is not None:
-            self._run_step(
-                delivery_key,
-                f"{action.action_id}:state",
-                lambda: self._set_job_state(
-                    action.queue_ident,
-                    state,
-                    f"{delivery_key}:{action.action_id}:state",
-                ),
-            )
+            for ident in (action.state_idents or (action.queue_ident,)):
+                self._run_step(
+                    delivery_key,
+                    f"{action.action_id}:state:{ident}",
+                    lambda ident=ident: self._set_job_state(
+                        ident,
+                        state,
+                        f"{delivery_key}:{action.action_id}:state",
+                    ),
+                )
         forced_account_id = action.forced_account_id
         if action.queue_kind == "img" and forced_account_id is not None:
             enqueue = lambda: self._enqueue_private_image(
@@ -189,8 +209,21 @@ class LegacyEnqueueAdapter:
                 for key in action.legacy_keys
             ):
                 raise ValueError("legacy key không được rỗng")
+            if action.state_idents is not None and (
+                not action.state_idents
+                or any(
+                    not isinstance(ident, str) or not ident.strip()
+                    for ident in action.state_idents
+                )
+            ):
+                raise ValueError("state ident không được rỗng")
             if action.queue_kind == "vid" and action.forced_account_id is not None:
                 raise ValueError("video không hỗ trợ forced account")
+            for legacy_key, job_ids in (action.member_bindings or ()):
+                if not isinstance(legacy_key, str) or not legacy_key.strip():
+                    raise ValueError("legacy key không được rỗng")
+                if result is not None and not set(job_ids).issubset(result_job_ids):
+                    raise ValueError("member JobId không thuộc ProducerResult")
             if result is not None:
                 if not action.job_ids:
                     raise ValueError("shadow delivery cần job_ids")

@@ -155,5 +155,220 @@ class ChiaLoTayTest(CreateEndpointTest):
         from helpers import make_handler
         return make_handler(self.m, path)
 
+
+class ProducerCommandEndpointTest(unittest.TestCase):
+    """Phase 3 · năm đường tạo phải đi qua ĐÚNG MỘT command boundary.
+
+    Bấm hai lần cùng một ý định (cùng `Idempotency-Key`) phải trả về đúng job
+    cũ và KHÔNG xếp thêm bản nào — đây là chốt thay cho phép so nhãn
+    `running/queued` vốn thua cuộc đua hai request cùng lúc.
+
+    Mọi field cũ của response phải còn nguyên: giao diện hiện tại đọc chúng.
+    """
+
+    SHOT_SCENES = [
+        {
+            "id": "S1",
+            "sfs": [],
+            "shots": [
+                {"id": "V-S1-01", "sf": "SF-S1-01", "prompt": "cận mặt", "dur": 6},
+                {"id": "V-S1-02", "sf": "SF-S1-01", "prompt": "trung", "dur": 6},
+            ],
+        }
+    ]
+
+    def setUp(self):
+        self.m = load_sfboard()
+        reset_legacy_state(self.m)
+        self.board_cu = self.m.BOARD
+        self.m.BOARD = FakeBoard(self.SHOT_SCENES, files=["SF-S1-01"])
+        self.acc_cu, self.m.ACCOUNTS = self.m.ACCOUNTS, []
+        self.m.AUTO.clear()
+        self.m._init_job_shadow("shadow")
+
+    def tearDown(self):
+        self.m._init_job_shadow("legacy")
+        self.m.BOARD = self.board_cu
+        self.m.ACCOUNTS = self.acc_cu
+        reset_legacy_state(self.m)
+        self.m.AUTO.clear()
+
+    def goi(self, path, key=None):
+        h = make_handler(self.m, path)
+        if key:
+            h.headers["Idempotency-Key"] = key
+        h.do_POST()
+        return h.captured
+
+    # ───────────────────────────── /api/generate ──────────────────────────
+
+    def test_generate_cung_key_tra_cung_job_va_chi_mot_lan_xep(self):
+        code, dau = self.goi("/api/generate?sf=SF-S1-01&idempotency_key=click-1")
+        _, lai = self.goi("/api/generate?sf=SF-S1-01&idempotency_key=click-1")
+
+        self.assertEqual(code, 200)
+        self.assertEqual(dau["job_id"], lai["job_id"])
+        self.assertFalse(dau["replayed"])
+        self.assertTrue(lai["replayed"])
+        self.assertEqual(self.m.IMG_QUEUE.qsize(), 1)
+
+    def test_generate_giu_nguyen_field_cu(self):
+        _, body = self.goi("/api/generate?sf=SF-S1-01&idempotency_key=k1")
+
+        self.assertTrue(body["ok"])
+        self.assertTrue(body["qua_lo"])
+        self.assertEqual(body["so_ban"], 1)
+        self.assertEqual(self.m.JOBS["SF-S1-01"]["state"], "queued")
+        self.assertNotIn("LO:SF-S1-01", self.m.JOBS)
+
+    def test_key_o_header_thang_key_o_query(self):
+        h = make_handler(self.m, "/api/generate?sf=SF-S1-01&idempotency_key=query")
+        h.headers["Idempotency-Key"] = "header"
+        h.do_POST()
+
+        store = self.m._JOB_PRODUCER.store
+        self.assertIsNotNone(store.get_intent("header"))
+        self.assertIsNone(store.get_intent("query"))
+
+    def test_generate_nhieu_ban_ra_nhieu_job_id_trong_mot_batch(self):
+        code, body = self.goi("/api/generate?sf=SF-S1-01&n=3&idempotency_key=multi")
+
+        self.assertEqual(code, 200)
+        self.assertEqual(len(body["job_ids"]), 3)
+        self.assertEqual(len(set(body["job_ids"])), 3)
+        self.assertIsNotNone(body["batch_id"])
+        self.assertEqual(self.m.IMG_QUEUE.qsize(), 3)
+
+    def test_hai_request_song_song_cung_key_chi_xep_mot_lan(self):
+        import threading
+
+        ket_qua = []
+        rao = threading.Barrier(2)
+
+        def bam():
+            rao.wait()
+            ket_qua.append(self.goi("/api/generate?sf=SF-S1-01", key="double"))
+
+        luong = [threading.Thread(target=bam) for _ in range(2)]
+        for t in luong:
+            t.start()
+        for t in luong:
+            t.join(5)
+
+        self.assertEqual(len(ket_qua), 2)
+        self.assertEqual(ket_qua[0][1]["job_ids"], ket_qua[1][1]["job_ids"])
+        self.assertEqual(self.m.IMG_QUEUE.qsize(), 1)
+
+    def test_cung_key_cho_hai_y_dinh_khac_nhau_bi_tu_choi_409(self):
+        self.goi("/api/generate?sf=SF-S1-01&idempotency_key=dung-chung")
+        code, body = self.goi("/api/generate?sf=SF-S1-02&idempotency_key=dung-chung")
+
+        self.assertEqual(code, 409)
+        self.assertFalse(body["ok"])
+        self.assertEqual(self.m.IMG_QUEUE.qsize(), 1)
+
+    # ───────────────────────────── /api/master ────────────────────────────
+
+    def test_master_chay_giu_field_cu_va_them_job_ids(self):
+        self.m.BOARD = FakeBoard([
+            {
+                "id": "S1",
+                "sfs": [
+                    {"id": "SF-S1-01", "luatchung": "sảnh"},
+                    {"id": "SF-S2-01", "luatchung": "bếp"},
+                ],
+                "shots": [],
+            }
+        ])
+
+        code, body = self.goi("/api/master?chay=1&idempotency_key=master-1")
+
+        self.assertEqual(code, 200)
+        self.assertEqual(body["so"], 2)
+        self.assertEqual(sorted(body["ds"]), ["SF-S1-01", "SF-S2-01"])
+        self.assertEqual(len(body["job_ids"]), 2)
+        self.assertEqual(
+            sorted(self.m._y_trong_hang(self.m.IMG_QUEUE)),
+            ["LO:SF-S1-01", "LO:SF-S2-01"],
+        )
+
+    # ───────────────────────────── /api/tao-lo ────────────────────────────
+
+    def test_tao_lo_giu_field_cu_va_them_job_ids(self):
+        code, body = self.goi("/api/tao-lo?sf=SF-S9-01,SF-S9-02&idempotency_key=lo-1")
+
+        self.assertEqual(code, 200)
+        self.assertEqual(body["so_lo"], 1)
+        self.assertEqual(body["ep_tk"], 0)
+        self.assertIn("lo", body)
+        self.assertEqual(len(body["job_ids"]), 2)
+        self.assertEqual(
+            self.m._y_trong_hang(self.m.IMG_QUEUE), {"LO:SF-S9-01,SF-S9-02"}
+        )
+        self.assertEqual(self.m.JOBS["SF-S9-01"]["state"], "queued")
+
+    def test_tao_lo_cung_key_khong_xep_lo_thu_hai(self):
+        self.goi("/api/tao-lo?sf=SF-S9-01,SF-S9-02", key="lo-double")
+        self.goi("/api/tao-lo?sf=SF-S9-01,SF-S9-02", key="lo-double")
+
+        self.assertEqual(self.m.IMG_QUEUE.qsize(), 1)
+
+    def test_tao_lo_ep_tai_khoan_van_giao_dich_danh(self):
+        code, body = self.goi(
+            "/api/tao-lo?sf=SF-S9-01,SF-S9-02&tk=9225&idempotency_key=lo-ep"
+        )
+
+        self.assertEqual(code, 200)
+        self.assertEqual(body["ep_tk"], 9225)
+        self.assertEqual(self.m.CHO_RIENG[9225], ["LO:SF-S9-01,SF-S9-02"])
+        self.assertEqual(self.m.IMG_QUEUE.qsize(), 0)
+
+    # ──────────────────────── /api/genvideo · /api/video-lo ───────────────
+
+    def test_genvideo_tra_job_id_va_xep_dung_mot_viec(self):
+        code, body = self.goi("/api/genvideo?sf=V-S1-01&idempotency_key=vid-1")
+
+        self.assertEqual(code, 200)
+        self.assertTrue(body["ok"])
+        self.assertIsNotNone(body["job_id"])
+        self.assertEqual(self.m.VID_QUEUE.qsize(), 1)
+        self.assertEqual(self.m.JOBS["V-S1-01"]["state"], "queued")
+
+    def test_genvideo_cung_key_khong_tru_credit_lan_hai(self):
+        self.goi("/api/genvideo?sf=V-S1-01", key="vid-double")
+        self.goi("/api/genvideo?sf=V-S1-01", key="vid-double")
+
+        self.assertEqual(self.m.VID_QUEUE.qsize(), 1)
+
+    def test_video_lo_giu_field_cu_va_them_job_ids(self):
+        code, body = self.goi("/api/video-lo?scene=S1&idempotency_key=vlo-1")
+
+        self.assertEqual(code, 200)
+        self.assertEqual(body["so"], 2)
+        self.assertEqual(set(body["bo"]),
+                         {"co_video", "thieu_sf", "thieu_prompt", "dang_chay"})
+        self.assertEqual(len(body["job_ids"]), 2)
+        self.assertEqual(self.m.VID_QUEUE.qsize(), 2)
+
+
+class LegacyModeUnchangedTest(CreateEndpointTest):
+    """Mode mặc định `legacy` không được đổi hình dạng response hay hàng đợi."""
+
+    def test_generate_legacy_khong_kem_job_id(self):
+        _, body = self.goi("/api/generate?sf=SF-S1-01")
+
+        self.assertTrue(body["ok"])
+        self.assertIsNone(body["job_id"])
+        self.assertEqual(body["job_ids"], [])
+        self.assertFalse(body["replayed"])
+        self.assertEqual(self.m.IMG_QUEUE.qsize(), 1)
+
+    def test_generate_legacy_giu_dung_tuple_hang_doi_cu(self):
+        self.goi("/api/generate?sf=SF-S1-01")
+
+        item = self.m.IMG_QUEUE.get_nowait()[2]
+        self.assertEqual(item, ("img", "LO:SF-S1-01", 0, True))
+
+
 if __name__ == "__main__":
     unittest.main()

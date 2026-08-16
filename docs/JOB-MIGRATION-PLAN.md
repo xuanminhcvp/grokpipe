@@ -193,6 +193,12 @@ dữ liệu asset.
 
 ## Phase 3 — Producer commands và idempotency
 
+**Trạng thái: ĐÃ TRIỂN KHAI (2026-08-16).** Năm route HTTP + auto producer đi qua
+`ProducerService → LegacyEnqueueAdapter`; client gửi `Idempotency-Key`; AST guard
+cấm producer gọi `_xep/_enqueue` hay ghi `JOBS[...]`. Gate: 468 pass, đúng 2
+`xfailed` (hạ đúng hai bug auto-video duplicate và multi-copy identity). Mode mặc
+định vẫn `legacy`; execution/retry/cancel/account vẫn do legacy quyết định.
+
 ### Mục tiêu
 
 Tất cả đường tạo job đi qua một command API thống nhất nhưng vẫn enqueue bằng legacy

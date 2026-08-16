@@ -336,6 +336,11 @@ Nguồn: producer `sfboard.py:1934-1939`, `3698-3705`, `4017-4035`; cancel
 
 ### P0 — auto-video có thể tạo duplicate cho job vẫn `queued`
 
+> **ĐÃ SỬA Ở PHASE 3 (2026-08-16).** Auto video chặn cả `queued` và
+> `running`, và ý định của auto mang key ổn định theo scope nên vòng quét
+> sau chỉ replay. Regression: `test_auto_video_blocks_both_running_and_queued`
+> và `test_auto_video_failed_intent_is_not_revived_by_next_scan`.
+
 Ảnh auto chặn cả `queued` và `running`; video auto chỉ chặn `running`. Nếu backlog
 video dài hơn cooldown, cùng shot vẫn `queued` sẽ được `_enqueue` lại. Nhiều worker
 có thể dựng cùng video và tiêu credit lặp.
@@ -384,6 +389,11 @@ trong một lần gọi, dù dữ liệu không đổi.
 Nguồn: `sfboard.py:3036-3039`, `3051-3061`, `1500-1552`.
 
 ### P1 — identity/state của multi-copy không biểu diễn được concurrency
+
+> **ĐÃ SỬA MỘT NỬA Ở PHASE 3 (2026-08-16).** `/api/generate?n>1` tạo một
+> Batch và N child Job có `job_id`/`copy_index` riêng. Phần chiếu ngược ra
+> nhãn legacy vẫn dùng chung khóa SF cho tới khi UI đọc structured state
+> (Phase 12). Regression: `test_multi_copy_enqueue_uses_distinct_job_identity_per_copy`.
 
 `/api/generate?n>1` xếp nhiều item cùng `LO:<sf>` nhưng không dùng `BATCH`; tất cả
 worker ghi lên cùng khóa SF/lô. State cuối phụ thuộc lần ghi sau cùng, không biểu

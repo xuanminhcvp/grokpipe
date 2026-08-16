@@ -194,6 +194,9 @@
     <div id="lb-v"></div>
   </dialog>
 
+  <!-- job-request.js phải nạp TRƯỚC board.js: board.js đọc global helper ngay
+       lúc chạy dòng đầu, sai thứ tự là mọi nút tạo mất khoá idempotency. -->
+  <script src="/ui/job-request.js"></script>
   <script src="/ui/board.js"></script>
 </body>
 

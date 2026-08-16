@@ -1364,6 +1364,82 @@ def _producer_submit(request_or_batch, idempotency_key, plan_factory):
     return None
 
 
+def _board_identity() -> str:
+    """Khoá phân biệt DỰ ÁN, để scope của intent không đụng nhau giữa hai phim.
+
+    Hai board khác nhau có thể có cùng SF id (`SF-S1-01` ở đâu cũng có), nên
+    fingerprint scope phải mang theo đường dẫn board — nếu không thì dedupe của
+    phim này chặn nhầm việc của phim kia khi chạy nhiều board một máy."""
+    try:
+        return os.path.abspath(getattr(BOARD, "path", "") or "")
+    except Exception:
+        return ""
+
+
+def _yeu_cau_anh(sf_id, scope, *, ep=0):
+    """Một CreateJobRequest ảnh do user bấm tay."""
+    from jobs.models import AssetId, JobKind, JobOrigin
+    from jobs.producer import CreateJobRequest
+
+    return CreateJobRequest(
+        AssetId(sf_id),
+        JobKind.IMAGE,
+        JobOrigin.MANUAL,
+        request_scope=f"{_board_identity()}:{scope}",
+        manual=True,
+        replace_current=True,
+        forced_account_id=str(ep) if ep else None,
+    )
+
+
+def _yeu_cau_video(shot_id, scope):
+    from jobs.models import AssetId, JobKind, JobOrigin
+    from jobs.producer import CreateJobRequest
+
+    return CreateJobRequest(
+        AssetId(shot_id),
+        JobKind.VIDEO,
+        JobOrigin.MANUAL,
+        request_scope=f"{_board_identity()}:{scope}",
+        manual=True,
+        replace_current=True,
+    )
+
+
+def _da_nhan_key(khoa):
+    """Key này đã được nhận trước đó chưa?
+
+    Chốt nhãn `running/queued` là phép chặn bấm-hai-lần của thời legacy: nó
+    dùng TRẠNG THÁI để đoán ý định. Khi request mang idempotency key thì ý định
+    đã có định danh thật — bấm lại cùng key là CÙNG một ý định, phải trả về
+    đúng job cũ thay vì báo 'đã nằm trong hàng chờ'. Ý định KHÁC mà mượn cùng
+    key thì `create_*` ném `IdempotencyConflict` → 409, không lọt qua đây."""
+    if not khoa or _JOB_MODE != "shadow" or _JOB_PRODUCER is None:
+        return False
+    try:
+        return _JOB_PRODUCER.store.get_intent(khoa) is not None
+    except Exception:                       # noqa: BLE001
+        return False
+
+
+def _nhan_cho_video(them=0):
+    """Nhãn 'chờ' của video — GIỮ NGUYÊN cách đếm của `_enqueue`.
+
+    `_enqueue` đọc độ dài hàng TRƯỚC khi xếp, nên việc thứ k trong một loạt
+    thấy `qsize()+k`. Plan được dựng trước khi giao nên `qsize()` ở đây cũng là
+    số trước khi xếp — cộng thêm `them` là ra đúng con số cũ."""
+    n = VID_QUEUE.qsize() + them
+    return {"state": "queued",
+            "msg": "chờ · sắp tới lượt" if n == 0 else f"chờ · {n} việc trước"}
+
+
+def _job_ids_cua(result, chi_so):
+    """JobId của các member theo vị trí — rỗng khi đang chạy mode legacy."""
+    if result is None:
+        return ()
+    return tuple(result.jobs[i].job_id for i in chi_so if i < len(result.jobs))
+
+
 def _producer_metadata(result):
     if result is None:
         return {
@@ -2516,6 +2592,78 @@ def _auto_allow(st: dict, ident: str, cyc: int, ghi: bool = True) -> bool:
     return True
 
 
+def _auto_giao_anh(sc, m, lo, data):
+    """Giao MỘT lô ảnh của auto qua command boundary.
+
+    Scope gắn với scene + địa điểm + đúng danh sách SF, nên hai vòng quét liên
+    tiếp sinh cùng một key: lần sau chỉ là replay, không xếp thêm lượt. Ở mode
+    legacy hàm này vẫn ghi `JOBS` và `_xep` y hệt bản cũ, chỉ đi qua adapter."""
+    from jobs.compat import LegacyAction, LegacyPlan
+    from jobs.models import AssetId, BatchMode, JobKind, JobOrigin
+    from jobs.producer import CreateBatchRequest, CreateJobRequest
+
+    ident = "LO:" + ",".join(lo)
+    nhan = {"state": "queued",
+            "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m, data)}"}
+    scope = f"{_board_identity()}:auto:{sc['id']}:image:{m}:{','.join(lo)}"
+    yeu_cau = CreateBatchRequest(
+        tuple(
+            CreateJobRequest(AssetId(i), JobKind.IMAGE, JobOrigin.AUTO,
+                             request_scope=scope)
+            for i in lo
+        ),
+        BatchMode.IMAGE_GROUP,
+    )
+
+    def _plan(ket_qua):
+        ids = tuple(job.job_id for job in ket_qua.jobs) if ket_qua else ()
+        return LegacyPlan((
+            LegacyAction(
+                action_id=f"auto-img:{sc['id']}:{ident}",
+                legacy_keys=(ident,),
+                job_ids=ids,
+                queue_kind="img",
+                queue_ident=ident,
+                manual=False,
+                state=nhan,
+                state_idents=tuple(lo),
+                member_bindings=tuple(
+                    (sf, (ids[k],)) for k, sf in enumerate(lo) if k < len(ids)
+                ),
+            ),
+        ))
+
+    return _producer_submit(yeu_cau, None, _plan)
+
+
+def _auto_giao_video(sc, sh):
+    """Giao một shot video của auto qua command boundary."""
+    from jobs.compat import LegacyAction, LegacyPlan
+    from jobs.models import AssetId, JobKind, JobOrigin
+    from jobs.producer import CreateJobRequest
+
+    shot_id = sh["id"]
+    yeu_cau = CreateJobRequest(
+        AssetId(shot_id), JobKind.VIDEO, JobOrigin.AUTO,
+        request_scope=f"{_board_identity()}:auto:{sc['id']}:video:{shot_id}",
+    )
+
+    def _plan(ket_qua):
+        return LegacyPlan((
+            LegacyAction(
+                action_id=f"auto-vid:{shot_id}",
+                legacy_keys=(shot_id,),
+                job_ids=_job_ids_cua(ket_qua, (0,)),
+                queue_kind="vid",
+                queue_ident=shot_id,
+                manual=False,
+                state=_nhan_cho_video(0),
+            ),
+        ))
+
+    return _producer_submit(yeu_cau, None, _plan)
+
+
 def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     """Quét một scene, xếp việc còn thiếu. Trả (ảnh thiếu, ảnh tổng, video thiếu, video tổng)."""
     # Snapshot này thuộc THẾ HỆ NÀO? `_auto_runner` thả AUTO_LOCK trong lúc đọc
@@ -2583,11 +2731,14 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
             with AUTO_LOCK:
                 if dung_gen() != auto_gen or AUTO.get(sc["id"]) is not st:
                     break
+                ket_qua = _auto_giao_anh(sc, m, lo, _data)
+                if ket_qua is not None and ket_qua.replayed:
+                    # Ý định này đã được nhận từ vòng quét trước — auto không
+                    # được tính thêm lượt thử, cũng không xếp lại. Việc thử lại
+                    # là của RetryPolicy, không phải của người quét.
+                    continue
                 for i in lo:
                     _auto_allow(st, i, cyc)  # tính một lần thử: task này đi thật
-                    JOBS[i] = {"state": "queued",
-                               "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m, _data)}"}
-                _xep(IMG_QUEUE, ("img", "LO:" + ",".join(lo), 0, False))
                 da_xep.append(lo)
         if da_xep:
             _LOG.info("[auto %s] đẩy %d task (%d ảnh) vào hàng chờ",
@@ -2602,12 +2753,19 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
         with AUTO_LOCK:
             if dung_gen() != auto_gen or AUTO.get(sc["id"]) is not st:
                 break
-            if JOBS.get(sh["id"], {}).get("state") == "running":
+            # CHẶN CẢ 'queued'. Chỉ chặn 'running' thì shot đang nằm chờ được
+            # xếp thêm lượt nữa — với video, lượt thừa là một lần trừ credit cho
+            # đúng shot sắp dựng xong.
+            if JOBS.get(sh["id"], {}).get("state") in ("running", "queued"):
                 continue
-            if _auto_allow(st, sh["id"], cyc):
-                _enqueue("vid", sh["id"])
-                _LOG.info("[auto %s] video %s (lần %d)",
-                          sc["id"], sh["id"], st["try"][sh["id"]])
+            if not _auto_allow(st, sh["id"], cyc, ghi=False):
+                continue
+            ket_qua = _auto_giao_video(sc, sh)
+            if ket_qua is not None and ket_qua.replayed:
+                continue
+            _auto_allow(st, sh["id"], cyc)
+            _LOG.info("[auto %s] video %s (lần %d)",
+                      sc["id"], sh["id"], st["try"][sh["id"]])
 
     return len(miss_img), len(sfs), len(miss_vid), len(shots)
 
@@ -4084,7 +4242,7 @@ _UI_DIR = os.path.join(_HERE, "ui")
 def _doc_ui(ten: str) -> str:
     # Chốt tên file trong danh sách trắng: đường dẫn từ URL mà ghép thẳng vào
     # os.path.join là mở cửa cho ../../ đọc trộm file ngoài thư mục ui/.
-    if ten not in ("board.html", "board.css", "board.js"):
+    if ten not in ("board.html", "board.css", "board.js", "job-request.js"):
         raise ValueError(f"file giao diện lạ: {ten}")
     with open(os.path.join(_UI_DIR, ten), encoding="utf-8") as f:
         return f.read()
@@ -4243,6 +4401,48 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, obj, code=200):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode("utf-8"))
 
+    def _giao_viec(self, yeu_cau, khoa, plan_factory, kind="img"):
+        """Đưa một ý định tạo việc qua ĐÚNG MỘT cửa rồi giao xuống hàng đợi.
+
+        Trả `(True, metadata)` khi giao xong — metadata là các field phụ
+        (`job_id`, `job_ids`, `batch_id`, `replayed`) merge vào response cũ. Trả
+        `(False, None)` khi đã tự trả lỗi cho client; caller chỉ việc `return`.
+
+        Ở mode `legacy` (mặc định) không có core mới nào chạy: plan vẫn được
+        giao bằng đúng callback legacy, metadata rỗng.
+        """
+        from jobs.store import ActiveJobConflict, IdempotencyConflict
+
+        try:
+            ket_qua = _producer_submit(yeu_cau, khoa, plan_factory)
+        except IdempotencyConflict:
+            self._json({"ok": False,
+                        "err": "idempotency key đã dùng cho yêu cầu khác"}, 409)
+            return False, None
+        except ActiveJobConflict:
+            self._json({"ok": False,
+                        "err": "đã có việc đang hoạt động trong phạm vi này"}, 409)
+            return False, None
+        except (TypeError, ValueError) as exc:
+            self._json({"ok": False, "err": str(exc)}, 400)
+            return False, None
+        except Exception as exc:            # noqa: BLE001
+            try:
+                # KHÔNG đưa prompt/key/request thô vào sổ lỗi.
+                report_runtime_bug({
+                    "reason_code": "producer_delivery",
+                    "category": "producer_delivery",
+                    "severity": "ERROR",
+                    "job": {"kind": kind, "phase": "delivery"},
+                    "exc": exc,
+                })
+            except Exception:               # noqa: BLE001
+                pass
+            _LOG.warning("không giao được việc sang hàng đợi: %s", type(exc).__name__)
+            self._json({"ok": False, "err": "không giao được việc sang hàng đợi"}, 500)
+            return False, None
+        return True, _producer_metadata(ket_qua)
+
     def _dl_name(self, q, path) -> str:
         """Tên file khi tải về: ưu tiên ?name=<SF-ID>, giữ đúng phần mở rộng thật của file."""
         ext = os.path.splitext(path)[1] or ".bin"
@@ -4346,7 +4546,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/":
             self._send(200, _doc_ui("board.html").encode("utf-8"),
                        "text/html; charset=utf-8")
-        elif u.path in ("/ui/board.css", "/ui/board.js"):
+        elif u.path in ("/ui/board.css", "/ui/board.js", "/ui/job-request.js"):
             ten = u.path.rsplit("/", 1)[1]
             kieu = ("text/css" if ten.endswith(".css") else "application/javascript")
             self._send(200, _doc_ui(ten).encode("utf-8"), kieu + "; charset=utf-8")
@@ -4482,8 +4682,9 @@ class Handler(BaseHTTPRequestHandler):
             # lượt — với video là trừ credit lần nữa cho đúng shot vừa dựng xong.
             # `_auto_scene` đã chặn đúng cả hai nhãn từ trước; đây là áp lại luật
             # ấy cho đường tạo tay chứ không phải chính sách mới.
+            _khoa = _request_idempotency_key(self, q, raw)
             _nhan = JOBS.get(sf_id, {}).get("state")
-            if _nhan in ("running", "queued"):
+            if _nhan in ("running", "queued") and not _da_nhan_key(_khoa):
                 self._json({"ok": False,
                             "err": "đang chạy" if _nhan == "running" else "đã nằm trong hàng chờ"})
                 return
@@ -4517,14 +4718,43 @@ class Handler(BaseHTTPRequestHandler):
             # hỏng câm, nhìn ảnh vẫn đẹp.
             # `tay=True` nên KHÔNG bị bộ lọc "đã có ảnh" gạt đi.
             so_ban = max(1, min(int(q.get("n", ["1"])[0] or 1), 4))
-            JOBS[sf_id] = {"state": "queued",
-                           "msg": "chờ · 1 ảnh" if so_ban == 1
-                                  else f"chờ · {so_ban} bản song song"}
-            bo_co_huy("LO:" + sf_id, sf_id)   # user vừa bấm tạo → thắng cờ huỷ cũ
+            ident = "LO:" + sf_id
+            nhan = {"state": "queued",
+                    "msg": "chờ · 1 ảnh" if so_ban == 1
+                           else f"chờ · {so_ban} bản song song"}
+            bo_co_huy(ident, sf_id)   # user vừa bấm tạo → thắng cờ huỷ cũ
             TAY_SF.add(sf_id)
-            for _ in range(so_ban):
-                _xep(IMG_QUEUE, ("img", "LO:" + sf_id, 0, True))
-            self._json({"ok": True, "qua_lo": True, "so_ban": so_ban})
+            yeu_cau = _yeu_cau_anh(sf_id, "http.generate")
+            if so_ban > 1:
+                # NHIỀU BẢN LÀ NHIỀU JOB CON, không phải một job xếp N lần —
+                # mỗi bản có kết quả riêng nên phải mang định danh riêng.
+                from jobs.models import BatchMode
+                from jobs.producer import CreateBatchRequest
+                yeu_cau = CreateBatchRequest(
+                    tuple(yeu_cau for _ in range(so_ban)), BatchMode.MULTI_COPY)
+
+            def _plan(ket_qua, _sf=sf_id, _ident=ident, _nhan=nhan, _n=so_ban):
+                from jobs.compat import LegacyAction, LegacyPlan
+                ids = tuple(job.job_id for job in ket_qua.jobs) if ket_qua else ()
+                return LegacyPlan(tuple(
+                    LegacyAction(
+                        action_id=f"generate:{_ident}:{i}",
+                        legacy_keys=(_sf, _ident),
+                        job_ids=ids,
+                        queue_kind="img",
+                        queue_ident=_ident,
+                        manual=True,
+                        # Chỉ bản đầu ghi nhãn gộp; N bản vẫn xếp đủ N lượt.
+                        state=_nhan if i == 0 else None,
+                        state_idents=(_sf,),
+                    )
+                    for i in range(_n)
+                ))
+
+            xong, meta = self._giao_viec(yeu_cau, _khoa, _plan)
+            if not xong:
+                return
+            self._json({"ok": True, "qua_lo": True, "so_ban": so_ban, **meta})
         elif u.path == "/api/dung-het":
             # DỪNG TẤT CẢ: tắt mọi auto, vét sạch hàng đợi, và ĐÓNG CỬA SỔ CHROME
             # của những tài khoản ảnh đang bận. Đóng Chrome là cách DUY NHẤT cắt
@@ -4723,12 +4953,39 @@ class Handler(BaseHTTPRequestHandler):
                 return
             # MỖI THẺ ĐỊA ĐIỂM MỘT LÔ RIÊNG. Chúng thuộc các địa điểm khác nhau
             # nên không chung chat được, và mỗi cái chạy chat trắng của chính nó.
-            for i in sorted(can, key=_uu_tien):
-                JOBS[i] = {"state": "queued", "msg": "chờ chạy ảnh gốc địa điểm"}
+            can = sorted(can, key=_uu_tien)
+            for i in can:
                 TAY_SF.add(i)
-                _xep(IMG_QUEUE, ("img", "LO:" + i, 0, True))
+            from jobs.models import BatchMode
+            from jobs.producer import CreateBatchRequest
+            yeu_cau = CreateBatchRequest(
+                tuple(_yeu_cau_anh(i, "http.master") for i in can),
+                BatchMode.IMAGE_GROUP,
+            )
+
+            def _plan(ket_qua, _can=tuple(can)):
+                from jobs.compat import LegacyAction, LegacyPlan
+                return LegacyPlan(tuple(
+                    LegacyAction(
+                        action_id=f"master:{sf}",
+                        legacy_keys=(sf, "LO:" + sf),
+                        job_ids=_job_ids_cua(ket_qua, (i,)),
+                        queue_kind="img",
+                        queue_ident="LO:" + sf,
+                        manual=True,
+                        state={"state": "queued",
+                               "msg": "chờ chạy ảnh gốc địa điểm"},
+                        state_idents=(sf,),
+                    )
+                    for i, sf in enumerate(_can)
+                ))
+
+            xong, meta = self._giao_viec(
+                yeu_cau, _request_idempotency_key(self, q, raw), _plan)
+            if not xong:
+                return
             _LOG.info("chạy %d thẻ địa điểm: %s", len(can), ", ".join(can))
-            self._json({"ok": True, "so": len(can), "ds": can})
+            self._json({"ok": True, "so": len(can), "ds": can, **meta})
         elif u.path == "/api/xem-lo":
             # XEM TRƯỚC cách chia lô — KHÔNG xếp hàng, KHÔNG chạy gì.
             #
@@ -4785,12 +5042,15 @@ class Handler(BaseHTTPRequestHandler):
             if not ids:
                 self._json({"ok": False, "err": "chưa chọn SF nào"}); return
             data = BOARD.read()
+            _khoa = _request_idempotency_key(self, q, raw)
+            _lai_key = _da_nhan_key(_khoa)      # bấm lại đúng cùng một ý định
             nhom: dict[str, list[str]] = {}
             for i in ids:
                 # Bỏ qua cả 'queued', không riêng 'running' — cùng lý do với
                 # `/api/generate`: xếp thêm bản nữa cho việc đang chờ là bắt thợ
                 # render hai lượt. `_auto_scene` đã dùng đúng cặp nhãn này.
-                if JOBS.get(i, {}).get("state") in ("running", "queued"):
+                if (JOBS.get(i, {}).get("state") in ("running", "queued")
+                        and not _lai_key):
                     continue
                 nhom.setdefault(_nhom_cua(i, data), []).append(i)
             # TÍCH LẪN ĐỊA ĐIỂM → KHÔNG CHO CHẠY (2026-08-12, theo yêu cầu user).
@@ -4856,28 +5116,60 @@ class Handler(BaseHTTPRequestHandler):
             # `/api/xem-lo` dùng CHUNG phép chia này, nên ô xem trước vẫn nói
             # đúng cái sắp xảy ra — đó là điều kiện để việc cắt không thành cắt
             # lén sau lưng user.
-            so_lo = 0
+            cac_lo = []          # [(ident, (sf,…), nhãn)] — thứ tự = thứ tự xếp
             for m, xs in nhom.items():
                 xs.sort(key=_uu_tien)
                 for lo in _chia_lo(xs, lambda i: _ref_id_cua_sf(i, data),
                                    TRAN_MAY_TU_GOM, TRAN_REF):
-                    so_lo += 1
                     ident = "LO:" + ",".join(lo)
                     bo_co_huy(ident, *lo)   # user vừa bấm tạo → thắng cờ huỷ cũ
                     TAY_SF.update(lo)       # …và giữ cờ tạo-tay nếu phải xếp lại
-                    for i in lo:
-                        JOBS[i] = {"state": "queued",
-                                   "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m)}"
-                                          + (f" · ép cổng {ep}" if ep else "")}
-                    if ep:
-                        with _CR_LOCK:           # giao ĐÍCH DANH cho thợ của cổng đó
-                            o = CHO_RIENG.setdefault(ep, [])
-                            o.append(ident)
-                            o.sort(key=_uu_tien)
-                    else:
-                        _xep(IMG_QUEUE, ("img", ident, 0, True))
+                    cac_lo.append((ident, tuple(lo),
+                                   {"state": "queued",
+                                    "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m)}"
+                                           + (f" · ép cổng {ep}" if ep else "")}))
+            so_lo = len(cac_lo)
+            if not cac_lo:      # mọi SF đã nằm trong hàng — không có gì để giao
+                self._json({"ok": True, "so_lo": 0, "ep_tk": ep, "lo": {},
+                            **_producer_metadata(None)})
+                return
+            thanh_vien = [sf for _, lo, _ in cac_lo for sf in lo]
+            vi_tri = {sf: i for i, sf in enumerate(thanh_vien)}
+            from jobs.models import BatchMode
+            from jobs.producer import CreateBatchRequest
+            yeu_cau = CreateBatchRequest(
+                tuple(_yeu_cau_anh(sf, "http.tao-lo", ep=ep) for sf in thanh_vien),
+                BatchMode.IMAGE_GROUP,
+            )
+
+            def _plan(ket_qua, _cac_lo=tuple(cac_lo), _vi_tri=vi_tri, _ep=ep):
+                from jobs.compat import LegacyAction, LegacyPlan
+                viec = []
+                for ident, lo, nhan in _cac_lo:
+                    ids = _job_ids_cua(ket_qua, [_vi_tri[sf] for sf in lo])
+                    viec.append(LegacyAction(
+                        action_id=f"tao-lo:{ident}",
+                        legacy_keys=(ident,),
+                        job_ids=ids,
+                        queue_kind="img",
+                        queue_ident=ident,
+                        manual=True,
+                        state=nhan,
+                        state_idents=lo,
+                        forced_account_id=str(_ep) if _ep else None,
+                        # Mỗi SF thành viên trỏ vào ĐÚNG job của nó.
+                        member_bindings=tuple(
+                            (sf, (ids[k],)) for k, sf in enumerate(lo)
+                            if k < len(ids)
+                        ),
+                    ))
+                return LegacyPlan(tuple(viec))
+
+            xong, meta = self._giao_viec(yeu_cau, _khoa, _plan)
+            if not xong:
+                return
             self._json({"ok": True, "so_lo": so_lo, "ep_tk": ep,
-                        "lo": {m: len(x) for m, x in nhom.items()}})
+                        "lo": {m: len(x) for m, x in nhom.items()}, **meta})
         elif u.path == "/api/dan-ma":
             # Bật/tắt việc in mã SF vào góc ảnh. Chỉ ảnh render TỪ ĐÂY VỀ SAU
             # đổi theo — ảnh đã có trên đĩa giữ nguyên như lúc nó được vẽ.
@@ -5242,7 +5534,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": False, "err": "op không hợp lệ"}, 400)
         # ---------- video ----------
         elif u.path == "/api/genvideo":
-            if JOBS.get(sf_id, {}).get("state") in ("running", "queued"):
+            _khoa = _request_idempotency_key(self, q, raw)
+            if (JOBS.get(sf_id, {}).get("state") in ("running", "queued")
+                    and not _da_nhan_key(_khoa)):
                 self._json({"ok": False, "err": "việc này đã ở trong hàng đợi"}); return
             # KIỂM TRƯỚC KHI XẾP, không để thợ phát hiện hộ. Ba lỗi dữ liệu dưới
             # đây đổi tài khoản không chữa được, mà thợ thì cứ xoay và thử lại —
@@ -5259,8 +5553,26 @@ class Handler(BaseHTTPRequestHandler):
                             "err": f"start frame {_sh.get('sf') or '(chưa gán)'} chưa có ảnh"},
                            400); return
             bo_co_huy(sf_id)          # user vừa bấm tạo → thắng cờ huỷ cũ
-            _enqueue("vid", sf_id)
-            self._json({"ok": True})
+
+            def _plan(ket_qua, _shot=sf_id):
+                from jobs.compat import LegacyAction, LegacyPlan
+                return LegacyPlan((
+                    LegacyAction(
+                        action_id=f"genvideo:{_shot}",
+                        legacy_keys=(_shot,),
+                        job_ids=_job_ids_cua(ket_qua, (0,)),
+                        queue_kind="vid",
+                        queue_ident=_shot,
+                        manual=False,
+                        state=_nhan_cho_video(0),
+                    ),
+                ))
+
+            xong, meta = self._giao_viec(
+                _yeu_cau_video(sf_id, "http.genvideo"), _khoa, _plan, kind="vid")
+            if not xong:
+                return
+            self._json({"ok": True, **meta})
         elif u.path == "/api/video-lo":
             # XẾP HÀNG LOẠT VIDEO — một scene (`scene=S7`) hoặc cả phim (không
             # truyền gì). Mỗi video là MỘT việc riêng: Grok chỉ nhận một ảnh và
@@ -5271,6 +5583,8 @@ class Handler(BaseHTTPRequestHandler):
             # từng dòng một. Video mới đè lên bản đang dùng, bản cũ vẫn nằm trong
             # videos/versions/.
             _lai = (q.get("lai", [""])[0] or "") in ("1", "true", "yes")
+            _khoa = _request_idempotency_key(self, q, raw)
+            _lai_key = _da_nhan_key(_khoa)      # bấm lại đúng cùng một ý định
             _d = BOARD.read()
             # TÊN BIẾN KHÔNG ĐƯỢC TRÙNG HÀM `_xep()` Ở TẦNG MODULE. Gán ở đây là
             # Python coi `_xep` LÀ BIẾN CỤC BỘ CỦA CẢ `do_POST`, nên mọi nhánh
@@ -5290,17 +5604,43 @@ class Handler(BaseHTTPRequestHandler):
                     # tra cả board chứ không chỉ trong scene này.
                     if not BOARD.find_file(sh.get("sf") or ""):
                         _bo["thieu_sf"] += 1; continue
-                    if JOBS.get(sh["id"], {}).get("state") in ("running", "queued"):
+                    if (JOBS.get(sh["id"], {}).get("state") in ("running", "queued")
+                            and not _lai_key):
                         _bo["dang_chay"] += 1; continue
                     _ds.append(sh["id"])
-            for i in _ds:
-                _enqueue("vid", i)
+            meta = _producer_metadata(None)
+            if _ds:
+                from jobs.models import BatchMode
+                from jobs.producer import CreateBatchRequest
+                yeu_cau = CreateBatchRequest(
+                    tuple(_yeu_cau_video(i, "http.video-lo") for i in _ds),
+                    BatchMode.BULK_VIDEO,
+                )
+
+                def _plan(ket_qua, _shots=tuple(_ds)):
+                    from jobs.compat import LegacyAction, LegacyPlan
+                    return LegacyPlan(tuple(
+                        LegacyAction(
+                            action_id=f"video-lo:{shot}",
+                            legacy_keys=(shot,),
+                            job_ids=_job_ids_cua(ket_qua, (k,)),
+                            queue_kind="vid",
+                            queue_ident=shot,
+                            manual=False,
+                            state=_nhan_cho_video(k),
+                        )
+                        for k, shot in enumerate(_shots)
+                    ))
+
+                xong, meta = self._giao_viec(yeu_cau, _khoa, _plan, kind="vid")
+                if not xong:
+                    return
             _LOG.info("xếp %d video%s%s — bỏ qua: %d đã có video · %d thiếu ảnh SF · "
                       "%d thiếu prompt · %d đang chạy", len(_ds),
                       f" của {_sid}" if _sid else " (cả phim)",
                       " [TẠO LẠI]" if _lai else "", _bo["co_video"],
                       _bo["thieu_sf"], _bo["thieu_prompt"], _bo["dang_chay"])
-            self._json({"ok": True, "so": len(_ds), "bo": _bo})
+            self._json({"ok": True, "so": len(_ds), "bo": _bo, **meta})
         elif u.path == "/api/upload-video":
             if not re.match(r"^[A-Za-z0-9_\-]+$", sf_id):
                 self._json({"ok": False, "err": "id không hợp lệ"}, 400); return

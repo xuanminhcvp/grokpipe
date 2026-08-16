@@ -83,21 +83,40 @@ class CaptureHandlerMixin:
 
 
 class FakeBoard:
+    """Board giả cho test HTTP.
+
+    Mặc định rỗng y như trước. Truyền `scenes`/`files` khi cần dựng shot có
+    prompt + start frame để `/api/genvideo` và `/api/video-lo` đi hết đường
+    validate mà KHÔNG chạm provider.
+    """
+
     path = __file__
 
+    def __init__(self, scenes=None, files=()):
+        self._scenes = scenes or []
+        self._files = set(files)
+
     def read(self):
-        return {"scenes": []}
+        return {"scenes": json.loads(json.dumps(self._scenes))}
 
     def get_sf(self, sf_id, data=None):
         # `data` là tham số tuỳ chọn của bản thật — `/api/tao-lo` truyền vào để
         # khỏi đọc lại file board cho từng SF.
+        for scene in self._scenes:
+            for sf in scene.get("sfs", []):
+                if sf.get("id") == sf_id:
+                    return dict(sf)
         return {"id": sf_id}
 
     def get_shot(self, shot_id):
+        for scene in self._scenes:
+            for shot in scene.get("shots", []):
+                if shot.get("id") == shot_id:
+                    return (dict(shot), dict(scene))
         return (None, None)
 
     def find_file(self, asset_id):
-        return None
+        return f"/fake/{asset_id}.png" if asset_id in self._files else None
 
     def video_file(self, shot_id):
         return None

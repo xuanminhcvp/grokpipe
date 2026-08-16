@@ -3,6 +3,10 @@
 // SỬA GIAO DIỆN THÌ SỬA ĐÂY, đừng dán ngược vào board.html.
 // VIEW nhớ qua các lần tải lại: đang làm dở tab nào thì F5 vẫn ở tab đó. Lưu chung
 // cho mọi phim như cờ sáng/tối — đây là chỗ đang làm việc, không phải thuộc tính phim.
+// KHOÁ Ý ĐỊNH cho mọi nút TẠO. `job-request.js` nạp trước file này (xem
+// board.html). Sinh key MỘT LẦN trước request rồi giữ nguyên khi gửi lại —
+// sinh mới mỗi lần gửi là quay về đúng bug "bấm hai lần render hai lượt".
+const { newJobKey, postJob } = globalThis.GrokpipeJobRequest;
 const VIEW_OK = ['script', 'sf'];
 let DATA = { scenes: [] }, JOBS = {}, AUTO = {}, T = null, DIRTY = false, MTIME = 0;
 let VIEW = VIEW_OK.includes(localStorage.getItem('sfboard-view'))
@@ -190,7 +194,7 @@ async function chayMaster() {
       + d.chua_duyet.join(' · ') + `\n\nChạy lại chúng?\nBản cũ vào dãy bản, không mất.`);
     if (!lai) return;
   }
-  const r = await (await fetch('/api/master?chay=1' + (lai ? '&lai=1' : ''), { method: 'POST' })).json();
+  const r = (await postJob('/api/master?chay=1' + (lai ? '&lai=1' : ''), newJobKey())).body;
   if (!r.ok) { bao(r.err || 'Không xếp được'); return }
   $('#runstatus').textContent = `đã xếp ${r.so} ảnh gốc địa điểm — có ảnh rồi mới chạy được khung con`;
   setTimeout(() => $('#runstatus').textContent = '', 10000);
@@ -1364,8 +1368,8 @@ async function chayLaiScene(sid) {
     { dong: `Tạo lại ${n} ảnh` })) return;
   let ok = 0, loi = [];
   for (const ds of ts) {
-    const r = await (await fetch('/api/tao-lo?sf=' + encodeURIComponent(ds.map(f => f.id).join(',')),
-      { method: 'POST' })).json();
+    const r = (await postJob('/api/tao-lo?sf=' + encodeURIComponent(ds.map(f => f.id).join(',')),
+      newJobKey())).body;
     if (r.err) loi.push(r.err); else ok += ds.length;
   }
   $('#runstatus').textContent = `đã xếp ${ok} ảnh của ${sid} để tạo lại`
@@ -1542,7 +1546,7 @@ async function chayHetVideo(sid) {
     + `Bỏ qua dòng thiếu prompt hoặc ảnh SF chưa vẽ xong.`,
     { dong: (lai ? 'Tạo lại ' : 'Tạo ') + so + ' video' })) return;
   const qs = [sid ? 'scene=' + encodeURIComponent(sid) : '', lai ? 'lai=1' : ''].filter(Boolean).join('&');
-  const r = await (await fetch('/api/video-lo' + (qs ? '?' + qs : ''), { method: 'POST' })).json();
+  const r = (await postJob('/api/video-lo' + (qs ? '?' + qs : ''), newJobKey())).body;
   const b = r.bo || {};
   $('#runstatus').textContent = `đã xếp ${r.so} video`
     + (b.co_video ? ` · bỏ ${b.co_video} đã có` : '')
@@ -1711,7 +1715,8 @@ function vbulkBar(shown, hidden) {
     if (!await hoi(`Tạo lại ${shown} video thuộc nhóm “${VBULK_OK[fl]}”?\n\n`
       + `Bản cũ vẫn giữ lại thành version để so sánh.`)) return;
     const list = allShots().map(x => x.sh).filter(vkeep);
-    for (const sh of list) await fetch('/api/genvideo?sf=' + encodeURIComponent(sh.id), { method: 'POST' });
+    // Mỗi shot một khoá riêng: gửi lại đúng shot nào thì chỉ shot đó replay.
+    for (const sh of list) await postJob('/api/genvideo?sf=' + encodeURIComponent(sh.id), newJobKey());
     $('#runstatus').textContent = `đã xếp ${list.length} video vào hàng đợi`;
     setTimeout(() => $('#runstatus').textContent = '', 4000);
   };
@@ -1926,7 +1931,7 @@ function shotRow(sc, sh, idx) {
         'Tạo bản mới sẽ KHÔNG thay bản đã duyệt; bản mới nằm ở dãy bản để so.\n' +
         'Muốn thay hẳn thì bấm ✓ lần nữa để bỏ duyệt trước.\n\nVẫn tạo thêm bản mới?')) return;
       JOBS[sh.id] = { state: 'running', msg: 'khởi động…' }; render();
-      await fetch('/api/genvideo?sf=' + encodeURIComponent(sh.id), { method: 'POST' }); return
+      await postJob('/api/genvideo?sf=' + encodeURIComponent(sh.id), newJobKey()); return
     }
     if (a === 'donex') { delete sh.ai_done; save(); render(); return }
     if (a === 'ai') {
@@ -2318,8 +2323,8 @@ async function loChay() {
   const nut = $('#lotao');
   if (nut) { nut.disabled = true; nut.textContent = '⏳ đang xếp…'; }
   try {
-    const r = await (await fetch('/api/tao-lo?sf=' + encodeURIComponent(ids.join(',')),
-      { method: 'POST' })).json();
+    const r = (await postJob('/api/tao-lo?sf=' + encodeURIComponent(ids.join(',')),
+      newJobKey())).body;
     if (r.err) {
       // Nói NGAY và nói đủ. Hai ca hay gặp có lời khuyên riêng cho từng ca.
       bao(r.lan
@@ -2538,7 +2543,7 @@ async function act(sc, f, a, n) {
   if (a === 'gen') {
     n = Math.max(1, Math.min(+n || 1, 4));
     JOBS[f.id] = { state: 'running', msg: n > 1 ? `đang tạo 0/${n} bản…` : 'khởi động…' }; render();
-    await fetch(`/api/generate?sf=${encodeURIComponent(f.id)}&n=${n}`, { method: 'POST' }); return
+    await postJob(`/api/generate?sf=${encodeURIComponent(f.id)}&n=${n}`, newJobKey()); return
   }
   // XOÁ ẢNH, GIỮ THẺ — khác hẳn nút 🗑 (xoá cả thẻ khỏi kịch bản). Cần khi ảnh
   // ra không ưng: dọn sạch rồi tạo lại, prompt và ref vẫn nguyên.

@@ -5,15 +5,22 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 
 ## Đọc trong 60 giây
 
-- Current phase: **Phase 2 shadow foundation đã triển khai; chưa cutover**.
-- Production authority vẫn là legacy: `JOBS`, `PriorityQueue`, worker, retry và auto.
-- Shadow `MemoryJobStore`/`JobManager` chỉ mirror legacy write và báo mismatch;
-  không enqueue, gọi provider, retry hoặc cấp tài khoản.
-- `GROKPIPE_JOB_MODE=shadow` là opt-in nội bộ; mặc định vẫn là `legacy`.
-- 4 known ambiguity vẫn được khóa bằng `expectedFailure`, chưa được coi là đã sửa:
-  cancel identity lô, auto-video enqueue trùng, multi-copy identity và
-  forced-account retry mất constraint. Race auto/stop đã có regression hành vi
-  và được chặn tại critical section commit của auto producer.
+- Current phase: **Phase 3 producer command + idempotency đã triển khai; chưa cutover**.
+- Production **execution** authority vẫn là legacy: `PriorityQueue`, worker,
+  retry timer, cancel/stop và account rotation.
+- **Đã đổi chủ:** năm đường tạo HTTP (`/api/generate`, `/api/master`,
+  `/api/tao-lo`, `/api/genvideo`, `/api/video-lo`) và auto producer chỉ còn gửi
+  ý định qua `ProducerService → LegacyEnqueueAdapter`. Chúng KHÔNG còn gọi
+  `_xep`/`_enqueue` hay ghi `JOBS[...]` trực tiếp — có AST guard canh
+  (`test_phase3_producers_use_one_compatibility_boundary`).
+- Client gửi `Idempotency-Key` (`sfboard/ui/job-request.js`, `chay-anh.py`).
+  Gửi lại cùng key trả về đúng job cũ và không xếp thêm; key khác nội dung cùng
+  key cũ → 409.
+- `GROKPIPE_JOB_MODE=shadow` là opt-in nội bộ; mặc định vẫn là `legacy`. Ở
+  `legacy` không có store/producer nào chạy, adapter giao đúng callback cũ.
+- 2 known ambiguity còn khóa bằng `expectedFailure`: cancel identity lô và
+  forced-account retry mất constraint. Hai cái kia (auto-video enqueue trùng,
+  multi-copy identity) đã được sửa ở Phase 3 và có regression hành vi thật.
 - Không refactor production trước khi xác định phase, owner và regression test.
 
 ## Quy trình sửa lỗi bắt buộc
@@ -89,9 +96,10 @@ hoặc tiêu credit.
 tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
 tưởng mình đã tăng độ an toàn của board.
 
-Kết quả hiện tại: **393 pass và đúng 4 `xfailed`** (Phase 2 shadow foundation +
+Kết quả hiện tại: **468 pass và đúng 2 `xfailed`** (Phase 3 producer command +
 sổ lỗi runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
-cái PHẢI giữ nguyên là **đúng 4 `xfailed`**. Một expected
+cái PHẢI giữ nguyên là **đúng 2 `xfailed`** cho tới phase sửa đúng hai bug đó
+(cancel identity lô ở Phase 8, forced-account ở Phase 5). Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
@@ -133,8 +141,8 @@ làm hỏng việc ghi sổ: sổ JSONL cục bộ mới là nguồn AI đọc.
 
 `tests/job_lifecycle/test_queue_properties.py` dùng Hypothesis sinh chuỗi
 xếp/nhấc/huỷ/ghi-trạng-thái ngẫu nhiên trên chính `hangdoi.py`, đối chiếu với một
-mô hình song song. Nó KHÔNG thay 4 `xfail` đang khoá — vẫn phải sửa từng bug bằng
-TDD, mỗi lần chỉ hạ đúng một expected failure.
+mô hình song song. Nó KHÔNG thay các `xfail` đang khoá — vẫn phải sửa từng bug
+bằng TDD, mỗi lần chỉ hạ đúng một expected failure ở đúng phase của nó.
 
 ## File map
 
@@ -144,6 +152,8 @@ TDD, mỗi lần chỉ hạ đúng một expected failure.
 - [Audit](JOB-LIFECYCLE-AUDIT.md): writer, re-enqueue, ambiguity và duplicated responsibility.
 - [Migration plan](JOB-MIGRATION-PLAN.md): current/cutover phase và rollback gate.
 - [Domain models](../sfboard/jobs/models.py): identity và immutable facts Phase 1.
+- [Producer](../sfboard/jobs/producer.py): cửa DUY NHẤT tạo Job/Batch + idempotency.
+- [Legacy adapter](../sfboard/jobs/compat.py): nơi DUY NHẤT ý định chạm hàng đợi cũ.
 - [Lifecycle tests](../tests/job_lifecycle/): executable legacy/domain contract.
 - [Legacy queue/state](../sfboard/hangdoi.py) và [runtime/API](../sfboard/sfboard.py):
   production authority hiện tại.
