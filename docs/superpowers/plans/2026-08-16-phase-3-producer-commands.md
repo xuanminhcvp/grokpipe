@@ -30,6 +30,8 @@
 - Modify `sfboard/jobs/__init__.py`: export public Phase 3 API.
 - Modify `sfboard/sfboard.py`: runtime initialization, injected adapter callbacks, common producer helper, năm HTTP route và `_auto_scene`.
 - Modify `sfboard/ui/board.js`: tạo `Idempotency-Key` theo từng user action mà không đổi UI.
+- Create `sfboard/ui/job-request.js`: helper request nhỏ, chạy được cả browser và Node behavior test.
+- Modify `sfboard/ui/index.html`: nạp helper trước `board.js`.
 - Modify `sfboard/chay-anh.py`: giữ key ổn định qua network retry và xoay key khi explicit rerun sau terminal error.
 - Create `tests/job_lifecycle/test_producer.py`: command/idempotency/active-scope/rerun/batch tests.
 - Create `tests/job_lifecycle/test_legacy_adapter.py`: adapter concurrency, partial delivery và legacy equivalence.
@@ -1148,32 +1150,59 @@ git commit -m "fix: make auto producer idempotent"
 ### Task 8: Client Idempotency Keys Without UI Changes
 
 **Files:**
+- Create: `sfboard/ui/job-request.js`
 - Modify: `sfboard/ui/board.js`
+- Modify: `sfboard/ui/index.html`
 - Modify: `sfboard/chay-anh.py`
 - Create: `tests/job_lifecycle/test_client_idempotency.py`
 
 **Interfaces:**
 - Consumes: server `Idempotency-Key` support and additive response metadata.
-- Produces: `postJob(path, key)` JavaScript helper; Python `post(path, idempotency_key)` and per-asset key lifecycle.
+- Produces: `GrokpipeJobRequest.postJob(path, key, fetchImpl)`; Python `post(path, idempotency_key)` và `RequestKeys` lifecycle.
 
-- [ ] **Step 1: Write static client contract tests**
+- [ ] **Step 1: Write executable client request-behavior tests**
 
 ```python
-def test_board_job_posts_use_idempotency_header():
-    source = (ROOT / "sfboard/ui/board.js").read_text(encoding="utf-8")
-    assert "function postJob(" in source
-    assert "'Idempotency-Key': key" in source
-    for route in ("/api/generate", "/api/master", "/api/tao-lo", "/api/genvideo", "/api/video-lo"):
-        assert f"postJob('{route}" in source or f"postJob(`{route}" in source
+def test_browser_helper_sends_the_supplied_key_and_returns_response_body():
+    program = r"""
+const { postJob } = require('./sfboard/ui/job-request.js');
+const calls = [];
+const fakeFetch = async (path, options) => {
+  calls.push({ path, options });
+  return { json: async () => ({ ok: true, job_id: 'job-1' }) };
+};
+(async () => {
+  const result = await postJob('/api/generate?sf=A', 'stable-key', fakeFetch);
+  if (calls.length !== 1) process.exit(10);
+  if (calls[0].options.headers['Idempotency-Key'] !== 'stable-key') process.exit(11);
+  if (result.body.job_id !== 'job-1' || result.key !== 'stable-key') process.exit(12);
+})().catch(() => process.exit(13));
+"""
+    completed = subprocess.run(
+        ["node", "-e", program], cwd=ROOT, capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
-def test_cli_keeps_key_across_transport_error_and_rotates_after_terminal_error():
-    source = (ROOT / "sfboard/chay-anh.py").read_text(encoding="utf-8")
-    assert "IDEMPOTENCY =" in source
-    assert "headers={'Idempotency-Key': idempotency_key}" in source
-    assert "IDEMPOTENCY[i] = uuid.uuid4().hex" in source
-    assert "result.get('job_id')" in source
+def test_cli_post_sends_the_supplied_key(monkeypatch):
+    module = load_chay_anh_module()
+    seen = []
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen(seen))
+    body = module.post("/api/generate?sf=A", "stable-key")
+    assert seen[0].get_header("Idempotency-key") == "stable-key"
+    assert body == {"ok": True, "job_id": "job-1"}
+
+
+def test_cli_request_key_is_stable_until_explicit_rotation():
+    module = load_chay_anh_module()
+    keys = module.RequestKeys(lambda: iter(("key-1", "key-2")).__next__())
+    assert keys.for_asset("A") == "key-1"
+    assert keys.for_asset("A") == "key-1"
+    assert keys.rotate("A") == "key-2"
+    assert keys.for_asset("A") == "key-2"
 ```
+
+`load_chay_anh_module` dùng `importlib.util.spec_from_file_location`; `fake_urlopen` trả context manager có `read()` là JSON `{"ok": true, "job_id": "job-1"}`. Test HTML parse `sfboard/ui/index.html` và assert script `job-request.js` đứng trước `board.js`, vì sai thứ tự sẽ làm browser không có global helper.
 
 - [ ] **Step 2: Run and confirm red**
 
@@ -1181,27 +1210,53 @@ def test_cli_keeps_key_across_transport_error_and_rotates_after_terminal_error()
 ./.venv/bin/python3 -m pytest tests/job_lifecycle/test_client_idempotency.py -q
 ```
 
-- [ ] **Step 3: Add board.js helper and migrate only producer fetches**
+- [ ] **Step 3: Add browser/Node helper and migrate only producer fetches**
+
+Tạo `sfboard/ui/job-request.js`:
 
 ```javascript
-function newJobKey() {
-  return crypto.randomUUID();
-}
+function createJobRequestApi(root) {
+  function newJobKey() {
+    return root.crypto.randomUUID();
+  }
 
-async function postJob(path, key = newJobKey()) {
-  const response = await fetch(path, {
+  async function postJob(path, key = newJobKey(), fetchImpl = root.fetch) {
+    const response = await fetchImpl(path, {
     method: 'POST',
     headers: { 'Idempotency-Key': key },
-  });
-  return { key, response, body: await response.json() };
+    });
+    return { key, response, body: await response.json() };
+  }
+
+  return { newJobKey, postJob };
 }
+
+const GrokpipeJobRequest = createJobRequestApi(globalThis);
+if (typeof module !== 'undefined' && module.exports) module.exports = GrokpipeJobRequest;
+globalThis.GrokpipeJobRequest = GrokpipeJobRequest;
 ```
 
-Mỗi click/bulk action tạo key một lần trước request. Các vòng gọi nhiều shot tạo một key riêng cho từng shot và giữ nó trong biến tới khi request settle. Không đổi text, DOM, layout hoặc visible flow.
+Nạp file này trước `board.js`, rồi destructure `const { newJobKey, postJob } = GrokpipeJobRequest;` ở đầu `board.js`. Mỗi click/bulk action tạo key một lần trước request. Các vòng gọi nhiều shot tạo một key riêng cho từng shot và giữ nó trong biến tới khi request settle. Không đổi text, DOM, layout hoặc visible flow.
 
 - [ ] **Step 4: Add stable keys to `chay-anh.py`**
 
-Import `uuid`; define `IDEMPOTENCY = {i: uuid.uuid4().hex for i in con}`. `post`:
+Đưa CLI execution vào `main(argv=None)` để import không chạy vòng lặp. Thêm:
+
+```python
+class RequestKeys:
+    def __init__(self, factory=lambda: uuid.uuid4().hex):
+        self._factory = factory
+        self._keys = {}
+
+    def for_asset(self, asset_id):
+        return self._keys.setdefault(asset_id, self._factory())
+
+    def rotate(self, asset_id):
+        self._keys[asset_id] = self._factory()
+        return self._keys[asset_id]
+```
+
+Khởi tạo `IDEMPOTENCY = RequestKeys()` trong `main`. `post`:
 
 ```python
 def post(path, idempotency_key):
@@ -1214,7 +1269,7 @@ def post(path, idempotency_key):
         return json.load(response)
 ```
 
-Khi poll thấy terminal `error`, sau khi đếm đúng một lần, set `IDEMPOTENCY[i] = uuid.uuid4().hex` để lần intentional rerun có key mới. Network exception không đổi key. Khi POST thành công, đọc `job_id = result.get('job_id')` và log nếu có, fallback im lặng khi legacy trả null/không field.
+Khi poll thấy terminal `error`, sau khi đếm đúng một lần, gọi `IDEMPOTENCY.rotate(i)` để lần intentional rerun có key mới. Network exception không đổi key. Khi POST thành công, đọc `job_id = result.get('job_id')` và log nếu có, fallback im lặng khi legacy trả null/không field.
 
 - [ ] **Step 5: Run client and HTTP contract tests**
 
@@ -1227,7 +1282,7 @@ node --check sfboard/ui/board.js
 - [ ] **Step 6: Commit**
 
 ```bash
-git add sfboard/ui/board.js sfboard/chay-anh.py tests/job_lifecycle/test_client_idempotency.py
+git add sfboard/ui/job-request.js sfboard/ui/index.html sfboard/ui/board.js sfboard/chay-anh.py tests/job_lifecycle/test_client_idempotency.py
 git commit -m "feat: send stable producer idempotency keys"
 ```
 
