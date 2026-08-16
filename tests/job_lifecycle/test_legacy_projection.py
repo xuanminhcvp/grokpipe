@@ -1,3 +1,4 @@
+import importlib
 import os
 import threading
 import unittest
@@ -36,6 +37,37 @@ def make_and_create(manager, asset):
     job = make_domain_job(asset)
     manager.create_job(job, uuid4(), EventActor.MANAGER, "producer.accepted")
     return job
+
+
+def make_runtime_request(asset="A"):
+    models = importlib.import_module("jobs.models")
+    producer = importlib.import_module("jobs.producer")
+
+    return producer.CreateJobRequest(
+        models.AssetId(asset),
+        models.JobKind.IMAGE,
+        models.JobOrigin.MANUAL,
+        "test:runtime",
+        manual=True,
+    )
+
+
+def make_runtime_plan(result, *, ident="A", forced_account_id=None):
+    compat = importlib.import_module("jobs.compat")
+
+    job_ids = tuple(job.job_id for job in result.jobs) if result else ()
+    return compat.LegacyPlan((
+        compat.LegacyAction(
+            action_id="runtime-image",
+            legacy_keys=(ident,),
+            job_ids=job_ids,
+            queue_kind="img",
+            queue_ident=ident,
+            manual=True,
+            state={"state": "queued", "msg": "chờ"},
+            forced_account_id=forced_account_id,
+        ),
+    ))
 
 
 class LegacyProjectionTest(unittest.TestCase):
@@ -302,6 +334,16 @@ class ShadowStartupTest(unittest.TestCase):
         self.assertEqual(diagnostics["mode"], "shadow")
         self.assertEqual(diagnostics["tracked_jobs"], 1)
 
+    def test_shadow_runtime_shares_store_between_producer_and_projection(self):
+        projection = self.m._init_job_shadow("shadow")
+        self.assertIs(projection._manager.store, self.m._JOB_PRODUCER.store)
+        self.assertIsNotNone(self.m._JOB_ADAPTER)
+
+    def test_legacy_runtime_has_adapter_but_no_producer_intent_service(self):
+        self.m._init_job_shadow("legacy")
+        self.assertIsNotNone(self.m._JOB_ADAPTER)
+        self.assertIsNone(self.m._JOB_PRODUCER)
+
     def test_authoritative_or_unknown_mode_fails_safe_to_legacy(self):
         for mode in ("authoritative", "future-mode"):
             with self.subTest(mode=mode):
@@ -323,9 +365,148 @@ class ShadowStartupTest(unittest.TestCase):
         self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
         self.assertEqual(self.m._job_shadow_diagnostics()["mode"], "legacy")
 
+    def test_reinit_failure_clears_all_shadow_components(self):
+        self.m._init_job_shadow("shadow")
+        with patch("jobs.producer.ProducerService", side_effect=RuntimeError("no core")):
+            self.assertIsNone(self.m._init_job_shadow("shadow"))
+        self.assertEqual(self.m._JOB_MODE, "legacy")
+        self.assertIsNone(self.m._JOB_PRODUCER)
+        self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)
+        self.assertIsNotNone(self.m._JOB_ADAPTER)
+
     def test_main_initializes_shadow_before_worker_threads(self):
         source = function_source(ROOT / "sfboard/sfboard.py", "main")
         self.assertLess(
             source.index("_init_job_shadow()"),
             source.index("threading.Thread(target=_supervisor"),
         )
+
+    def test_reset_helper_initializes_legacy_adapter_for_import_harness(self):
+        self.m._JOB_ADAPTER = None
+        self.m.CHO_RIENG[9222] = ["A"]
+        reset_legacy_state(self.m)
+        self.assertIsNotNone(self.m._JOB_ADAPTER)
+        self.assertIsNone(self.m._JOB_PRODUCER)
+        self.assertEqual(self.m.CHO_RIENG, {})
+
+
+class RuntimeProducerBoundaryTest(unittest.TestCase):
+    def setUp(self):
+        self.m = load_sfboard()
+        self.board_old = self.m.BOARD
+        self.m.BOARD = FakeBoard()
+        reset_legacy_state(self.m)
+
+    def tearDown(self):
+        reset_legacy_state(self.m)
+        self.m.BOARD = self.board_old
+
+    @staticmethod
+    def _handler(headers=None):
+        return type("Request", (), {"headers": headers or {}})()
+
+    def test_idempotency_header_precedes_query_and_json_body(self):
+        key = self.m._request_idempotency_key(
+            self._handler({"Idempotency-Key": " header-key "}),
+            {"idempotency_key": ["query-key"]},
+            b'{"idempotency_key":"body-key"}',
+        )
+        self.assertEqual(key, "header-key")
+
+    def test_idempotency_query_precedes_json_body(self):
+        key = self.m._request_idempotency_key(
+            self._handler(),
+            {"idempotency_key": [" query-key "]},
+            b'{"idempotency_key":"body-key"}',
+        )
+        self.assertEqual(key, "query-key")
+
+    def test_idempotency_uses_json_body_and_rejects_malformed_bytes(self):
+        self.assertEqual(
+            self.m._request_idempotency_key(
+                self._handler(), {}, b'{"idempotency_key":" body-key "}'
+            ),
+            "body-key",
+        )
+        self.assertIsNone(
+            self.m._request_idempotency_key(self._handler(), {}, b"\xff")
+        )
+
+    def test_legacy_adapter_callbacks_resolve_runtime_queue_late(self):
+        calls = []
+        with patch.object(
+            self.m,
+            "_xep",
+            side_effect=lambda queue, item: calls.append((queue, item)),
+        ):
+            self.m._JOB_ADAPTER.deliver_legacy(make_runtime_plan(None))
+        self.assertEqual(
+            calls,
+            [(self.m.IMG_QUEUE, ("img", "A", 0, True))],
+        )
+
+    def test_private_image_callback_keeps_port_to_sorted_ident_list(self):
+        self.m._legacy_enqueue_private_image("9222", "SF-S1-02", True, "one")
+        self.m._legacy_enqueue_private_image(9222, "SF-S1-01", True, "two")
+        self.assertEqual(
+            self.m.CHO_RIENG,
+            {9222: ["SF-S1-01", "SF-S1-02"]},
+        )
+
+    def test_legacy_submit_delivers_plan_without_creating_intent(self):
+        result = self.m._producer_submit(
+            make_runtime_request(),
+            "legacy-key",
+            make_runtime_plan,
+        )
+        self.assertIsNone(result)
+        self.assertEqual(self.m.JOBS["A"]["state"], "queued")
+        item = self.m._lay(self.m.IMG_QUEUE, timeout=0.1)
+        self.m.IMG_QUEUE.task_done()
+        self.assertEqual(item, ("img", "A", 0, True))
+
+    def test_shadow_submit_creates_and_delivers_through_shared_runtime(self):
+        projection = self.m._init_job_shadow("shadow")
+        result = self.m._producer_submit(
+            make_runtime_request(),
+            "shadow-key",
+            make_runtime_plan,
+        )
+        self.assertEqual(projection.job_for("A").job_id, result.jobs[0].job_id)
+        intent = self.m._JOB_PRODUCER.store.get_intent("shadow-key")
+        self.assertTrue(intent.delivered)
+        item = self.m._lay(self.m.IMG_QUEUE, timeout=0.1)
+        self.m.IMG_QUEUE.task_done()
+        self.assertEqual(item, ("img", "A", 0, True))
+
+    def test_submit_lazily_initializes_adapter_in_import_harness(self):
+        self.m._JOB_ADAPTER = None
+        result = self.m._producer_submit(
+            make_runtime_request(),
+            None,
+            make_runtime_plan,
+        )
+        self.assertIsNone(result)
+        self.assertIsNotNone(self.m._JOB_ADAPTER)
+
+    def test_producer_metadata_is_additive_in_legacy_and_stringifies_shadow_ids(self):
+        models = importlib.import_module("jobs.models")
+        producer = importlib.import_module("jobs.producer")
+
+        self.assertEqual(
+            self.m._producer_metadata(None),
+            {"job_id": None, "job_ids": [], "batch_id": None, "replayed": False},
+        )
+        self.m._init_job_shadow("shadow")
+        request = make_runtime_request()
+        result = self.m._JOB_PRODUCER.create_batch(
+            producer.CreateBatchRequest(
+                (request, request), models.BatchMode.MULTI_COPY
+            ),
+            "batch-key",
+        )
+        metadata = self.m._producer_metadata(result)
+        self.assertIsNone(metadata["job_id"])
+        self.assertEqual(metadata["job_ids"], [str(job.job_id) for job in result.jobs])
+        self.assertEqual(metadata["batch_id"], str(result.batch.batch_id))
+        self.assertFalse(metadata["replayed"])

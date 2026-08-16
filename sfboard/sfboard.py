@@ -1211,6 +1211,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s", date
 
 _JOB_MODE = "legacy"
 _JOB_SHADOW = None
+_JOB_PRODUCER = None
+_JOB_ADAPTER = None
 
 
 def _job_shadow_diagnostics() -> dict:
@@ -1225,14 +1227,48 @@ def _job_shadow_diagnostics() -> dict:
     return _JOB_SHADOW.diagnostics()
 
 
+def _legacy_enqueue_private_image(port, ident, manual, _action_key):
+    del manual
+    port = int(port)
+    with _CR_LOCK:
+        private_queue = CHO_RIENG.setdefault(port, [])
+        private_queue.append(ident)
+        private_queue.sort(key=_uu_tien)
+
+
+def _make_legacy_adapter(projection=None, producer=None):
+    from jobs.compat import LegacyEnqueueAdapter
+
+    return LegacyEnqueueAdapter(
+        set_job_state=lambda ident, state, _action_key: _dat_job(
+            ident, dict(state)
+        ),
+        enqueue_image=lambda ident, manual, _action_key: _xep(
+            IMG_QUEUE, ("img", ident, 0, manual)
+        ),
+        enqueue_video=lambda ident, manual, _action_key: _xep(
+            VID_QUEUE, ("vid", ident, 0, manual)
+        ),
+        enqueue_private_image=_legacy_enqueue_private_image,
+        bind_projection=(
+            projection.bind if projection else lambda _key, _ids: None
+        ),
+        mark_delivered=(
+            producer.mark_delivered if producer else lambda _key: None
+        ),
+    )
+
+
 def _init_job_shadow(mode=None):
-    global _JOB_MODE, _JOB_SHADOW
+    global _JOB_MODE, _JOB_SHADOW, _JOB_PRODUCER, _JOB_ADAPTER
     selected = str(
         mode or os.environ.get("GROKPIPE_JOB_MODE", "legacy")
     ).strip().lower()
     hangdoi.gan_shadow_observer(None)
     _JOB_SHADOW = None
+    _JOB_PRODUCER = None
     _JOB_MODE = "legacy"
+    _JOB_ADAPTER = _make_legacy_adapter()
     if selected != "shadow":
         if selected != "legacy":
             _LOG.warning(
@@ -1244,6 +1280,7 @@ def _init_job_shadow(mode=None):
     try:
         from jobs.manager import JobManager
         from jobs.models import JobKind
+        from jobs.producer import ProducerService
         from jobs.projection import LegacyShadowProjection
         from jobs.store import MemoryJobStore
 
@@ -1263,14 +1300,22 @@ def _init_job_shadow(mode=None):
                 item.reason_code,
             )
 
+        store = MemoryJobStore()
+        manager = JobManager(store)
         projection = LegacyShadowProjection(
-            JobManager(MemoryJobStore()),
+            manager,
             kind_of,
             log_mismatch,
         )
+        producer = ProducerService(store)
+        adapter = _make_legacy_adapter(projection, producer)
         hangdoi.gan_shadow_observer(projection.observe)
     except Exception as exc:
         hangdoi.gan_shadow_observer(None)
+        _JOB_SHADOW = None
+        _JOB_PRODUCER = None
+        _JOB_MODE = "legacy"
+        _JOB_ADAPTER = _make_legacy_adapter()
         _LOG.warning(
             "không khởi tạo được job shadow (%s) — giữ legacy",
             type(exc).__name__,
@@ -1279,7 +1324,61 @@ def _init_job_shadow(mode=None):
 
     _JOB_MODE = "shadow"
     _JOB_SHADOW = projection
+    _JOB_PRODUCER = producer
+    _JOB_ADAPTER = adapter
     return projection
+
+
+def _request_idempotency_key(handler, query, raw):
+    header = (handler.headers.get("Idempotency-Key") or "").strip()
+    if header:
+        return header
+    query_key = (query.get("idempotency_key", [""])[0] or "").strip()
+    if query_key:
+        return query_key
+    if raw:
+        try:
+            body = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if isinstance(body, dict):
+            return str(body.get("idempotency_key") or "").strip() or None
+    return None
+
+
+def _producer_submit(request_or_batch, idempotency_key, plan_factory):
+    global _JOB_ADAPTER
+    if _JOB_ADAPTER is None:
+        _init_job_shadow(_JOB_MODE)
+    if _JOB_MODE == "shadow" and _JOB_PRODUCER is not None:
+        from jobs.producer import CreateBatchRequest
+
+        result = (
+            _JOB_PRODUCER.create_batch(request_or_batch, idempotency_key)
+            if isinstance(request_or_batch, CreateBatchRequest)
+            else _JOB_PRODUCER.create_job(request_or_batch, idempotency_key)
+        )
+        _JOB_ADAPTER.deliver(result, plan_factory(result))
+        return result
+    _JOB_ADAPTER.deliver_legacy(plan_factory(None))
+    return None
+
+
+def _producer_metadata(result):
+    if result is None:
+        return {
+            "job_id": None,
+            "job_ids": [],
+            "batch_id": None,
+            "replayed": False,
+        }
+    job_ids = [str(job.job_id) for job in result.jobs]
+    return {
+        "job_id": job_ids[0] if len(job_ids) == 1 else None,
+        "job_ids": job_ids,
+        "batch_id": str(result.batch.batch_id) if result.batch else None,
+        "replayed": bool(result.replayed),
+    }
 
 
 # ---- SỔ LỖI CHO GIAO DIỆN ------------------------------------------------
