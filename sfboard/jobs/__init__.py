@@ -33,6 +33,12 @@ from .store import (
     StoreWriteResult,
     VersionConflict,
 )
+from .manager import (
+    LEGAL_TRANSITIONS,
+    IllegalTransition,
+    JobManager,
+    TransitionCommand,
+)
 
 __all__ = [
     "AccountLease",
@@ -61,8 +67,12 @@ __all__ = [
     "JobEvent",
     "JobState",
     "JobStore",
+    "JobManager",
+    "IllegalTransition",
+    "LEGAL_TRANSITIONS",
     "MemoryJobStore",
     "StoreInvariantError",
     "StoreWriteResult",
+    "TransitionCommand",
     "VersionConflict",
 ]
