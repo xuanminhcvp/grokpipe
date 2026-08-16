@@ -43,6 +43,12 @@ from .manager import (
     JobManager,
     TransitionCommand,
 )
+from .producer import (
+    CreateBatchRequest,
+    CreateJobRequest,
+    ProducerResult,
+    ProducerService,
+)
 from .projection import (
     LEGACY_STATE_MAP,
     LegacyShadowProjection,
@@ -61,6 +67,8 @@ __all__ = [
     "BatchId",
     "BatchMode",
     "CreditConsumption",
+    "CreateBatchRequest",
+    "CreateJobRequest",
     "Execution",
     "ExecutionId",
     "ExecutionState",
@@ -86,6 +94,8 @@ __all__ = [
     "LEGACY_STATE_MAP",
     "LegacyShadowProjection",
     "MemoryJobStore",
+    "ProducerResult",
+    "ProducerService",
     "ShadowMismatch",
     "StoreInvariantError",
     "StoreWriteResult",
