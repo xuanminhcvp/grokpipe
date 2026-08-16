@@ -200,6 +200,22 @@ class MemoryJobStoreTest(unittest.TestCase):
         self.assertTrue(self.store.get_intent("key-1").delivered)
         self.assertTrue(self.store.get_intent("key-2").delivered)
 
+    def test_scope_replay_rejects_invalid_alias_before_write(self):
+        job = make_job()
+        self.store.create_intent(
+            make_intent("key-1", "fp-1", "scope-1", (job,)),
+            None,
+            ((job, make_event(job)),),
+        )
+        alias_job = make_job()
+        invalid_alias = make_intent("   ", "fp-1", "scope-1", (alias_job,))
+        with self.assertRaises(StoreInvariantError):
+            self.store.create_intent(
+                invalid_alias, None, ((alias_job, make_event(alias_job)),)
+            )
+        self.assertIsNone(self.store.get_intent("   "))
+        self.assertIsNone(self.store.get(alias_job.job_id))
+
     def test_active_scope_with_changed_payload_is_conflict(self):
         first = make_job()
         self.store.create_intent(

@@ -189,6 +189,7 @@ class MemoryJobStore:
                     raise IdempotencyConflict(record.key)
                 return self._intent_result(exact, replayed=True)
 
+            self._validate_intent(record, batch, jobs_and_events)
             scope_key = self._scope_intents.get(record.scope_fingerprint)
             if scope_key is not None:
                 scoped = self._intents[scope_key]
@@ -216,7 +217,6 @@ class MemoryJobStore:
                         True,
                     )
 
-            self._validate_intent(record, batch, jobs_and_events)
             for job, event in jobs_and_events:
                 self._jobs[job.job_id] = job
                 self._events[job.job_id] = [event]
