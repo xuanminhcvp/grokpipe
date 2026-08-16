@@ -191,7 +191,7 @@ class Scheduler:
                                 ExecutionState.WAITING):
                     return cu
             cu_id = self._by_ident.get(khoa)
-            if cu_id is not None:
+            if scope_key is None and cu_id is not None:
                 cu = self._by_id[cu_id]
                 if cu.state in (ExecutionState.READY, ExecutionState.LEASED,
                                 ExecutionState.WAITING):

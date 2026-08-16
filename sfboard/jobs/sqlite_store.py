@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import replace
+from datetime import datetime
 import json
 import os
 import sqlite3
@@ -17,11 +18,16 @@ from uuid import UUID
 
 from .models import (
     AssetId,
+    Attempt,
     AttemptId,
+    AttemptOutcome,
+    AttemptPhase,
     Batch,
     BatchId,
     BatchMode,
+    CreditConsumption,
     EventActor,
+    ExecutionId,
     Job,
     JobEvent,
     JobId,
@@ -121,6 +127,17 @@ CREATE INDEX IF NOT EXISTS idx_lifecycle_exec_ident
 CREATE UNIQUE INDEX IF NOT EXISTS idx_lifecycle_exec_active_scope
     ON lifecycle_executions(kind, scope_key)
     WHERE state IN ('ready', 'waiting', 'leased');
+CREATE TABLE IF NOT EXISTS lifecycle_attempts (
+    attempt_id TEXT PRIMARY KEY,
+    execution_id TEXT NOT NULL
+        REFERENCES lifecycle_executions(execution_id),
+    number INTEGER NOT NULL,
+    lease_id TEXT NOT NULL UNIQUE,
+    doc TEXT NOT NULL,
+    UNIQUE(execution_id, number)
+);
+CREATE INDEX IF NOT EXISTS idx_lifecycle_attempt_execution
+    ON lifecycle_attempts(execution_id, number);
 """
 
 
@@ -231,6 +248,41 @@ def _intent_from(doc: str) -> IdempotencyRecord:
         job_ids=tuple(JobId.parse(value) for value in data["job_ids"]),
         batch_id=BatchId.parse(data["batch_id"]) if data["batch_id"] else None,
         delivered=bool(data["delivered"]),
+    )
+
+
+def _attempt_doc(attempt: Attempt) -> str:
+    return _dump({
+        "attempt_id": str(attempt.attempt_id),
+        "execution_id": str(attempt.execution_id),
+        "number": attempt.number,
+        "account_id": attempt.account_id,
+        "lease_id": attempt.lease_id,
+        "phase": attempt.phase.value,
+        "consumes_credit": attempt.consumes_credit.value,
+        "submitted_at": (
+            attempt.submitted_at.isoformat() if attempt.submitted_at else None),
+        "finished_at": (
+            attempt.finished_at.isoformat() if attempt.finished_at else None),
+        "outcome": attempt.outcome.value if attempt.outcome else None,
+    })
+
+
+def _attempt_from(doc: str) -> Attempt:
+    data = json.loads(doc)
+    return Attempt(
+        AttemptId.parse(data["attempt_id"]),
+        ExecutionId.parse(data["execution_id"]),
+        int(data["number"]),
+        data["account_id"],
+        data["lease_id"],
+        AttemptPhase(data["phase"]),
+        CreditConsumption(data["consumes_credit"]),
+        submitted_at=(datetime.fromisoformat(data["submitted_at"])
+                      if data["submitted_at"] else None),
+        finished_at=(datetime.fromisoformat(data["finished_at"])
+                     if data["finished_at"] else None),
+        outcome=AttemptOutcome(data["outcome"]) if data["outcome"] else None,
     )
 
 
@@ -405,6 +457,49 @@ class SQLiteLifecycleRepository:
                 "SELECT * FROM lifecycle_executions ORDER BY seq ASC"
             ).fetchall()
             return tuple(self._execution_from(row) for row in rows)
+
+    def insert_attempt(self, attempt: Attempt) -> None:
+        with self.transaction():
+            try:
+                self._conn.execute(
+                    "INSERT INTO lifecycle_attempts VALUES (?,?,?,?,?)",
+                    (str(attempt.attempt_id), str(attempt.execution_id),
+                     int(attempt.number), attempt.lease_id,
+                     _attempt_doc(attempt)),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise StoreInvariantError(str(exc)) from exc
+
+    def update_attempt(self, attempt: Attempt) -> None:
+        with self.transaction():
+            cursor = self._conn.execute(
+                "UPDATE lifecycle_attempts SET doc=? WHERE attempt_id=? "
+                "AND lease_id=?",
+                (_attempt_doc(attempt), str(attempt.attempt_id), attempt.lease_id),
+            )
+            if cursor.rowcount != 1:
+                raise StoreInvariantError(
+                    f"attempt không tồn tại: {attempt.attempt_id}"
+                )
+
+    def attempt_for_lease(self, lease_id: str) -> Optional[Attempt]:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT doc FROM lifecycle_attempts WHERE lease_id=?",
+                (lease_id,),
+            ).fetchone()
+            return _attempt_from(row["doc"]) if row is not None else None
+
+    def attempts_for_execution(
+        self, execution_id: ExecutionId,
+    ) -> Tuple[Attempt, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT doc FROM lifecycle_attempts WHERE execution_id=? "
+                "ORDER BY number ASC",
+                (str(execution_id),),
+            ).fetchall()
+            return tuple(_attempt_from(row["doc"]) for row in rows)
 
     def _intent_result(
         self, record: IdempotencyRecord, *, replayed: bool,

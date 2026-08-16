@@ -212,20 +212,26 @@ class Attempt:
     def __post_init__(self) -> None:
         if self.number < 1 or not self.account_id or not self.lease_id:
             raise ValueError("attempt number/account/lease không hợp lệ")
-        submitted_or_later = self.phase in {
+        submitted_phase = self.phase in {
             AttemptPhase.SUBMITTED,
             AttemptPhase.WAITING_PROVIDER,
             AttemptPhase.DOWNLOADING,
             AttemptPhase.SAVING,
-            AttemptPhase.FINISHED,
         }
-        if submitted_or_later and self.submitted_at is None:
+        before_submit_phase = self.phase in {
+            AttemptPhase.PREPARING,
+            AttemptPhase.ATTACHING,
+            AttemptPhase.READY_TO_SUBMIT,
+        }
+        if submitted_phase and self.submitted_at is None:
             raise ValueError("phase sau submit cần submitted_at")
-        if not submitted_or_later and self.submitted_at is not None:
+        if before_submit_phase and self.submitted_at is not None:
             raise ValueError("phase trước submit không được có submitted_at")
-        if submitted_or_later and self.consumes_credit is CreditConsumption.FALSE:
+        if ((submitted_phase or self.submitted_at is not None)
+                and self.consumes_credit is CreditConsumption.FALSE):
             raise ValueError("submit phải consume credit hoặc unknown")
-        if not submitted_or_later and self.consumes_credit is not CreditConsumption.FALSE:
+        if ((before_submit_phase or self.submitted_at is None)
+                and self.consumes_credit is not CreditConsumption.FALSE):
             raise ValueError("trước submit consumes_credit phải false")
         if self.phase is AttemptPhase.FINISHED:
             if self.finished_at is None or self.outcome is None:

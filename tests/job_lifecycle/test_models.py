@@ -7,6 +7,7 @@ from sfboard.jobs.models import (
     AssetId,
     Attempt,
     AttemptId,
+    AttemptOutcome,
     AttemptPhase,
     Batch,
     BatchId,
@@ -116,6 +117,23 @@ class ExecutionModelTest(unittest.TestCase):
                 CreditConsumption.TRUE,
                 submitted_at=now,
             )
+
+    def test_pre_submit_failure_can_finish_without_fake_credit_timestamp(self):
+        now = datetime.now(timezone.utc)
+
+        attempt = Attempt(
+            AttemptId.new(),
+            ExecutionId.new(),
+            1,
+            "acct-1",
+            "lease-1",
+            AttemptPhase.FINISHED,
+            CreditConsumption.FALSE,
+            finished_at=now,
+            outcome=AttemptOutcome.ERROR,
+        )
+
+        self.assertIsNone(attempt.submitted_at)
 
     def test_batch_mode_must_match_kind(self):
         with self.assertRaises(ValueError):

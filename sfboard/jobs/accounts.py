@@ -175,7 +175,15 @@ class AccountAllocator:
             return False
         return self._dang_dung(acc.account_id) < acc.max_slots
 
-    def allocate(self, kind: JobKind, work_key: str, now: float) -> AccountSeat:
+    def allocate(
+        self,
+        kind: JobKind,
+        work_key: str,
+        now: float,
+        *,
+        preferred_account_id: Optional[str] = None,
+        avoid_account_ids: Tuple[str, ...] = (),
+    ) -> AccountSeat:
         """Cấp một chỗ ngồi. Ném `NoAccountAvailable` chứ không trả bừa."""
         with self._lock:
             rang = self._forced.get(work_key)
@@ -187,9 +195,19 @@ class AccountAllocator:
                 if not fallback:
                     raise NoAccountAvailable(
                         f"{work_key} bị ép vào {acct_id} nhưng máy đó chưa dùng được")
+            if rang is None and preferred_account_id is not None:
+                preferred = self._accounts.get(preferred_account_id)
+                if preferred is not None and self._dung_duoc(preferred, kind, now):
+                    return self._ngoi(preferred, work_key, now)
             # Rải đều: chọn máy đang ít việc nhất, hoà thì theo tên cho ổn định.
             san = [a for a in self._accounts.values()
-                   if self._dung_duoc(a, kind, now)]
+                   if self._dung_duoc(a, kind, now)
+                   and a.account_id not in avoid_account_ids]
+            # Rotate là ưu tiên đổi máy, không phải lý do để làm việc kẹt mãi
+            # khi hệ thống chỉ còn đúng một tài khoản hợp lệ.
+            if not san and avoid_account_ids:
+                san = [a for a in self._accounts.values()
+                       if self._dung_duoc(a, kind, now)]
             if not san:
                 raise NoAccountAvailable(
                     f"không có tài khoản hợp lệ cho {kind.value}")
