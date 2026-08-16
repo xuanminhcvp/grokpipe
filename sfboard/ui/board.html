@@ -131,6 +131,10 @@
           title="TRẦN số tài khoản ChatGPT chạy đồng thời — chạy ít hơn cũng được, board chỉ tắt bớt khi VƯỢT.&#10;Board không tắt tài khoản đang chạy việc dở: nó chờ việc xong rồi mới tính lại.&#10;Cửa sổ lỗi thì board TẮT nó và BẬT cái kế tiếp trong vòng — đổi danh tính, không đổi số lượng.&#10;Khác 'tab': tab là nhiều việc trong CÙNG một tài khoản, chung một hạn mức.">tối đa
           <input type="number" min="1" max="12" id="sotk" style="width:48px"
             onchange="datSoTK(this.value)"> tài khoản</label>
+        <label id="tranrefwrap" style="display:flex;align-items:center;gap:5px;font-size:12.5px"
+          title="TRẦN số ảnh tham chiếu (ref) trong MỘT tin nhắn — trần chung cho cả board, không theo tài khoản.&#10;Chạm trần là board chốt lô ngay, dù chưa đủ 10 SF: 6 SF mà đã 10 ref thì lô đó chỉ 6 SF.&#10;Ref dùng chung giữa các SF chỉ tính MỘT lần, nên thêm SF dùng lại ref cũ là miễn phí.&#10;Tràn trần thì nhân vật từ thứ 5 trở đi chỉ gửi ảnh full-body, bỏ ảnh chân dung.&#10;Đo được trên board ALTAR 15/08: lô 5 ref chạy sạch, lô 14-17 ref hỏng mọi lượt và tắt sạch 6 tài khoản.&#10;Ngưỡng thật chưa ai đo — hạ xuống nếu vẫn gặp 'không đính được ảnh ref'.">tối đa
+          <input type="number" min="1" max="30" id="tranref" style="width:48px"
+            onchange="datTranRef(this.value)"> ref/lô</label>
         <button id="acctadd" onclick="acctAdd(ACCT_TAB)">+ ChatGPT</button>
         <span class="hint">Bật = mở Chrome + đưa vào vòng chạy · Tắt = đóng Chrome + ngừng dùng · login thì bạn tự làm
           trong cửa sổ</span>

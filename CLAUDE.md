@@ -61,7 +61,7 @@ macOS, board vẫn lên nhưng mọi job chết với `No module named 'playwrig
 ```
 
 Cổng cố định theo phim: RUTHS-HOUSE **8779**, 8DOLLARS **8778**, PORCH-LIGHT **8780**,
-TAXI-DRIVER **8781**, LOOKING-POOR **8782**.
+TAXI-DRIVER **8781**, LOOKING-POOR **8782**, ALTAR **8783**, AISLE-SEVEN **8784**.
 Chạy nền trên macOS phải bọc subshell + `disown` (`setsid` KHÔNG có trên macOS):
 
 ```bash
@@ -114,12 +114,7 @@ Skill `skills-film` chỉ chứa nghề làm phim. Mọi thứ về **dữ liệ
   - **Để ĐỌC một scene:** Bắt buộc dùng `./.venv/bin/python3 sfboard/sua-board.py xem <PROJECT> <SCENE_ID>`.
   - **Để GHI/THÊM/SỬA:** Tạo một file JSON trung gian cực nhỏ (ví dụ `patch.json` chứa riêng các thẻ cần sửa) rồi dùng lệnh `./.venv/bin/python3 sfboard/sua-board.py patch <PROJECT> <SCENE_ID> <patch.json>`. Công cụ này sẽ tự lọc rác (như `note`, `usedBy`), ép kiểu (`dur`), và giữ nguyên cấu trúc file gốc.
 
-- **`luatchung` — khối LUẬT CHUNG của địa điểm. THẺ NÀO MANG NÓ LÀ THẺ ĐỊA ĐIỂM.** Đó cũng là
-  dấu hiệu `sfboard.py` và `kiem-luat.py` dùng để nhận ra chỗ dừng khi leo `refs.bg` — một địa
-  điểm = một đoạn chat. Board truyền nó vào `image_chatgpt.generate_lo(luat_chung=…)`, gửi **một
-  lần lúc mở chat mới**; các lô sau quay lại đúng `chat_url` nên không gửi lại. Vì vậy phần lặp
-  (nội thất · bảng màu · ánh sáng · trang phục · trục · luật chữ) viết vào đây, KHÔNG viết vào
-  `prompt`. Trường này **tên cũ là `hienphap`, đã đổi 2026-08-06**; gặp dữ liệu cũ thì đổi key.
+
 - **Tên SF đặt theo SỐ SHOT nó phục vụ, KHÔNG có ngoại lệ** (luật 1:1 từ 2026-08-06): shot
   `V-S1-07` dùng SF `SF-S1-07`. **Thẻ địa điểm cũng theo luật này** — nó là SF của shot mở cảnh,
   thường là `SF-S<n>-01`, và mang thêm `luatchung` + `chat`. Địa điểm dùng cho nhiều scene thì các

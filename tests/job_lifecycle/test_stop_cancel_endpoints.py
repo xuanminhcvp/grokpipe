@@ -119,6 +119,43 @@ class DungHuyEndpointTest(unittest.TestCase):
         self.assertEqual(body["dang_chay"], ["SF-S1-01"])
         self.assertEqual(body["cho_da_huy"], 1)
 
+    def test_huy_khong_boi_do_viec_da_xong(self):
+        """Vét hàng gặp bản THỪA của một việc đã xong thì không được ghi đè `done`.
+
+        Đường tới đây có thật và ngắn: `/api/generate` chỉ từ chối khi nhãn là
+        `running` (sfboard.py:3935), nên bấm Tạo lại lần nữa lúc việc còn
+        `queued` đẩy BẢN THỨ HAI cùng ident vào hàng. Thợ làm xong bản một →
+        `done`; bản hai nằm lại, và cú vét của `/api/huy` bôi nó thành 'đã huỷ
+        khỏi hàng đợi' — đè lên trạng thái cuối.
+
+        Máy trạng thái Hypothesis tìm ra đúng chuỗi này (2026-08-15).
+        """
+        ident = "LO:SF-S1-01"
+        self.m._xep(self.m.IMG_QUEUE, ("img", ident, 0, True))   # bản thừa còn trong hàng
+        self.m._dat_job(ident, {"state": "done", "msg": "xong"})
+
+        self.goi("/api/huy")
+
+        self.assertEqual(self.m.JOBS[ident]["state"], "done",
+                         "trạng thái cuối bị cú vét hàng ghi đè")
+        self.assertEqual(self.m.JOBS["SF-S1-01"]["state"], "done",
+                         "và ghi đè lây sang từng SF thành viên của lô")
+
+    def test_dung_het_khong_boi_do_viec_da_xong(self):
+        """`/api/dung-het` vét hàng y hệt `/api/huy` nên dính đúng một lỗi.
+
+        Vá riêng từng đường vét là trò đập chuột: luật "trạng thái cuối không
+        chuyển nữa" thuộc về nơi GHI trạng thái, không thuộc về từng nơi gọi.
+        """
+        ident = "LO:SF-S1-01"
+        self.m._xep(self.m.IMG_QUEUE, ("img", ident, 0, True))
+        self.m._dat_job(ident, {"state": "done", "msg": "xong"})
+
+        self.goi("/api/dung-het?dong_chrome=0")
+
+        self.assertEqual(self.m.JOBS[ident]["state"], "done")
+        self.assertEqual(self.m.JOBS["SF-S1-01"]["state"], "done")
+
     def test_huy_khong_nang_the_he_dung(self):
         """Khác `dung-het`: huỷ hàng chờ không được chặn việc thử lại về sau."""
         truoc = self.m.dung_gen()

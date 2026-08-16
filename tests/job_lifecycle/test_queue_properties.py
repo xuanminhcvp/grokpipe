@@ -96,11 +96,36 @@ class QueueCancelMachine(RuleBasedStateMachine):
 
     @rule(ident=IDENTS, state=st.sampled_from(["queued", "running", "error", "done"]))
     def ghi_trang_thai(self, ident, state):
+        """Ghi gì vào là ra nấy — TRỪ đúng một chiều: `done → error` bị từ chối.
+
+        Ngoại lệ đó là luật vòng đời, không phải quirk: 'done' là trạng thái
+        cuối. Hai cú vét hàng và bộ hẹn giờ xếp lại đều ghi 'error' mù theo ident
+        nhặt trong hàng, nên một bản thừa còn sót bôi đỏ việc đã xong — và vì
+        `dat_job` rải cho thành viên `LO:`, nó bôi đỏ cả lô. Chặn ở nơi GHI thì
+        hơn hai chục nhánh đặt trạng thái được che một lượt, kể cả nhánh thêm về
+        sau. Xem `hangdoi.py::__setitem__`.
+        """
+        def nhan(k):
+            return (self.m.JOBS.get(k) or {}).get("state")
+
+        def mong(truoc):
+            # Chỉ đúng một chiều bị chặn; mọi chiều khác ghi đè bình thường.
+            return "done" if (truoc == "done" and state == "error") else state
+
+        # Chụp nhãn TRƯỚC khi ghi. Thành viên phải chụp riêng: lô có thể đang
+        # 'done' trong khi một thành viên đã sang đời mới, nên phép chặn bắn
+        # lệch nhau giữa ident lô và từng SF.
+        truoc = {ident: nhan(ident)}
+        if ident.startswith("LO:"):
+            truoc.update({tv: nhan(tv) for tv in ident[3:].split(",")})
+
         self.m.dat_job(ident, {"state": state})
-        assert self.m.JOBS[ident]["state"] == state
+
+        assert self.m.JOBS[ident]["state"] == mong(truoc[ident])
         if ident.startswith("LO:"):
             for thanh_vien in ident[3:].split(","):
-                assert self.m.JOBS[thanh_vien]["state"] == state, "lô phải rải cho thành viên"
+                assert self.m.JOBS[thanh_vien]["state"] == mong(truoc[thanh_vien]), \
+                    "lô phải rải cho thành viên"
 
     # ---- bất biến ---------------------------------------------------------
 

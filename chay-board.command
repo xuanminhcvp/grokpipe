@@ -16,6 +16,7 @@ case "$PROJ" in
   PIPELINE-TAXI-DRIVER.project)  PORT=8781 ;;
   PIPELINE-LOOKING-POOR.project) PORT=8782 ;;
   PIPELINE-ALTAR.project)        PORT=8783 ;;
+  PIPELINE-AISLE-SEVEN.project)  PORT=8784 ;;
   *) echo "Chưa gán cổng cho $PROJ — sửa case trong file này."; exit 1 ;;
 esac
 

@@ -38,7 +38,7 @@ jobs:
         env:
           COVERAGE_FILE: ${{ runner.temp }}/job-lifecycle-${{ matrix.python-version }}.coverage
         run: >-
-          python -m pytest tests/job_lifecycle tests/runtime_bugs
+          python -m pytest tests/job_lifecycle tests/runtime_bugs tests/executors
           --cov=sfboard.jobs
           --cov-report=term-missing
           --cov-fail-under=80

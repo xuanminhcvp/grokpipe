@@ -58,6 +58,23 @@ class SentryReporter:
                 traces_sample_rate=0.0,
                 max_breadcrumbs=0,
                 attach_stacktrace=False,
+                # KHÔNG BẬT INTEGRATION MẶC ĐỊNH NÀO.
+                #
+                # `init()` trần bật sẵn logging · threading · excepthook · stdlib
+                # …, và hai cái đầu gửi BẢN THÔ vòng qua toàn bộ phép lọc:
+                # LoggingIntegration bắt mọi `logging.error` trong tiến trình và
+                # gửi nguyên văn thân log; ThreadingIntegration bắt lỗi chưa xử
+                # lý của luồng thợ KÈM BIẾN CỤC BỘ — mà `_worker_entry` cố ý
+                # `raise` lại sau khi ghi sổ, nên mỗi lần thợ chết là prompt,
+                # `chat_url`, cookie, token bay đi nguyên vẹn, nằm ngay cạnh bản
+                # đã lọc. `send_default_pii=False` không chạm tới hai thứ đó.
+                default_integrations=False,
+                auto_enabling_integrations=False,
+                include_local_variables=False,
+                # Lớp chắn thứ hai, ở cửa ra: `init()` là TOÀN CỤC, nên mã khác
+                # trong tiến trình gọi thẳng `sentry_sdk.capture_*` vẫn đi qua
+                # client này mà không qua `capture()` của lớp đây.
+                before_send=_chi_nhan_su_kien_cua_so_runtime,
             )
             self.enabled = True
         except Exception as exc:  # noqa: BLE001 - cảnh báo hỏng không được làm chết board
@@ -115,6 +132,24 @@ class SentryReporter:
                 "stacktrace": str(exception.get("stacktrace") or "")[:STACKTRACE_LIMIT],
             },
         }
+
+
+SO_RUNTIME_LOGGER = "grokpipe.runtime-bug"
+
+
+def _chi_nhan_su_kien_cua_so_runtime(event, hint):
+    """Chỉ cho qua sự kiện do `_payload()` dựng; mọi thứ khác vứt im lặng.
+
+    Nhận diện bằng trường `logger` vì đó là thứ `_payload()` luôn đóng vào và
+    không có đường nào khác đặt được — không dùng `extra`/`tags` vì bản thô của
+    integration cũng có thể mang chúng.
+    """
+    try:
+        if isinstance(event, Mapping) and event.get("logger") == SO_RUNTIME_LOGGER:
+            return event
+    except Exception:  # noqa: BLE001 - lọc hỏng thì thà không gửi còn hơn gửi bừa
+        pass
+    return None
 
 
 def _import_sdk():

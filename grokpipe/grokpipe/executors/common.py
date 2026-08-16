@@ -8,6 +8,73 @@ import subprocess
 import sys
 
 
+class DauVetBuoc:
+    """Sổ TỪNG BƯỚC của một lượt render, để lỗi nói được nó chết ở đâu.
+
+    Sổ lỗi runtime chỉ ghi KẾT CỤC ("không trả ảnh nào", "hết 600s chờ render").
+    Đọc nó không biết lượt ấy chết ở bước nào: chưa về được trang soạn, không
+    bấm được mode Video, chip thời lượng không chốt, upload rơi, submit không
+    ăn, hay render xong mà tải hỏng. Dấu vết này lấp đúng khoảng đó.
+
+    Nó là thứ PHỤ TRỢ: mọi lời gọi đều nuốt lỗi của chính mình. Bộ ghi dấu vết
+    làm chết một lượt render thật thì tệ hơn hẳn việc thiếu vài dòng chẩn đoán.
+    """
+
+    def __init__(self, gioi_han: int = 40, dong_ho=None):
+        import time as _t
+        self._dong_ho = dong_ho or _t.monotonic
+        self._gioi_han = max(1, gioi_han)
+        self._buoc: list[dict] = []
+        # Mốc lấy NGAY lúc dựng, không để None: bước đầu tiên cũng phải đo được
+        # thời gian. "Chưa về được trang soạn 600s" và "chờ render 600s" là hai
+        # bệnh khác hẳn nhau, mà thiếu con số thì đọc ra như một.
+        self._moc = self._gio()
+
+    def bat_dau(self) -> None:
+        """Xoá sạch trước mỗi lượt. Tab được dùng lại cho việc kế tiếp, sót dấu
+        vết lượt trước là chẩn đoán nhầm lượt này."""
+        self._buoc = []
+        self._moc = self._gio()
+
+    # HAI HÀM PHẢI CÙNG CHỮ KÝ. Nơi gọi hay chọn hàm rồi mới truyền tham số —
+    # `(self.vet.xong if ok else self.vet.hong)("nhan_anh", "về 4/4")`. Lệch chữ
+    # ký thì nhánh này chạy, nhánh kia nổ TypeError, mà nhánh nổ lại là nhánh
+    # THÀNH CÔNG nên test đường lỗi không thấy gì. Đã trả giá 2026-08-15: mọi lô
+    # về đủ ảnh đều chết, 11 tài khoản bị xoay tắt sạch trong 7 phút.
+    def xong(self, ten: str, chi_tiet: str = "") -> None:
+        self._them(ten, True, chi_tiet)
+
+    def hong(self, ten: str, chi_tiet: str = "") -> None:
+        self._them(ten, False, chi_tiet)
+
+    def lay(self) -> list[dict]:
+        """Giữ khúc CUỐI khi quá dài — chỗ gần lỗi nhất mới là chỗ đáng đọc."""
+        return list(self._buoc[-self._gioi_han:])
+
+    # ---- nội bộ ----------------------------------------------------------
+    def _gio(self):
+        try:
+            return self._dong_ho()
+        except Exception:       # noqa: BLE001 - xem docstring lớp
+            return None
+
+    def _them(self, ten: str, ok: bool, chi_tiet: str) -> None:
+        try:
+            gio = self._gio()
+            giay = round(gio - self._moc, 1) if (gio is not None and self._moc is not None) else None
+            self._moc = gio
+            b = {"buoc": str(ten)[:40], "ok": bool(ok)}
+            if giay is not None:
+                b["giay"] = giay
+            if chi_tiet:
+                b["chi_tiet"] = str(chi_tiet)[:200]
+            self._buoc.append(b)
+            if len(self._buoc) > self._gioi_han * 3:
+                del self._buoc[:-self._gioi_han]
+        except Exception:       # noqa: BLE001
+            pass
+
+
 class ExecutorError(Exception):
     """Lỗi chạy executor -> task FAILED."""
 

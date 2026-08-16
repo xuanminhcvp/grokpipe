@@ -8,9 +8,10 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 - Current phase: **Phase 0–1 đã triển khai trên branch lifecycle**.
 - Production authority vẫn là legacy: `JOBS`, `PriorityQueue`, worker, retry và auto.
 - `sfboard/jobs` mới chỉ là immutable domain model; production chưa import nó.
-- 5 known ambiguity đang được khóa bằng `expectedFailure`, chưa được coi là đã sửa:
-  cancel identity lô, auto-video enqueue trùng, auto/stop race, multi-copy identity,
-  và forced-account retry mất constraint.
+- 4 known ambiguity còn được khóa bằng `expectedFailure`, chưa được coi là đã sửa:
+  cancel identity lô, auto-video enqueue trùng, multi-copy identity và
+  forced-account retry mất constraint. Race auto/stop đã có regression hành vi
+  và được chặn tại critical section commit của auto producer.
 - Không refactor production trước khi xác định phase, owner và regression test.
 
 ## Quy trình sửa lỗi bắt buộc
@@ -76,13 +77,19 @@ Sau mỗi thay đổi lifecycle, chạy gate chuẩn:
 ./test-job-lifecycle.command
 ```
 
-Gate này chạy toàn bộ lifecycle tests, yêu cầu coverage `sfboard/jobs` tối thiểu
-80%, rồi compile legacy runtime và domain package. Nó không mở browser, gọi provider
+Gate này chạy `tests/job_lifecycle`, `tests/runtime_bugs` và `tests/executors`,
+rồi compile legacy runtime và domain package. Nó không mở browser, gọi provider
 hoặc tiêu credit.
 
-Kết quả hiện tại: **155 pass và đúng 5 `xfailed`** (Phase 0–1 lifecycle + sổ lỗi
-runtime + lưới property-based Hypothesis). Con số pass sẽ còn tăng khi thêm test;
-cái PHẢI giữ nguyên là **đúng 5 `xfailed`**. Một expected
+⚠ **Con số coverage CHỈ đo `sfboard/jobs`** (`--cov=sfboard.jobs`). Nó KHÔNG đo
+`sfboard/sfboard.py` — file lớn nhất, nơi nằm phần lớn vòng đời job — cũng không
+đo `grokpipe/executors`. Nên "coverage 91%" đọc là "gói domain mới được phủ
+tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
+tưởng mình đã tăng độ an toàn của board.
+
+Kết quả hiện tại: **355 pass và đúng 4 `xfailed`** (Phase 0–1 lifecycle + sổ lỗi
+runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
+cái PHẢI giữ nguyên là **đúng 4 `xfailed`**. Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
@@ -124,7 +131,7 @@ làm hỏng việc ghi sổ: sổ JSONL cục bộ mới là nguồn AI đọc.
 
 `tests/job_lifecycle/test_queue_properties.py` dùng Hypothesis sinh chuỗi
 xếp/nhấc/huỷ/ghi-trạng-thái ngẫu nhiên trên chính `hangdoi.py`, đối chiếu với một
-mô hình song song. Nó KHÔNG thay 5 `xfail` đang khoá — vẫn phải sửa từng bug bằng
+mô hình song song. Nó KHÔNG thay 4 `xfail` đang khoá — vẫn phải sửa từng bug bằng
 TDD, mỗi lần chỉ hạ đúng một expected failure.
 
 ## File map

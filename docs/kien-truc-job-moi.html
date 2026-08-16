@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>grokpipe — kiến trúc vòng đời job</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-accent:  #eb6c36;
+      --color-good:    #2f7d5b;
+      --font-sans:     'Geist', system-ui, -apple-system, sans-serif;
+      --font-serif:    'Instrument Serif', Georgia, serif;
+      --font-mono:     'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); padding: 3rem 2rem 4rem; }
+    .frame { max-width: 1200px; margin: 0 auto; }
+    .eyebrow {
+      font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-family: var(--font-serif); font-size: clamp(1.6rem, 2.6vw + 0.75rem, 2.2rem);
+      font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 0.75rem;
+    }
+    h2 { font-family: var(--font-serif); font-size: 1.35rem; font-weight: 400; letter-spacing: -0.01em; margin-bottom: 0.35rem; }
+    .lede { color: var(--color-muted); font-size: 0.95rem; line-height: 1.6; max-width: 64ch; }
+    section { margin-top: 3.25rem; }
+    .scroller { overflow-x: auto; margin-top: 1.25rem; }
+    svg { display: block; min-width: 1000px; width: 100%; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1.25rem; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(45,49,66,0.10); vertical-align: top; }
+    th { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-muted); font-weight: 500; }
+    td.mono, .mono { font-family: var(--font-mono); font-size: 0.78rem; }
+    ul { margin-top: 1rem; padding-left: 1.1rem; }
+    li { font-size: 0.88rem; line-height: 1.7; color: var(--color-muted); margin-bottom: 0.3rem; }
+    li strong { color: var(--color-ink); font-weight: 600; }
+    ol.steps { margin-top: 1.25rem; padding-left: 1.3rem; }
+    ol.steps li { font-size: 0.9rem; line-height: 1.65; }
+    .tag {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.62rem;
+      letter-spacing: 0.08em; padding: 0.1rem 0.4rem; border-radius: 3px; border: 1px solid; white-space: nowrap;
+    }
+    .tag.done { color: var(--color-good); border-color: rgba(47,125,91,0.45); background: rgba(47,125,91,0.07); }
+    .tag.now  { color: var(--color-accent); border-color: rgba(235,108,54,0.5); background: rgba(235,108,54,0.09); }
+    .tag.todo { color: var(--color-muted); border-color: rgba(79,93,117,0.3); }
+    .note { margin-top: 1.25rem; font-size: 0.85rem; color: var(--color-muted); line-height: 1.7; max-width: 74ch; }
+    .note strong { color: var(--color-ink); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Job lifecycle · grokpipe</p>
+    <h1>Kiến trúc vòng đời job — hôm nay và đích đến</h1>
+    <p class="lede">
+      Mỗi việc tạo ảnh/video có một <span class="mono">JobId</span> bền vững, một nguồn sự thật
+      duy nhất cho state, và chỉ được enqueue/submit đúng một lần cho mỗi intent. UI, auto và
+      CLI không tự ghi queue, không tự thử lại.
+    </p>
+
+    <!-- ══════════════ 1 · HÔM NAY ══════════════ -->
+    <section>
+      <h2>1 · Hôm nay — sáu nơi cùng ghi một quyển sổ</h2>
+      <p class="lede">
+        <span class="mono">JOBS</span> vừa là nhật ký hiển thị vừa là nguồn phán quyết. Hàng đợi,
+        cờ huỷ và bộ hẹn giờ là ba quyển sổ khác, không ai đồng bộ với ai. Lệch thì người gác đi
+        dò rồi tự sửa — tức thêm một người ghi nữa.
+      </p>
+      <div class="scroller">
+      <svg viewBox="0 0 1200 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="cu-title cu-desc">
+        <title id="cu-title">Kiến trúc hiện tại</title>
+        <desc id="cu-desc">HTTP API, auto runner, người gác hàng đợi, bộ hẹn giờ thử lại, thợ và executor đều ghi thẳng vào JOBS, vào hàng đợi ưu tiên và vào các tập cờ huỷ; không thành phần nào giữ toàn bộ sự thật.</desc>
+        <defs>
+          <marker id="a1" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <g stroke="#4f5d75" stroke-width="1" fill="none" marker-end="url(#a1)" opacity="0.75">
+          <path d="M 238,80  L 466,112"/>
+          <path d="M 238,88  L 466,268"/>
+          <path d="M 238,96  L 466,424"/>
+          <path d="M 238,180 L 466,122"/>
+          <path d="M 238,188 L 466,272"/>
+          <path d="M 238,280 L 466,134"/>
+          <path d="M 238,288 L 466,280"/>
+          <path d="M 238,380 L 466,146"/>
+          <path d="M 238,388 L 466,292"/>
+          <path d="M 926,196 L 714,126"/>
+          <path d="M 926,372 L 714,152"/>
+          <path d="M 926,392 L 714,300"/>
+          <path d="M 926,72  L 714,96"/>
+        </g>
+        <path d="M 710,282 L 930,204" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#a1)" opacity="0.75"/>
+        <path d="M 1040,242 V 328" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#a1)" opacity="0.75"/>
+        <rect x="1006" y="278" width="70" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="1041" y="287" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">GỌI CHROME</text>
+
+        <g font-family="'Geist', sans-serif">
+          <rect x="48" y="48" width="190" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="143" y="78" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle">HTTP API</text>
+          <text x="143" y="95" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">tạo · huỷ · dừng</text>
+
+          <rect x="48" y="148" width="190" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="143" y="178" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle">Auto runner</text>
+          <text x="143" y="195" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">tự quét + tự đếm lần</text>
+
+          <rect x="48" y="248" width="190" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="143" y="278" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle">Người gác</text>
+          <text x="143" y="295" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">dò lệch rồi xếp lại</text>
+
+          <rect x="48" y="348" width="190" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="143" y="378" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle">Bộ hẹn giờ</text>
+          <text x="143" y="395" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">threading.Timer</text>
+        </g>
+
+        <g font-family="'Geist', sans-serif">
+          <rect x="466" y="70" width="248" height="90" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+          <rect x="474" y="78" width="34" height="12" rx="2" fill="none" stroke="rgba(235,108,54,0.45)" stroke-width="0.8"/>
+          <text x="491" y="87" font-size="7" fill="rgba(235,108,54,0.9)" font-family="'Geist Mono', monospace" text-anchor="middle">DICT</text>
+          <text x="590" y="118" font-size="13" font-weight="600" fill="#2d3142" text-anchor="middle">JOBS</text>
+          <text x="590" y="136" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">state + msg, chỉ trong RAM</text>
+          <text x="590" y="151" font-size="9" fill="#eb6c36" font-family="'Geist Mono', monospace" text-anchor="middle">6 nơi cùng ghi</text>
+
+          <rect x="466" y="230" width="248" height="90" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+          <rect x="474" y="238" width="42" height="12" rx="2" fill="none" stroke="rgba(235,108,54,0.45)" stroke-width="0.8"/>
+          <text x="495" y="247" font-size="7" fill="rgba(235,108,54,0.9)" font-family="'Geist Mono', monospace" text-anchor="middle">QUEUE</text>
+          <text x="590" y="278" font-size="13" font-weight="600" fill="#2d3142" text-anchor="middle">IMG · VID PriorityQueue</text>
+          <text x="590" y="296" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">khoá là tên SF, không phải job</text>
+          <text x="590" y="311" font-size="9" fill="#eb6c36" font-family="'Geist Mono', monospace" text-anchor="middle">restart là mất sạch</text>
+
+          <rect x="466" y="390" width="248" height="90" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+          <text x="590" y="428" font-size="13" font-weight="600" fill="#2d3142" text-anchor="middle">Cờ rời rạc</text>
+          <text x="590" y="446" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">DA_HUY · DUNG_RIENG · GEN</text>
+          <text x="590" y="461" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">theo SF id, không theo job</text>
+        </g>
+
+        <g font-family="'Geist', sans-serif">
+          <rect x="930" y="30" width="220" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="1040" y="62" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle">Pool tài khoản</text>
+          <text x="1040" y="80" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">xoay Chrome khi lỗi</text>
+          <text x="1040" y="95" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">ai giành được thì nhận</text>
+
+          <rect x="930" y="150" width="220" height="92" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+          <text x="1040" y="184" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle">Thợ (thread)</text>
+          <text x="1040" y="202" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">chạy · đổi tài khoản · quyết</text>
+          <text x="1040" y="217" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">thử lại · ghi state · xếp lại</text>
+          <text x="1040" y="232" font-size="9" fill="#eb6c36" font-family="'Geist Mono', monospace" text-anchor="middle">5 việc trong một hàm</text>
+
+          <rect x="930" y="328" width="220" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="1040" y="360" font-size="12" font-weight="600" fill="#2d3142" text-anchor="middle">Executor ảnh/video</text>
+          <text x="1040" y="378" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">cũng ghi thẳng JOBS</text>
+          <text x="1040" y="393" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" text-anchor="middle">và cũng xếp lại hàng</text>
+        </g>
+
+        <line x1="48" y1="510" x2="1152" y2="510" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+        <text x="48" y="534" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">HẬU QUẢ</text>
+        <text x="160" y="534" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">huỷ có thể thua bộ hẹn giờ · retry chồng retry · restart mất hàng đợi · không biết ai đã ghi state sai</text>
+      </svg>
+      </div>
+    </section>
+
+    <!-- ══════════════ 2 · ĐÍCH ══════════════ -->
+    <section>
+      <h2>2 · Đích — một chiều đi, mỗi lớp một quyền</h2>
+      <p class="lede">
+        Luồng chỉ chạy một chiều: intent vào từ trên, sự thật ghi xuống JobStore, việc được cấp
+        phát xuống dưới, kết quả đi qua đúng một cửa <strong>Result Commit</strong>. Rào
+        <strong>Cancel/Stop</strong> cắt ngang mọi tầng — bấm dừng là chặn queue, retry, auto và
+        cả kết quả về muộn của lượt cũ.
+      </p>
+      <div class="scroller">
+      <svg viewBox="0 0 1200 1080" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="moi-title moi-desc">
+        <title id="moi-title">Kiến trúc đích</title>
+        <desc id="moi-desc">UI, HTTP, Auto và CLI gửi intent vào ProducerService; ProducerService tạo Job và Batch identity rồi ghi JobStore kèm event log; Scheduler đọc snapshot để enqueue và cấp execution lease; AccountAllocator gắn tài khoản vào attempt; Worker gọi ImageExecutor hoặc VideoExecutor; outcome đi qua Result Commit rồi ghi ngược về JobStore; Cancel và Stop Barrier chặn queue, retry, auto snapshot và late result.</desc>
+        <defs>
+          <marker id="a2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+          <marker id="a2o" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+          <marker id="a2s" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a2352a"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- vùng lõi -->
+        <rect x="300" y="176" width="620" height="820" rx="12" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+        <rect x="330" y="170" width="200" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="430" y="179" fill="rgba(45,49,66,0.42)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">LÕI VÒNG ĐỜI · MỘT CHIỀU ĐI</text>
+
+        <!-- mũi tên trục chính -->
+        <g fill="none" stroke="#4f5d75" stroke-width="1.4" marker-end="url(#a2)">
+          <path d="M 195,136 V 158 H 560 V 196"/>
+          <path d="M 375,136 V 196"/>
+          <path d="M 645,136 V 196"/>
+          <path d="M 855,136 V 158 H 680 V 196"/>
+          <path d="M 610,286 V 326"/>
+          <path d="M 610,416 V 456"/>
+          <path d="M 610,546 V 586"/>
+          <path d="M 610,676 V 716"/>
+          <path d="M 560,806 V 828 H 480 V 856"/>
+          <path d="M 660,806 V 828 H 740 V 856"/>
+          <path d="M 480,946 V 968 H 560 V 992"/>
+          <path d="M 740,946 V 968 H 660 V 992"/>
+        </g>
+        <path d="M 920,1034 H 1132 V 372 H 920" fill="none" stroke="#eb6c36" stroke-width="1.4" marker-end="url(#a2o)"/>
+
+        <!-- nhãn mũi tên -->
+        <g font-family="'Geist Mono', monospace" font-size="8.5" fill="#7a8399" text-anchor="middle">
+          <rect x="618" y="298" width="176" height="12" rx="2" fill="#f5f5f5"/><text x="706" y="307">JOB + BATCH ID · IDEMPOTENCY</text>
+          <rect x="618" y="428" width="150" height="12" rx="2" fill="#f5f5f5"/><text x="693" y="437">SNAPSHOT CÓ VERSION</text>
+          <rect x="618" y="558" width="150" height="12" rx="2" fill="#f5f5f5"/><text x="693" y="567">EXECUTION LEASE</text>
+          <rect x="618" y="688" width="176" height="12" rx="2" fill="#f5f5f5"/><text x="706" y="697">ATTEMPT ĐÃ CÓ TÀI KHOẢN</text>
+          <rect x="1046" y="694" width="176" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="1134" y="703" fill="#eb6c36" transform="rotate(-90 1134 700)">GHI OUTCOME + EVENT</text>
+        </g>
+
+        <!-- hàng nguồn intent -->
+        <g font-family="'Geist', sans-serif" text-anchor="middle">
+          <rect x="120" y="76" width="150" height="60" rx="6" fill="#ffffff" stroke="#2d3142"/>
+          <text x="195" y="103" font-size="11.5" font-weight="600" fill="#2d3142">UI board</text>
+          <text x="195" y="120" font-size="8.5" fill="#4f5d75" font-family="'Geist Mono', monospace">chỉ hiện snapshot</text>
+
+          <rect x="300" y="76" width="150" height="60" rx="6" fill="#ffffff" stroke="#2d3142"/>
+          <text x="375" y="103" font-size="11.5" font-weight="600" fill="#2d3142">HTTP</text>
+          <text x="375" y="120" font-size="8.5" fill="#4f5d75" font-family="'Geist Mono', monospace">validate + gửi lệnh</text>
+
+          <rect x="570" y="76" width="150" height="60" rx="6" fill="#ffffff" stroke="#2d3142"/>
+          <text x="645" y="103" font-size="11.5" font-weight="600" fill="#2d3142">Auto</text>
+          <text x="645" y="120" font-size="8.5" fill="#4f5d75" font-family="'Geist Mono', monospace">chỉ tạo, không retry</text>
+
+          <rect x="780" y="76" width="150" height="60" rx="6" fill="#ffffff" stroke="#2d3142"/>
+          <text x="855" y="103" font-size="11.5" font-weight="600" fill="#2d3142">CLI</text>
+          <text x="855" y="120" font-size="8.5" fill="#4f5d75" font-family="'Geist Mono', monospace">chay-anh.py</text>
+        </g>
+
+        <!-- trục chính -->
+        <g font-family="'Geist', sans-serif" text-anchor="middle">
+          <!-- ProducerService -->
+          <rect x="340" y="196" width="540" height="90" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.3"/>
+          <rect x="352" y="206" width="72" height="12" rx="2" fill="none" stroke="rgba(45,49,66,0.35)" stroke-width="0.8"/>
+          <text x="388" y="215" font-size="7" fill="rgba(45,49,66,0.75)" font-family="'Geist Mono', monospace">PRODUCER</text>
+          <text x="610" y="246" font-size="14" font-weight="600" fill="#2d3142">ProducerService</text>
+          <text x="610" y="265" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">tạo Job/Batch identity · dedupe theo idempotency key</text>
+          <text x="610" y="279" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">rerun_of cho chạy lại · multi-copy ra N child job</text>
+
+          <!-- JobStore -->
+          <rect x="340" y="326" width="540" height="90" rx="8" fill="rgba(235,108,54,0.09)" stroke="#eb6c36" stroke-width="1.5"/>
+          <rect x="352" y="336" width="72" height="12" rx="2" fill="none" stroke="rgba(235,108,54,0.45)" stroke-width="0.8"/>
+          <text x="388" y="345" font-size="7" fill="rgba(235,108,54,0.92)" font-family="'Geist Mono', monospace">SỰ THẬT</text>
+          <text x="610" y="376" font-size="14" font-weight="600" fill="#2d3142">JobStore + Event Log</text>
+          <text x="610" y="395" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">snapshot · event append-only · CAS/version · idempotency record</text>
+          <text x="610" y="409" font-size="9" fill="#eb6c36" font-family="'Geist Mono', monospace">không ai đổi state mà không đi qua đây</text>
+
+          <!-- Scheduler -->
+          <rect x="340" y="456" width="540" height="90" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.3"/>
+          <rect x="352" y="466" width="76" height="12" rx="2" fill="none" stroke="rgba(45,49,66,0.35)" stroke-width="0.8"/>
+          <text x="390" y="475" font-size="7" fill="rgba(45,49,66,0.75)" font-family="'Geist Mono', monospace">SCHEDULER</text>
+          <text x="610" y="506" font-size="14" font-weight="600" fill="#2d3142">Scheduler</text>
+          <text x="610" y="525" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">chọn việc · enqueue theo execution_id · thời điểm retry · công bằng</text>
+          <text x="610" y="539" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">cấp lease, không tự quyết state hay tài khoản</text>
+
+          <!-- AccountAllocator -->
+          <rect x="340" y="586" width="540" height="90" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.3"/>
+          <rect x="352" y="596" width="70" height="12" rx="2" fill="none" stroke="rgba(45,49,66,0.35)" stroke-width="0.8"/>
+          <text x="387" y="605" font-size="7" fill="rgba(45,49,66,0.75)" font-family="'Geist Mono', monospace">ACCOUNT</text>
+          <text x="610" y="636" font-size="14" font-weight="600" fill="#2d3142">AccountAllocator</text>
+          <text x="610" y="655" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">chọn hoặc ép account · giữ constraint qua MỌI attempt</text>
+          <text x="610" y="669" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">video chỉ dùng profile đã opt-in</text>
+
+          <!-- Worker -->
+          <rect x="340" y="716" width="540" height="90" rx="8" fill="#ffffff" stroke="#2d3142" stroke-width="1.3"/>
+          <rect x="352" y="726" width="60" height="12" rx="2" fill="none" stroke="rgba(45,49,66,0.35)" stroke-width="0.8"/>
+          <text x="382" y="735" font-size="7" fill="rgba(45,49,66,0.75)" font-family="'Geist Mono', monospace">WORKER</text>
+          <text x="610" y="766" font-size="14" font-weight="600" fill="#2d3142">Worker</text>
+          <text x="610" y="785" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">nhận execution đã được cấp · chạy đúng một attempt</text>
+          <text x="610" y="799" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">KHÔNG tạo job, không revive, không tự xoay tài khoản</text>
+
+          <!-- Executors -->
+          <rect x="340" y="856" width="280" height="90" rx="8" fill="#ffffff" stroke="#2d3142"/>
+          <text x="480" y="890" font-size="12.5" font-weight="600" fill="#2d3142">Executor ảnh</text>
+          <text x="480" y="908" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">ChatGPT · DOM</text>
+          <text x="480" y="923" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">trả outcome có cấu trúc</text>
+
+          <rect x="600" y="856" width="280" height="90" rx="8" fill="#ffffff" stroke="#2d3142"/>
+          <text x="740" y="890" font-size="12.5" font-weight="600" fill="#2d3142">Executor video</text>
+          <text x="740" y="908" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">Grok · ghi mốc submit</text>
+          <text x="740" y="923" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">credit có dấu vết</text>
+
+          <!-- Result Commit -->
+          <rect x="340" y="992" width="540" height="86" rx="8" fill="rgba(235,108,54,0.09)" stroke="#eb6c36" stroke-width="1.5"/>
+          <rect x="352" y="1002" width="76" height="12" rx="2" fill="none" stroke="rgba(235,108,54,0.45)" stroke-width="0.8"/>
+          <text x="390" y="1011" font-size="7" fill="rgba(235,108,54,0.92)" font-family="'Geist Mono', monospace">MỘT CỬA</text>
+          <text x="610" y="1040" font-size="14" font-weight="600" fill="#2d3142">Result Commit</text>
+          <text x="610" y="1059" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace">nhận hay loại kết quả theo Job · Execution · Attempt — late result về muộn bị loại</text>
+        </g>
+
+        <!-- ATTEMPT bracket -->
+        <path d="M 900,716 H 936 V 946 H 900" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>
+        <text x="962" y="826" font-size="9" fill="#4f5d75" font-family="'Geist Mono', monospace" transform="rotate(90 962 826)" text-anchor="middle">ATTEMPT · account · lease · phase · submitted_at</text>
+
+        <!-- Cancel / Stop barrier rail -->
+        <rect x="60" y="326" width="200" height="620" rx="8" fill="rgba(162,53,42,0.06)" stroke="#a2352a" stroke-width="1.3" stroke-dasharray="6 4"/>
+        <text x="160" y="596" font-size="13" font-weight="600" fill="#2d3142" font-family="'Geist', sans-serif" text-anchor="middle">Cancel /</text>
+        <text x="160" y="616" font-size="13" font-weight="600" fill="#2d3142" font-family="'Geist', sans-serif" text-anchor="middle">Stop Barrier</text>
+        <text x="160" y="642" font-size="9" fill="#a2352a" font-family="'Geist Mono', monospace" text-anchor="middle">chặn queue</text>
+        <text x="160" y="657" font-size="9" fill="#a2352a" font-family="'Geist Mono', monospace" text-anchor="middle">chặn retry</text>
+        <text x="160" y="672" font-size="9" fill="#a2352a" font-family="'Geist Mono', monospace" text-anchor="middle">chặn auto snapshot</text>
+        <text x="160" y="687" font-size="9" fill="#a2352a" font-family="'Geist Mono', monospace" text-anchor="middle">loại late result</text>
+        <g fill="none" stroke="#a2352a" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#a2s)" opacity="0.9">
+          <path d="M 260,380 H 336"/>
+          <path d="M 260,500 H 336"/>
+          <path d="M 260,760 H 336"/>
+          <path d="M 260,1034 V 1034 M 260,900 H 300 V 1034 H 336"/>
+        </g>
+
+        <line x1="60" y1="1010" x2="300" y2="1010" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+        <text x="60" y="1032" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.1em">CẮT NGANG MỌI TẦNG</text>
+      </svg>
+      </div>
+    </section>
+
+    <!-- ══════════════ 3 · AUTHORITY ══════════════ -->
+    <section>
+      <h2>3 · Authority của từng lớp</h2>
+      <table>
+        <thead><tr><th style="width:26%">Lớp</th><th>Chỉ chịu trách nhiệm</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">ProducerService</td><td>Tạo intent, <span class="mono">JobId</span>, <span class="mono">BatchId</span>, dedupe và explicit rerun</td></tr>
+          <tr><td class="mono">JobStore</td><td>Snapshot, event, CAS/version và idempotency record</td></tr>
+          <tr><td class="mono">Scheduler</td><td>Queue, lease execution, retry timing và công bằng</td></tr>
+          <tr><td class="mono">AccountAllocator</td><td>Chọn/ép account và giữ constraint qua mọi attempt</td></tr>
+          <tr><td class="mono">Worker</td><td>Nhận execution đã được cấp, không tự tạo/revive Job</td></tr>
+          <tr><td class="mono">Executor</td><td>Gọi provider và trả outcome có cấu trúc</td></tr>
+          <tr><td class="mono">Result Commit</td><td>Chấp nhận hoặc loại late result theo Job/Execution/Attempt</td></tr>
+          <tr><td class="mono">Cancel/Stop Barrier</td><td>Chặn queue, retry, auto snapshot và late result cũ</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ 4 · INVARIANT ══════════════ -->
+    <section>
+      <h2>4 · Invariant bắt buộc</h2>
+      <ul>
+        <li>Một lifecycle fact chỉ có <strong>một</strong> writer/authority.</li>
+        <li><span class="mono">AssetId</span>, <span class="mono">JobId</span>, <span class="mono">ExecutionId</span> và <span class="mono">AttemptId</span> là <strong>bốn identity khác nhau</strong>.</li>
+        <li><span class="mono">COMPLETED</span>, <span class="mono">FAILED</span>, <span class="mono">CANCELLED</span> không bị revive; chạy lại tạo Job mới với <span class="mono">rerun_of</span>.</li>
+        <li>Request lặp cùng idempotency key trả lại đúng Job cũ, <strong>không enqueue lại</strong>.</li>
+        <li>Multi-copy tạo một Batch và N child Job riêng; retry không sinh thêm copy.</li>
+        <li>Kết quả không chắc chắn sau submit đi vào <span class="mono">NEEDS_ATTENTION</span>, không tự submit lại.</li>
+        <li>Forced account theo Job qua mọi retry, trừ khi Job cho phép fallback rõ ràng.</li>
+        <li>Stop-all trả về xong thì auto, watchdog, timer và late result cũ <strong>không thể</strong> làm việc chạy tiếp.</li>
+      </ul>
+    </section>
+
+    <!-- ══════════════ 5 · TRẠNG THÁI JOB ══════════════ -->
+    <section>
+      <h2>5 · Một job đi qua đúng những trạng thái này</h2>
+      <p class="lede">
+        Ba trạng thái cuối là điểm dừng thật, không ai bôi lại được.
+        <strong>NEEDS_ATTENTION</strong> là cái hôm nay chưa có — dành cho lúc đã bấm gửi cho
+        Grok nhưng mất kết nối, tức <em>không biết</em> có tốn credit hay không; máy không được
+        tự gửi lại, phải để user quyết.
+      </p>
+      <div class="scroller">
+      <svg viewBox="0 0 1200 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="st-title st-desc">
+        <title id="st-title">Máy trạng thái job</title>
+        <desc id="st-desc">CREATED sang QUEUED sang RUNNING; RUNNING có thể sang COMPLETED, RETRY_WAIT, NEEDS_ATTENTION, FAILED hoặc CANCELLED; RETRY_WAIT quay lại QUEUED; COMPLETED, FAILED và CANCELLED là trạng thái cuối.</desc>
+        <defs>
+          <marker id="a3" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+        <g fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#a3)">
+          <path d="M 190,150 H 250"/>
+          <path d="M 400,150 H 460"/>
+          <path d="M 610,150 H 670"/>
+          <path d="M 535,178 V 250 H 340 V 178"/>
+          <path d="M 535,122 V 60 H 700 V 118"/>
+          <path d="M 610,164 H 640 V 300 H 700"/>
+        </g>
+        <rect x="392" y="244" width="92" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="438" y="253" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">CHỜ HẾT not_before</text>
+        <rect x="576" y="54" width="94" height="12" rx="2" fill="#f5f5f5"/>
+        <text x="623" y="63" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">MẤT DẤU SAU SUBMIT</text>
+
+        <g font-family="'Geist', sans-serif" text-anchor="middle">
+          <rect x="60" y="124" width="130" height="52" rx="6" fill="#ffffff" stroke="#2d3142"/>
+          <text x="125" y="155" font-size="11" font-weight="600" fill="#2d3142">CREATED</text>
+          <rect x="250" y="124" width="150" height="52" rx="6" fill="#ffffff" stroke="#2d3142"/>
+          <text x="325" y="155" font-size="11" font-weight="600" fill="#2d3142">QUEUED</text>
+          <rect x="460" y="124" width="150" height="52" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1.4"/>
+          <text x="535" y="155" font-size="11" font-weight="600" fill="#2d3142">RUNNING</text>
+          <rect x="250" y="252" width="180" height="52" rx="6" fill="#ffffff" stroke="#2d3142"/>
+          <text x="340" y="283" font-size="11" font-weight="600" fill="#2d3142">RETRY_WAIT</text>
+          <rect x="700" y="26" width="200" height="52" rx="6" fill="rgba(235,108,54,0.09)" stroke="#eb6c36" stroke-width="1.2"/>
+          <text x="800" y="50" font-size="11" font-weight="600" fill="#2d3142">NEEDS_ATTENTION</text>
+          <text x="800" y="66" font-size="8" fill="#eb6c36" font-family="'Geist Mono', monospace">chờ user, cấm tự gửi lại</text>
+          <rect x="670" y="124" width="180" height="52" rx="6" fill="rgba(47,125,91,0.08)" stroke="#2f7d5b" stroke-width="1.2"/>
+          <text x="760" y="155" font-size="11" font-weight="600" fill="#2d3142">COMPLETED</text>
+          <rect x="700" y="274" width="130" height="52" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75"/>
+          <text x="765" y="305" font-size="11" font-weight="600" fill="#2d3142">FAILED</text>
+          <rect x="860" y="274" width="150" height="52" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75"/>
+          <text x="935" y="305" font-size="11" font-weight="600" fill="#2d3142">CANCELLED</text>
+        </g>
+        <text x="940" y="200" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">3 trạng thái CUỐI</text>
+        <text x="940" y="216" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">không đường quay lại</text>
+      </svg>
+      </div>
+    </section>
+
+    <!-- ══════════════ 6 · ĐỔI GÌ ══════════════ -->
+    <section>
+      <h2>6 · Đổi gì so với hôm nay</h2>
+      <table>
+        <thead><tr><th style="width:18%">Mối lo</th><th style="width:41%">Hôm nay</th><th style="width:41%">Đích</th></tr></thead>
+        <tbody>
+          <tr><td>Danh tính</td><td>tên SF/shot vừa là asset, vừa là job, vừa là khoá hàng đợi</td><td>bốn identity tách bạch; asset chỉ là asset</td></tr>
+          <tr><td>Đổi state</td><td>6 nơi ghi thẳng <span class="mono">JOBS[...]</span>, ai ghi sau đè ai ghi trước</td><td>chỉ JobStore giữ sự thật, mọi ghi đều qua CAS/version</td></tr>
+          <tr><td>Tạo việc</td><td>bấm hai lần hoặc auto quét trùng là ra hai job</td><td>idempotency key: request lặp trả về đúng job cũ</td></tr>
+          <tr><td>Thử lại</td><td>thợ, timer, auto, người gác và <span class="mono">chay-anh.py</span> đều đếm riêng</td><td>Scheduler giữ thời điểm retry, một ngân sách duy nhất</td></tr>
+          <tr><td>Huỷ / dừng</td><td>cờ theo SF id, quét hàng theo chuỗi <span class="mono">LO:</span>, dễ thua timer</td><td>Stop Barrier cắt ngang: qua rào thì không lượt cũ nào chạy tiếp</td></tr>
+          <tr><td>Tài khoản</td><td>thợ nào giành được thì nhận; ép tài khoản mất khi retry</td><td>AccountAllocator giữ constraint qua mọi attempt</td></tr>
+          <tr><td>Kết quả muộn</td><td>ảnh về muộn vẫn đè lên bản đang dùng</td><td>Result Commit đối chiếu job/execution/attempt rồi mới nhận</td></tr>
+          <tr><td>Credit video</td><td>đếm bằng số exception; mất mạng sau khi gửi có thể gửi lại</td><td>mốc submit bền vững; không chắc thì sang NEEDS_ATTENTION</td></tr>
+          <tr><td>Restart board</td><td>queue trong RAM — restart là mất hàng chờ và việc dở</td><td>persistence + recovery dựng lại đúng chỗ đang dở</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════ 7 · MIGRATION ══════════════ -->
+    <section>
+      <h2>7 · Trạng thái migration hiện tại</h2>
+      <p class="lede">
+        Production execution vẫn do legacy <span class="mono">JOBS</span>,
+        <span class="mono">PriorityQueue</span>, worker và retry quyết định. Core mới đang được
+        đưa vào theo shadow/adapter để quan sát và tạo identity trước, chưa big-bang cutover.
+      </p>
+      <ol class="steps">
+        <li>Producer command + idempotency + legacy adapter. <span class="tag now">TIẾP THEO</span></li>
+        <li>Scheduler sở hữu queue/execution lease. <span class="tag todo">chưa</span></li>
+        <li>Account allocation và forced-account constraint. <span class="tag todo">chưa</span></li>
+        <li>Executor/attempt/result commit có typed outcome. <span class="tag todo">chưa</span></li>
+        <li>Cancel, stop-all và retry chỉ còn một authority. <span class="tag todo">chưa</span></li>
+        <li>Persistence/outbox/recovery sau restart. <span class="tag todo">chưa</span></li>
+        <li>Bật authoritative, theo dõi, rồi xoá writer legacy cũ. <span class="tag todo">chưa</span></li>
+      </ol>
+      <p class="note">
+        <strong>Đã xong trước bước 1:</strong> test khoá hành vi hiện tại, domain model/identity,
+        và shadow core <span class="mono">JobStore</span> + event log có CAS đang mirror mọi lần
+        legacy ghi state rồi báo chỗ bất đồng — không enqueue, không gọi provider, không đổi kết
+        quả. <span class="tag done">XONG</span>
+      </p>
+      <p class="note">
+        <strong>Rollback:</strong> trong thời gian migration, đặt
+        <span class="mono">GROKPIPE_JOB_MODE=legacy</span> để ngừng core shadow và giữ đường chạy
+        cũ. Không dùng shadow state để execute hoặc recovery trước khi phase authoritative được
+        duyệt và full lifecycle gate đã xanh.
+      </p>
+    </section>
+  </div>
+</body>
+</html>

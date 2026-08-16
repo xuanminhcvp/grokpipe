@@ -147,14 +147,38 @@ class ChoNgoiTest(unittest.TestCase):
 
     # ---- ràng buộc trong `_worker` -------------------------------------
 
-    def test_worker_soi_cho_ngoi_giua_hai_viec(self):
-        nguon = function_source(BOARD_PATH, "_worker")
-        vi_tri = nguon.index("if not _cho_ngoi_con_dung(endpoint, kind, slot):")
+    def test_worker_soi_cho_ngoi_TRUOC_khi_nhac_viec(self):
+        """Soi ở ĐẦU VÒNG, tức giữa hai việc — không bao giờ bỏ dở việc đang chạy.
 
-        self.assertLess(vi_tri, nguon.index("QUEUE.get") if "QUEUE.get" in nguon else len(nguon),
-                        "phải soi TRƯỚC khi nhấc việc, không bỏ dở việc đang chạy")
+        Bản cũ của phép so này tìm `"QUEUE.get"`, mà `_worker` gọi
+        `_lay(QUEUE, timeout=2)` — chuỗi ấy KHÔNG hề có trong hàm. Nhánh dự
+        phòng `else len(nguon)` biến câu assert thành `vi_tri < len(nguon)`,
+        đúng vĩnh viễn. Test xanh suốt mà chẳng canh gì.
+        """
+        nguon = function_source(BOARD_PATH, "_worker")
+
+        soi = nguon.index("if not _cho_ngoi_con_dung(endpoint, kind, slot):")
+        nhac = nguon.index("_lay(QUEUE")
+        self.assertLess(soi, nhac, "phải soi TRƯỚC khi nhấc việc")
         self.assertIn("_dong_tab_cho_ngoi(slot)", nguon)
         self.assertIn("_release_tl()", nguon)
+
+    def test_tho_doi_ra_thi_THOAT_han_chu_khong_chi_dong_tab(self):
+        """Đóng tab mà không thoát vòng thì thợ chạy tiếp, tay không — vẫn tranh việc.
+
+        Kiểm bằng CẤU TRÚC cây cú pháp: nhánh `if not _cho_ngoi_con_dung(...)`
+        phải kết thúc bằng `return`.
+        """
+        import ast
+
+        cay = ast.parse(function_source(BOARD_PATH, "_worker"))
+        nhanh = [
+            n for n in ast.walk(cay)
+            if isinstance(n, ast.If) and "_cho_ngoi_con_dung" in ast.dump(n.test)
+        ]
+        self.assertEqual(len(nhanh), 1)
+        self.assertTrue(any(isinstance(x, ast.Return) for x in nhanh[0].body),
+                        "nhánh dôi-ghế không có `return` — thợ không thoát")
 
 
 if __name__ == "__main__":

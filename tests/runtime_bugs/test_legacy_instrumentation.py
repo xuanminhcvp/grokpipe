@@ -57,13 +57,26 @@ def test_worker_keeps_its_retry_and_rotation_logic():
 
 
 def test_rotation_reports_after_requeue_and_only_when_the_error_repeats():
+    """Thứ tự kiểm bằng nguồn (không cách nào khác), PHANH kiểm bằng hàm.
+
+    Bản cũ khớp literal `'"min_repeats": LAP_MOI_GHI'`. Nó vỡ ngay khi phanh
+    được sửa cho đúng hơn — hạ xuống 1 cho VIDEO, vì Grok trừ credit theo từng
+    submit nên chờ lặp 3 lần mới ghi là đốt 3 lần tiền. Hành vi nó định canh
+    ("có phanh, và ghi sổ đứng sau khi đã xếp lại") không suy suyển gì.
+    """
+    from helpers import load_sfboard
+
     worker = function_source("_worker")
     xep_lai = worker.index("_xep_lai_sau(kind, (kind, ident, tries + 1, manual), cho)")
     report = worker.index("report_runtime_bug(", xep_lai)
 
     assert xep_lai < report, "ghi sổ phải đứng SAU khi đã xếp lại"
-    assert '"min_repeats": LAP_MOI_GHI' in worker[report:]
     assert '"reason_code": _ly_do_loi(e)' in worker[report:]
+    assert '"min_repeats"' in worker[report:], "bỏ phanh là sổ thành rác"
+
+    board = load_sfboard()
+    assert board._phanh_ghi_so("img") == board.LAP_MOI_GHI  # xoay tài khoản là thường
+    assert board._phanh_ghi_so("vid") == 1                  # mỗi lượt video là tiền thật
 
 
 def test_reason_code_mapping_is_pure_and_never_reports_a_user_stop():

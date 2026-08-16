@@ -32,6 +32,15 @@ SELECTORS = {
     # Thumbnail ảnh đính kèm nằm trong <form> của ô soạn. Đã đo trên UI thật:
     # "form img" = đúng số ảnh đang đính, và = 0 khi chưa đính gì.
     "composer_attachment": "form img",
+    # NÚT CHỌN SỨC MẠNH (Instant · Medium · High) trong ô soạn — cái "pill" nhỏ
+    # cạnh nút +. BÁM THUỘC TÍNH, vì CHỮ trên nút dịch theo ngôn ngữ tài khoản:
+    # giao diện tiếng Việt ghi "Tức thì · Vừa · Cao", và bản cũ dò bằng regex
+    # tiếng Anh nên đọc ra chuỗi rỗng rồi bỏ luôn việc đổi chế độ — cả buổi
+    # render chạy ở Instant mà log chỉ có một dòng cảnh báo (2026-08-15).
+    "mode_pill": "form button[aria-haspopup='menu']:has([data-animated-slider-trigger])",
+    # đường lui khi ChatGPT đổi tên thuộc tính trên: trong <form> của ô soạn chỉ
+    # nút này mang aria-haspopup=menu (nút + không có) — đã đo trên UI thật.
+    "mode_pill_alt": "form button[aria-haspopup='menu']",
 }
 
 
@@ -75,13 +84,34 @@ _JS_LA_REF = r"""
 """
 
 
-JS_CHON_CHE_DO = """() => { const b = [...document.querySelectorAll('form button')]
-                    .find(e => /^(Instant|Medium|High)/.test((e.textContent||'').trim()));
-                    return b ? b.textContent.trim() : ''; }"""
+# NHÃN đang hiện trên nút sức mạnh — CHỈ để ghi log và cho giao diện kiểu cũ.
+# Đừng dùng nó làm căn cứ đổi chế độ: nhãn dịch theo ngôn ngữ tài khoản.
+# Tìm form bằng ô soạn ĐANG HIỆN chứ không `querySelector('form')`: thanh bên
+# cũng có form tìm kiếm, và ô ẩn vẫn nằm trong DOM (xem `_JS_O_SOAN`).
+JS_NHAN_CHE_DO = """() => {
+                    const vis = e => { const r = e.getBoundingClientRect();
+                                       return r.width > 0 && r.height > 0; };
+                    const o = """ + _JS_O_SOAN + """;
+                    const f = o ? o.closest('form') : document.querySelector('form');
+                    if (!f) return '';
+                    const bs = [...f.querySelectorAll("button[aria-haspopup='menu']")].filter(vis);
+                    const b = bs.find(e => e.querySelector('[data-animated-slider-trigger]')) || bs[0];
+                    return b ? (b.textContent || '').trim() : ''; }"""
 
-JS_CHON_CHE_DO_2 = """() => { const b = [...document.querySelectorAll('form button')]
-                    .find(e => /^(Instant|Medium|High)/.test((e.textContent||'').trim()));
-                    return b ? b.textContent.trim() : ''; }"""
+# NẤC sức mạnh đọc bằng SỐ — thứ duy nhất không dịch được.
+# Giao diện 2026-08 là MỘT THANH TRƯỢT ba nấc, chỉ hiện khi menu đang mở:
+# aria-valuenow 0/1/2 = Instant/Medium/High, aria-valuemax cho biết nấc cao nhất
+# tài khoản này với tới. Trả null khi menu chưa mở hoặc giao diện là kiểu cũ
+# (menu ba mục radio) — hai ca đó phải phân biệt được, không được nhập nhèm.
+JS_DOC_NAC = """() => {
+                    const vis = e => { const r = e.getBoundingClientRect();
+                                       return r.width > 0 && r.height > 0; };
+                    const s = [...document.querySelectorAll('[role=slider]')].filter(vis)[0];
+                    if (!s) return null;
+                    const n = parseInt(s.getAttribute('aria-valuenow'), 10);
+                    const m = parseInt(s.getAttribute('aria-valuemax'), 10);
+                    return {nac: Number.isNaN(n) ? null : n,
+                            toida: Number.isNaN(m) ? null : m}; }"""
 
 JS_DOWNLOAD = """(u) => {
                     const imgs = Array.from(document.querySelectorAll(
