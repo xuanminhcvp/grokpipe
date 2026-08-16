@@ -46,11 +46,26 @@ def _ordered_attachments(task: Task, store: Store) -> list[str]:
 # chỉ phải mở một file, còn đây giữ thuần phần điều phối lô.
 from .dom_chatgpt import (      # noqa: F401
     SELECTORS, _JS_O_SOAN,
-    JS_CHON_CHE_DO, JS_CHON_CHE_DO_2, JS_DOWNLOAD, JS_DOWNLOAD_2,
+    JS_NHAN_CHE_DO, JS_DOC_NAC, JS_DOWNLOAD, JS_DOWNLOAD_2,
     JS_ANH_DANG_CO, JS_DANH_SACH_ID, JS_DANH_SACH_REF_ID, JS_ANH_SAU_MOC_TURN,
     JS_QUET_CUON, JS_DEM_TU_CHOI, JS_TIN_NHAN_TEXT_TRO_LY, JS_TRANG_THAI_O_SOAN,
     JS_TAI_VE, JS_MOC_TURN_TRO_LY, JS_TEN_DA_LEN,
 )
+
+# ─────────────── BA NẤC SỨC MẠNH CỦA CHATGPT ───────────────
+# Nấc đọc/đặt bằng SỐ (aria-valuenow của thanh trượt): 0 Instant · 1 Medium · 2 High.
+# Chữ chỉ để ghi log và cho giao diện kiểu cũ (menu ba mục radio), vì nhãn dịch
+# theo ngôn ngữ tài khoản — tiếng Việt là "Tức thì · Vừa · Cao". Thêm nhãn ngôn
+# ngữ mới thì thêm vào ĐÂY, đừng rải regex ra chỗ khác.
+_NAC = {"Instant": 0, "Medium": 1, "High": 2}
+_TEN_NAC = {0: "Instant", 1: "Medium", 2: "High"}
+_BI_DANH = {
+    "Instant": re.compile(r"^\s*(Instant|Tức thì)", re.I),
+    "Medium": re.compile(r"^\s*(Medium|Vừa|Trung bình)", re.I),
+    "High": re.compile(r"^\s*(High|Cao)", re.I),
+}
+_RE_NHAN_CHE_DO = re.compile(r"^\s*(Instant|Medium|High|Tức thì|Vừa|Cao)", re.I)
+
 
 # ─────────────── HẾT LƯỢT ĐÍNH TỆP (khác hẳn hết lượt TẠO ẢNH) ───────────────
 # ChatGPT có một trần RIÊNG cho việc ĐÍNH TỆP, và nó chặn theo GIỜ:
@@ -75,6 +90,44 @@ _RE_HET_UPLOAD = re.compile(
 # Giờ mở lại: "until 3:45 PM" · "until 15:45" · "until 3 PM".
 _RE_GIO_MO = re.compile(
     r"(?:until|till)\s+(\d{1,2})(?::(\d{2}))?\s*([AaPp])?\.?[Mm]?\.?", re.I)
+
+# HẾT LƯỢT TẠO ẢNH — khác hẳn hết lượt ĐÍNH TỆP ở trên, và trước đây không ai
+# bắt. Câu thật (log ALTAR 2026-08-15):
+#   "You've hit the Plus plan limit for image generations requests.
+#    You can create more images when the limit resets in 26 minutes."
+# Không khớp `_RE_HET_UPLOAD` (nó tìm "upload limit"), nên nó rơi xuống nhánh
+# chung "không trả ảnh nào" và lô tự gửi lại 2 lần TRÊN CÙNG tài khoản vừa cạn
+# quota — 14 lượt phí trong 9 phút, rồi thẻ bị dán nhãn "sửa prompt" oan.
+#
+# Bám vào "limit" + "image generation" chứ không bám nguyên câu: OpenAI đổi chữ
+# quanh nó luôn ("Plus plan" ↔ "Free plan" ↔ "your plan"), nhưng hai cụm này là
+# phần mang nghĩa.
+_RE_HET_ANH = re.compile(
+    r"(?:hit|reached|exceeded)[^.\n]{0,40}\blimit\b[^.\n]{0,40}"
+    r"image[ -]?gen(?:eration)?s?", re.I)
+# Giờ mở lại kiểu TƯƠNG ĐỐI: "resets in 26 minutes" · "resets in 2 hours".
+_RE_GIO_CHO = re.compile(
+    r"reset[s]?\s+in\s+(\d{1,3})\s*(minute|min|hour|hr)", re.I)
+
+
+def het_luot_tao_anh(text: str) -> str | None:
+    """Câu trả lời này có phải 'hết lượt tạo ảnh' không?
+
+    Trả `'+N'` (số PHÚT phải chờ) khi đọc được mốc mở lại · `''` khi thấy chặn mà
+    không rõ giờ · `None` khi đây không phải chặn quota.
+
+    Phân biệt rạch ròi với hai ca trông na ná, vì hướng xử lý ngược nhau:
+      · guardrail nội dung ("may violate our content policies") → sửa prompt;
+      · hết lượt ĐÍNH TỆP ("upload limit") → đã có `_chan_neu_het_upload`;
+      · hết lượt TẠO ẢNH → đổi tài khoản, prompt không việc gì.
+    """
+    if not _RE_HET_ANH.search(text or ""):
+        return None
+    g = _RE_GIO_CHO.search(text)
+    if not g:
+        return ""
+    so = int(g.group(1))
+    return f"+{so * 60 if g.group(2).lower().startswith('h') else so}"
 
 
 def _gio_24(h: str, p: str | None, ap: str | None) -> str:
@@ -353,61 +406,120 @@ class ChatGPTSession:
             time.sleep(1)
         return False
 
+    def _nut_che_do(self):
+        """Nút sức mạnh trong ô soạn, tìm theo THUỘC TÍNH — trả None nếu không thấy.
+
+        Ba đường dò, hẹp trước rộng sau; đường cuối mới bám chữ và có kèm nhãn
+        tiếng Việt, vì tài khoản để giao diện tiếng Việt ghi "Tức thì · Vừa · Cao"
+        chứ không phải "Instant · Medium · High"."""
+        for sel in (SELECTORS["mode_pill"], SELECTORS["mode_pill_alt"]):
+            nut = self.page.locator(sel).first
+            try:
+                if nut.is_visible(timeout=2000):
+                    return nut
+            except Exception:
+                pass
+        nut = self.page.locator("form button").filter(has_text=_RE_NHAN_CHE_DO).first
+        try:
+            return nut if nut.is_visible(timeout=2000) else None
+        except Exception:
+            return None
+
     def _chon_che_do(self, ten: str = "High") -> str:
-        """Chọn chế độ trả lời (Instant · Medium · High).
+        """Chọn chế độ trả lời (Instant · Medium · High). Trả về TÊN ANH đọc được.
 
         ĐÂY LÀ THỨ QUYẾT ĐỊNH khi xin nhiều ảnh trong một lượt. Instant chắc chắn
         hay ghép lưới; ca S5 ngày 2026-08-07 cho thấy Medium cũng có thể trả một
         contact sheet 2×3. Vì vậy đường tạo theo lô phải dùng High và kiểm tra lại
-        hiện trạng trước khi gửi."""
+        hiện trạng trước khi gửi.
+
+        ĐỌC BẰNG SỐ, ĐỪNG ĐỌC BẰNG CHỮ (vá 2026-08-15). Bản cũ dò nút bằng regex
+        `^(Instant|Medium|High)`; tài khoản để giao diện tiếng Việt hiện "Tức thì"
+        nên phép dò trả chuỗi rỗng, hàm thoát ngay ở dòng đầu và cả buổi render
+        chạy ở Instant — Instant gói cả lô vào MỘT ảnh ghép lưới, board đếm 1 ảnh
+        cho N prompt rồi vứt cả lô. Nay mọi quyết định đi qua `aria-valuenow` của
+        thanh trượt (0/1/2), thứ duy nhất không dịch được; chữ chỉ còn để ghi log.
+
+        Phải MỞ MENU mới đọc được nấc — thanh trượt không tồn tại lúc menu đóng.
+        Vì vậy hàm luôn mở rồi đóng, kể cả khi đang đúng chế độ cần."""
+        dich = _NAC.get(ten)
+        if dich is None:
+            return ""
         try:
-            dang = self.page.evaluate(
-                JS_CHON_CHE_DO)
-            if not dang or dang.startswith(ten):
-                return dang
-            self.page.get_by_role("button", name=dang).first.click(timeout=5000)
-            time.sleep(1.5)
+            nhan = self.page.evaluate(JS_NHAN_CHE_DO) or ""
+            nut = self._nut_che_do()
+            if nut is None:
+                self.logger.warning(
+                    "KHÔNG THẤY NÚT CHẾ ĐỘ (nhãn đọc được %r · %s) — giao diện có "
+                    "thể vừa đổi, xem lại 'mode_pill' trong dom_chatgpt.py.",
+                    nhan, self.page.url)
+                return ""
+            nut.click(timeout=5000)
+            time.sleep(1.2)
 
             # HAI KIỂU GIAO DIỆN CÙNG TỒN TẠI — đã đo: tài khoản này một kiểu, tài
             # khoản kia kiểu khác, nên phải thử CẢ HAI chứ đừng chọn theo phiên bản.
-            #   cũ : menu ba mục  role=menuitemradio  (Instant · Medium · High)
             #   mới: MỘT THANH TRƯỢT ba nấc — span role=slider, aria-valuenow 0/1/2
-            # Không bắt kiểu mới thì hàm nuốt lỗi và chạy nguyên ở Instant, mà
-            # Instant gói cả lô vào MỘT ảnh ghép lưới; board đếm 1 ảnh cho N prompt
-            # rồi vứt cả lô. Hỏng hoàn toàn im lặng.
-            try:
-                self.page.get_by_role("menuitemradio", name=ten).first.click(timeout=3000)
-            except Exception:
-                NAC = {"Instant": 0, "Medium": 1, "High": 2}
-                dich = NAC.get(ten)
-                th = self.page.locator("[role=slider]").first
-                if dich is None or not th.is_visible(timeout=3000):
-                    raise
-                th.click(timeout=3000)                 # lấy focus vào thanh trượt
+            #   cũ : menu ba mục  role=menuitemradio  (Instant · Medium · High)
+            st = self.page.evaluate(JS_DOC_NAC)
+            if st and st.get("nac") is not None:
+                toida = st.get("toida")
+                if toida is not None and dich > toida:
+                    self.logger.warning(
+                        "nấc %s (%d) vượt trần tài khoản (tối đa %d) — giữ nguyên.",
+                        ten, dich, toida)
+                    self._dong_menu_che_do()
+                    return _TEN_NAC.get(st["nac"], "")
+                self.page.locator("[role=slider]").first.click(timeout=3000)
                 for _ in range(6):                     # 6 nhịp là quá đủ cho 3 nấc
-                    nay = th.get_attribute("aria-valuenow") or "0"
-                    nay = int(nay) if nay.lstrip("-").isdigit() else 0
-                    if nay == dich:
+                    st = self.page.evaluate(JS_DOC_NAC) or {}
+                    nay = st.get("nac")
+                    if nay is None or nay == dich:
                         break
                     self.page.keyboard.press("ArrowRight" if nay < dich else "ArrowLeft")
                     time.sleep(0.5)
-                self.logger.info("giao diện THANH TRƯỢT — kéo tới nấc %d (%s)", dich, ten)
-                self.page.keyboard.press("Escape")
-            time.sleep(1.5)
+                # KIỂM LẠI THEO HIỆN TRẠNG, không theo ý định — đọc nấc lúc menu
+                # CÒN MỞ, vì đóng rồi thì thanh trượt biến mất và không còn gì để đo.
+                sau = (self.page.evaluate(JS_DOC_NAC) or {}).get("nac")
+                self._dong_menu_che_do()
+                if sau != dich:
+                    self.logger.warning(
+                        "ĐỔI CHẾ ĐỘ THẤT BẠI — thanh trượt vẫn ở nấc %r, cần %d (%s). "
+                        "Lô nhiều ảnh sẽ ra MỘT ảnh ghép lưới.", sau, dich, ten)
+                    return _TEN_NAC.get(sau, "")
+                self.logger.info("chế độ %s → %s (nấc %d)", nhan or "?", ten, dich)
+                return ten
 
-            # KIỂM LẠI THEO HIỆN TRẠNG, không theo ý định. Bản cũ coi như đã đổi
-            # ngay sau cú bấm, nên chạy cả buổi ở Instant mà log vẫn sạch bong.
-            sau = self.page.evaluate(
-                JS_CHON_CHE_DO_2)
-            if not sau.startswith(ten):
+            self.page.get_by_role("menuitemradio", name=_BI_DANH[ten]).first.click(timeout=3000)
+            time.sleep(1.2)
+            sau_nhan = self.page.evaluate(JS_NHAN_CHE_DO) or ""
+            if not _BI_DANH[ten].match(sau_nhan):
                 self.logger.warning("ĐỔI CHẾ ĐỘ THẤT BẠI — vẫn đang %r, cần %r. "
-                                    "Lô nhiều ảnh sẽ ra MỘT ảnh ghép lưới.", sau, ten)
-                return sau
-            self.logger.info(f"chuyển chế độ {dang} → {ten}")
+                                    "Lô nhiều ảnh sẽ ra MỘT ảnh ghép lưới.",
+                                    sau_nhan, ten)
+                return next((t for t, r in _BI_DANH.items() if r.match(sau_nhan)), "")
+            self.logger.info("chuyển chế độ %s → %s", nhan or "?", ten)
             return ten
         except Exception as e:
-            self.logger.warning(f"không chọn được chế độ {ten}: {str(e)[:60]}")
+            self.logger.warning(f"không chọn được chế độ {ten}: {str(e)[:80]}")
+            self._dong_menu_che_do()
             return ""
+
+    def _dong_menu_che_do(self) -> None:
+        """Đóng menu sức mạnh. Menu mở mà bỏ đó là che mất ô soạn — mọi cú gõ
+        prompt sau đó rơi vào menu chứ không vào ô, và lô chết không rõ lý do.
+        Không soi riêng thanh trượt: giao diện kiểu cũ không có nó, mà menu kiểu
+        cũ vẫn cần đóng khi nửa chừng có lỗi."""
+        for _ in range(2):
+            try:
+                if not self.page.locator(
+                        "[data-radix-menu-content][data-state='open'], "
+                        "[role=menu]").first.is_visible(timeout=1000):
+                    return
+                self.page.keyboard.press("Escape")
+                time.sleep(0.6)
+            except Exception:
+                return
 
     def _che_do_tot_nhat(self) -> str:
         """Đẩy lên chế độ tốt nhất còn với được: High → Medium → chạy tiếp.
@@ -425,10 +537,27 @@ class ChatGPTSession:
             self.logger.warning("không lên được High (đang %r) — chạy ở Medium.", che)
             return che2
         self.logger.warning(
-            "không đọc được nút chế độ (thử High → %r, Medium → %r) — vẫn chạy "
-            "tiếp bằng chế độ hiện có; lô nhiều ảnh có thể ra ảnh ghép lưới.",
-            che, che2)
+            "không đọc được nút chế độ (thử High → %r, Medium → %r) — lô nhiều "
+            "ảnh sẽ ra ảnh ghép lưới; xem `_chan_neu_che_do_kem`.", che, che2)
         return che2 or che
+
+    def _chan_neu_che_do_kem(self, che: str) -> str:
+        """Lý do PHẢI DỪNG trước khi gửi lô, rỗng nghĩa là đi tiếp được.
+
+        High hoặc Medium thì chạy (user chốt 2026-08-08: mất High không đáng bỏ
+        cả lô). Instant — hoặc không đọc nổi nấc — thì DỪNG: Instant gói cả lô
+        vào MỘT ảnh ghép lưới, board đếm 1 ảnh cho N prompt rồi vứt sạch, tức là
+        đốt một lượt tạo ảnh để lấy về rác. Dừng ở đây chưa gửi gì nên KHÔNG tốn
+        lượt nào, và user thấy lỗi ngay thay vì cuối buổi mới biết cả buổi chạy
+        Instant (ca 2026-08-15).
+
+        Chỉ chặn ĐƯỜNG LÔ. `generate` một ảnh vẫn chạy: một prompt thì Instant
+        chỉ làm ảnh kém bám prompt, không có chuyện ghép lưới lệch thẻ."""
+        if (che or "").startswith(("High", "Medium")):
+            return ""
+        return (f"chưa đặt được chế độ High/Medium (đang {che or 'không đọc được'}) "
+                "— dừng trước khi gửi để khỏi đốt một lượt lấy về ảnh ghép lưới. "
+                "ChatGPT vừa đổi giao diện thì sửa 'mode_pill' trong dom_chatgpt.py.")
 
     def _anh_dang_co(self) -> list[str]:
         """src ảnh của trợ lý theo ĐÚNG THỨ TỰ hiển thị, đã bỏ trùng."""
@@ -743,23 +872,38 @@ class ChatGPTSession:
         # tải xong — URL thành /c/<id>. Bản cũ không kiểm gì cả, nên cả lô đi vào
         # đoạn chat cũ: model đã có mấy chục ảnh trước đó trong ngữ cảnh, luật
         # chung của lô mới bị luật cũ đè, và ảnh ra khác look mà không báo gì.
+        # DẤU VẾT TỪNG BƯỚC của lượt này — đính vào sự kiện lỗi để sổ nói được
+        # "chết ở bước nào", không chỉ "không trả ảnh nào".
+        self.vet = getattr(self, "vet", None) or C.DauVetBuoc()
+        self.vet.bat_dau()
         if moi:
             if not self._ve_chat_trang(page):
+                self.vet.hong("mo_chat_trang")
                 return [], "", {"loi_text": "", "da_gui": False,
                                 "chan_doan": "không mở được đoạn chat trắng"}
+            self.vet.xong("mo_chat_trang")
             # `_ve_chat_trang` có thể ĐỔI TAB, mà biến `page` ở đây là bản chụp
             # từ đầu hàm — không lấy lại là cả phần còn lại thao tác trên tab vừa
             # bị đóng, và mọi lời gọi Playwright ném "Target closed".
             page = self.page
-        self._che_do_tot_nhat()
+        _chan = self._chan_neu_che_do_kem(self._che_do_tot_nhat())
+        if _chan:
+            self.vet.hong("chon_che_do", _chan[:150])
+            self.logger.warning("DỪNG LÔ %d ảnh — %s", len(viec), _chan)
+            return [], ("" if moi else chat_url), {
+                "loi_text": "", "da_gui": False, "chan_doan": _chan}
 
         tu_choi_0 = self._dem_tu_choi()
         # ĐÍNH REF CẢ KHI DÙNG LẠI CHAT CŨ. Board đã lọc sẵn: attach_paths lúc này
         # chỉ còn những ref CHƯA từng gửi vào chat này. Bỏ qua chúng vì "chat cũ"
         # là để nhân vật mới của lô này không có ảnh nào để bám, và model sẽ tự
         # bịa ra một người khác — sai câm, không có thông báo nào.
+        self.vet.xong("chon_che_do")
         if attach_paths and not self._dinh_ref_ben_bi(attach_paths):
+            self.vet.hong("dinh_ref", f"{len(attach_paths)} ref")
             return [], ("" if moi else chat_url), {"loi_text": "", "da_gui": False}
+        if attach_paths:
+            self.vet.xong(f"dinh_ref ({len(attach_paths)})")
 
         # CHỤP ẢNH CŨ SAU KHI ĐÍNH REF, không phải trước.
         #
@@ -851,8 +995,11 @@ class ChatGPTSession:
         # XOÁ SỔ NGHE MẠNG ngay trước cú gửi — sau mốc này id nào về là ảnh MỚI,
         # không cần biết DOM đang mount cái gì.
         self._mang_xoa()
+        self.vet.xong("go_prompt")
         if not self._gui():
+            self.vet.hong("gui_tin", "nút Send bị nuốt, draft còn trong ô soạn")
             return [], page.url, {"loi_text": "", "da_gui": False}
+        self.vet.xong("gui_tin")
         self.logger.info(f"đã gửi lô {len(viec)} khung ({len(txt):,} ký tự)")
 
         # Chờ theo SỐ ẢNH ĐÃ VỀ, không chỉ theo nút stop: giao diện carousel hiện
@@ -932,6 +1079,10 @@ class ChatGPTSession:
                 }
                 if tin_moi:
                     loi_text = list(tin_moi.values())[-1]
+                    # HẾT QUOTA THÌ ĐỔI TÀI KHOẢN NGAY, đừng gộp vào "lượt lỗi".
+                    # Gộp vào là lô tự gửi lại 2 lần trên chính tài khoản vừa
+                    # cạn, rồi thẻ bị dán nhãn "sửa prompt" — prompt vô can.
+                    self._chan_neu_het_anh(loi_text)
                     self.logger.warning("lượt imagegen trả kèm TEXT — coi là lỗi: %s",
                                         re.sub(r"\s+", " ", loi_text)[:240])
                     break
@@ -1050,6 +1201,8 @@ class ChatGPTSession:
         # KHÔNG cắt bớt, kể cả lô một ảnh trả về hai bản. Bản cũ lấy "id cuối" cho
         # lô một ảnh — đúng phần lớn lần, nhưng khi sai thì sai câm. Giao cả lượt
         # lên board: đủ đúng số thì board ghép, lệch thì vào Chờ phân loại.
+        (self.vet.xong if len(moi_src) == len(viec) else self.vet.hong)(
+            "nhan_anh", f"về {len(moi_src)}/{len(viec)}")
         return moi_src, page.url, {"loi_text": loi_text, "da_gui": True,
                                    # Tài khoản vừa chạm trần đính tệp trong chính
                                    # lượt này (xem `_dinh_ref`) — board dùng để cho
@@ -1138,6 +1291,27 @@ class ChatGPTSession:
             return None
         g = _RE_GIO_MO.search(m.group(0))
         return _gio_24(g.group(1), g.group(2), g.group(3)) if g else ""
+
+    def _chan_neu_het_anh(self, text: str) -> None:
+        """Thấy hết lượt TẠO ẢNH thì NÉM ngay để `_worker` xoay tài khoản.
+
+        Phải ném chứ không được trả về. Trả về là rơi xuống nhánh chung "ChatGPT
+        nhận tin nhưng không trả ảnh nào", và nhánh đó cho LÔ tự gửi lại 2 lần
+        qua `_HOAN` — gửi lại vào hàng chung, nơi chính tài khoản vừa cạn quota
+        đang rảnh nhất nên nhặt lại ngay. Đó là cách 14 lượt bị đốt trong 9 phút.
+
+        Ném thì đi đúng luật đã có: "mọi lỗi đều xoay sang tài khoản kế tiếp,
+        không treo ai ngoài vòng" (user chốt 2026-08-14). Nhãn `[NGHI-DEN:…]`
+        vẫn gắn để board GHI LOG giờ mở lại — board không hành động theo nó nữa.
+        """
+        cho = het_luot_tao_anh(text)
+        if cho is None:
+            return
+        nhan = f"[NGHI-DEN:{cho}]" if cho else "[NGHI-DEN:+60]"
+        self.logger.warning("ChatGPT hết lượt TẠO ẢNH — đổi tài khoản %s",
+                            f"(mở lại sau {cho[1:]} phút)" if cho else "(không rõ giờ)")
+        raise RuntimeError(
+            f"hết lượt tạo ảnh của tài khoản này — đổi sang tài khoản khác. {nhan}")
 
     def _chan_neu_het_upload(self) -> None:
         """Thấy chặn upload thì ném lỗi kèm nhãn `[NGHI-DEN:…]` cho board."""

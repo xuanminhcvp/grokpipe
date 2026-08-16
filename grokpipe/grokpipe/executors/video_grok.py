@@ -46,6 +46,74 @@ except Exception:  # pragma: no cover
 _TAG = "gpslot"
 
 
+# ---- SỔ POST ĐÃ LẤY CLIP -------------------------------------------------
+# Board phân biệt clip của lượt này với clip cũ bằng dấu `data-gp-cu` đóng lên
+# thẻ <video> trước khi submit. Dấu ấy là thuộc tính DOM, nên TAB ĐIỀU HƯỚNG SANG
+# TRANG KHÁC LÀ DẤU MẤT SẠCH. Tab submit từ /imagine (trang trống, không có gì để
+# đóng dấu) rồi trôi sang một trang post cũ đang có sẵn 10 video thì cả 10 đều
+# trông như "mới" — board tải một cái về, ghi đè lên video của shot đang chạy, và
+# không có dòng log nào nổ ra (ca thật ALTAR 2026-08-15).
+#
+# Sổ này là thứ duy nhất bắt được ca đó: một post đã cho clip rồi thì không cho
+# nữa. Dùng chung cho mọi luồng — bốn thợ chạy bốn tab nhưng lịch sử phiên của
+# Grok là của cả profile, tab này trôi sang post của tab kia được.
+#
+# ⚠ Sổ nằm trong BỘ NHỚ PHIÊN. Board khởi động lại là sổ trắng, nên trôi sang
+# post của phiên TRƯỚC vẫn lọt — user đã biết và chốt "vẫn tải như hiện nay"
+# (2026-08-15). Muốn bịt thì ghi sổ xuống đĩa.
+_POST_DA_LAY: set[str] = set()
+_POST_LOCK = threading.Lock()
+
+
+def id_post(url: str) -> str:
+    """ID trang post trong URL, '' nếu không phải trang post.
+
+    Phải cắt cả query: URL thật có đuôi `?con` (log ALTAR), cắt sót là cùng một
+    post ra hai ID khác nhau và sổ thành vô dụng.
+    """
+    if DAU_TRANG_POST not in (url or ""):
+        return ""
+    duoi = url.split(DAU_TRANG_POST, 1)[1]
+    return duoi.split("?", 1)[0].split("#", 1)[0].split("/", 1)[0].strip()
+
+
+def ghi_so_post(post: str) -> None:
+    if not post:
+        return
+    with _POST_LOCK:
+        _POST_DA_LAY.add(post)
+
+
+def so_post_da_lay() -> set[str]:
+    with _POST_LOCK:
+        return set(_POST_DA_LAY)
+
+
+def quen_het_post() -> None:
+    """Chỉ dùng trong test."""
+    with _POST_LOCK:
+        _POST_DA_LAY.clear()
+
+
+def nhan_duoc_clip(url_luc_submit: str, url_bay_gio: str) -> tuple[bool, str]:
+    """Clip đang thấy trên trang có phải của lượt vừa submit không?
+
+    Không được chặn ca RENDER TẠI CHỖ: tab đứng sẵn ở một post thì Grok dựng clip
+    ngay trong post đó, URL không đổi. Đã có lần bắt trang phải nhảy sang post mới
+    và hỏng đúng vì ca này — job báo lỗi trong khi clip đã xong, mất trắng credit.
+    URL không đổi thì không có điều hướng, dấu DOM còn nguyên, cứ tin dấu.
+    """
+    moi = id_post(url_bay_gio)
+    cu = id_post(url_luc_submit)
+    if not moi or moi == cu:
+        return True, ""                     # không rời trang → dấu DOM còn giá trị
+    if moi in so_post_da_lay():
+        return False, (f"tab trôi sang post {moi[:8]}… — post này board đã lấy clip "
+                       f"rồi, clip trên đó là của lượt trước")
+    ghi_so_post(moi)
+    return True, ""                         # post mới do chính lượt này mở ra
+
+
 class GrokSession:
     """Phiên grok.com/imagine qua CDP, giữ xuyên suốt pipeline."""
 
@@ -239,15 +307,27 @@ class GrokSession:
         mới · số video · danh sách nút. Đủ để phân biệt ba ca trông giống hệt
         nhau trong log cũ: kẹt trang post · Grok đổi giao diện · tab chết.
         """
+        # BỌC CẢ PHẦN ĐỊNH DẠNG, không riêng lời gọi evaluate.
+        #
+        # Bản cũ chỉ bọc `evaluate`. Trang trả về thứ không phải dict — JS đổi,
+        # trang lỗi, hay đơn giản là đang ở khung khác — thì `d.get(...)` nổ
+        # AttributeError NGAY TRONG lúc dựng câu báo lỗi. Hậu quả không phải mất
+        # một dòng chẩn đoán: lỗi thật đang trên đường ném ra bị thay bằng
+        # AttributeError, mà nơi gọi lại bọc `except Exception` để lượt render
+        # chập chờn không giết job → phán quyết bị nuốt, job quay tới hết giờ,
+        # log sạch trơn. Hàm chẩn đoán không bao giờ được là thứ làm hỏng lỗi.
         try:
             d = self.page.evaluate(JS_CHAN_DOAN)
+            if not isinstance(d, dict):
+                return f"không đọc được hiện trạng (trang trả về {type(d).__name__})"
+            return (f"URL {str(d.get('url'))[:70]} · lang={d.get('lang') or '?'} · "
+                    f"ô soạn {d.get('o_soan')} · nút gửi {d.get('nut_gui')} · "
+                    f"mode Video {'CÓ' if d.get('co_mode_video') else 'KHÔNG'} · "
+                    f"lượt mới {d.get('co_luot_moi') or 'không có'} · "
+                    f"{d.get('so_video')} video | nút: "
+                    f"{', '.join(d.get('nut') or [])[:140]}")
         except Exception as e:
-            return f"không đọc được hiện trạng ({str(e)[:70]})"
-        return (f"URL {str(d.get('url'))[:70]} · lang={d.get('lang') or '?'} · "
-                f"ô soạn {d.get('o_soan')} · nút gửi {d.get('nut_gui')} · "
-                f"mode Video {'CÓ' if d.get('co_mode_video') else 'KHÔNG'} · "
-                f"lượt mới {d.get('co_luot_moi') or 'không có'} · "
-                f"{d.get('so_video')} video | nút: {', '.join(d.get('nut') or [])[:140]}")
+            return f"không đọc được hiện trạng ({type(e).__name__}: {str(e)[:60]})"
 
     def _thay_tab(self) -> bool:
         """Đóng tab đang kẹt, mở tab TRẮNG khác trên cùng cửa sổ Chrome.
@@ -458,6 +538,10 @@ class GrokSession:
         rồi, bỏ ngang là mất tiền mà không có clip: lượt đó cứ chạy nốt và lưu
         về, còn cờ dừng chặn lượt SAU."""
         page = self.page
+        # DẤU VẾT TỪNG BƯỚC của lượt này. Sổ lỗi chỉ ghi kết cục; cái nói được
+        # "chết ở bước nào" là danh sách dưới đây, đính kèm khi báo lỗi.
+        self.vet = getattr(self, "vet", None) or C.DauVetBuoc()
+        self.vet.bat_dau()
         if nen_dung and nen_dung():
             self.logger.info("Grok: user bấm dừng trước khi submit — không tiêu credit")
             return False
@@ -477,17 +561,24 @@ class GrokSession:
                     f"'New Generation' đều không đưa tab về trang soạn). {self._chan_doan()}")
             self._dismiss_popups()
 
+            self.vet.xong(f"ve_trang_imagine (lượt {lan + 1})")
             if not self._cho_radio("Video", 15):
+                self.vet.hong("mode_video", self._nut_dang_co()[:120])
                 self.logger.warning("Grok: chưa thấy nút mode 'Video' (lượt %d/3)", lan + 1)
                 continue
-            self._chot_radio(self.resolution, NHOM_PHAN_GIAI, 8)
-            self._chot_radio(dur_label, NHOM_THOI_LUONG, 8)
+            self.vet.xong("mode_video")
+            (self.vet.xong if self._chot_radio(self.resolution, NHOM_PHAN_GIAI, 8)
+             else self.vet.hong)("chip_phan_giai")
+            (self.vet.xong if self._chot_radio(dur_label, NHOM_THOI_LUONG, 8)
+             else self.vet.hong)("chip_thoi_luong")
 
             page.locator(SELECTORS["file_input"]).first.set_input_files(image_path)
             time.sleep(4)
+            self.vet.xong("upload_anh")
 
             if DAU_TRANG_POST in (page.url or ""):
                 # Tab bị đẩy sang trang post giữa chừng — làm lại từ đầu, đừng cố chữa
+                self.vet.hong("troi_sang_post", (page.url or "")[:120])
                 self.logger.warning("Grok: tab trôi sang trang post sau khi upload "
                                     "(lượt %d/3), làm lại", lan + 1)
                 continue
@@ -495,6 +586,7 @@ class GrokSession:
             # KHÔNG phải "bấm lại cho chắc" mà là cú bấm quyết định. Phải chốt
             # bằng aria-checked, bấm suông rồi đi tiếp là ra clip sai thời lượng.
             if not self._chot_radio(dur_label, NHOM_THOI_LUONG, 10):
+                self.vet.hong("chot_lai_thoi_luong", f"xin {dur_label}")
                 self.logger.warning(
                     "Grok: bỏ qua và gửi tiếp — clip có thể dài hơn %s đã xin.", dur_label)
 
@@ -514,6 +606,7 @@ class GrokSession:
             # hư không, hết 15s timeout, job treo tới lúc hết giờ render. Kiểm ở
             # đây thì còn nằm trong vòng lặp, làm lại sạch từ đầu được.
             if DAU_TRANG_POST in (page.url or "") or not page.evaluate(JS_CO_NUT_GUI):
+                self.vet.hong("kiem_trang_soan", (page.url or "")[:120])
                 self.logger.warning(
                     "Grok: chưa về đúng trang soạn (lượt %d/3) — URL %s · nút: %s",
                     lan + 1, (page.url or "")[:55], self._nut_dang_co()[:90])
@@ -526,6 +619,7 @@ class GrokSession:
                 f"trang kết quả của video trước). {self._chan_doan()}")
 
         # hết credit -> fail nhanh, không chờ 10 phút vô ích
+        self.vet.xong("san_sang_soan")
         if self._out_of_credits():
             raise C.ExecutorError("Grok đã dùng 100% credit — không tạo được video.")
 
@@ -569,43 +663,50 @@ class GrokSession:
         if nen_dung and nen_dung():
             self.logger.info("Grok: user bấm dừng ngay trước submit — không tiêu credit")
             return False
+        # CHỤP URL NGAY TRƯỚC KHI BẤM. Đây là mốc để sau này biết tab có rời
+        # trang hay không — xem `nhan_duoc_clip`. Chụp sớm hơn là sai: giữa lúc
+        # kiểm trang soạn và lúc bấm, tab vẫn còn kịp trôi.
+        self.vet.xong("go_prompt")
+        url_luc_submit = page.url or ""
         if not self._bam_submit(15):
+            self.vet.hong("submit", self._nut_dang_co()[:120])
             raise C.ExecutorError(f"Không bấm được nút gửi. {self._chan_doan()}")
+        self.vet.xong("submit")
         self.logger.info("Grok: đã submit, chờ render...")
 
         # ⛔ ĐỪNG BẮT TRANG PHẢI NHẢY SANG POST MỚI. Đã thử 2026-08-09 và HỎNG:
         # tab đang đứng sẵn ở một trang post thì Grok render TẠI CHỖ, URL không
         # đổi — job báo "không mở post mới" trong khi clip đã render xong, mất
-        # trắng credit. Danh tính lượt lấy bằng DẤU trên thẻ <video>, không lấy
-        # bằng URL.
+        # trắng credit. Danh tính lượt lấy bằng DẤU trên thẻ <video>; URL chỉ
+        # dùng để biết dấu ấy CÒN GIÁ TRỊ hay đã bay theo một cú điều hướng.
         deadline = time.time() + self.gen_timeout
         vid_src = None
         du: list[str] = []          # các bản THỪA cùng một lượt submit
         while time.time() < deadline:
             time.sleep(5)
             try:
-                infos = page.evaluate(JS_VIDEO_THAT)
-                new = [v for v in infos
-                       if not v["cu"] and v["src"] and v["src"] not in before
-                       and v["dur"] and v["dur"] >= 3]
-                if new:
-                    # Grok trả 2 biến thể cho một submit (nút Thumbnail 1/2 trên
-                    # trang post), cả hai đều đã trừ credit — giữ hết để user so.
-                    if len(new) > 1:
-                        self.logger.info(
-                            "Grok trả %d biến thể cho lượt này (đã trừ %d credit) "
-                            "— giữ hết, bản thừa vào versions/", len(new), len(new))
-                    vid_src = new[0]["src"]
-                    du = [v["src"] for v in new[1:]]
-                    break
+                got = self._soi_clip_moi(before, url_luc_submit)
+            except C.ExecutorError:
+                # PHẢI LỌT RA NGOÀI. `except Exception` bên dưới nuốt hết mọi
+                # thứ để lượt render chập chờn không giết job — nhưng nuốt luôn
+                # cả phán quyết "clip này không phải của lượt mình" thì vòng lặp
+                # cứ quay tiếp tới hết giờ, lần soi sau vẫn thấy đúng mấy clip
+                # đó rồi lại ném rồi lại bị nuốt: job treo 10 phút, log sạch trơn.
+                raise
             except Exception:
-                pass
+                got = None
+            if got:
+                vid_src, du = got
+                break
         if not vid_src:
+            self.vet.hong("cho_render", f"hết {int(self.gen_timeout)}s")
             raise C.ExecutorError(
                 f"Hết {int(self.gen_timeout)}s chờ Grok render. {self._chan_doan()}")
         self.logger.info(f"Grok: video xong ({vid_src[:70]}...), đang tải")
 
+        self.vet.xong("nhan_clip")
         data = self._tai_ve(vid_src)
+        self.vet.xong("tai_ve")
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "wb") as f:
             f.write(data)
@@ -623,6 +724,39 @@ class GrokSession:
             except Exception as e:
                 self.logger.warning("Grok: bỏ bản thừa %d (%s)", i, str(e)[:90])
         return True
+
+    def _soi_clip_moi(self, before: set, url_luc_submit: str):
+        """MỘT nhịp soi trang: có clip của lượt này chưa? Trả (src chính, [bản thừa]).
+
+        Tách khỏi vòng chờ để kiểm được — vòng kia ngủ 5 giây mỗi nhịp và chạy
+        tới 10 phút. Ném `ExecutorError` khi thấy clip nhưng clip ấy KHÔNG phải
+        của lượt này; trả `None` khi chưa có gì.
+        """
+        infos = self.page.evaluate(JS_VIDEO_THAT)
+        new = [v for v in infos
+               if not v["cu"] and v["src"] and v["src"] not in before
+               and v["dur"] and v["dur"] >= 3]
+        if not new:
+            return None
+        # CÓ CLIP RỒI THÌ HỎI: nó nằm trên trang NÀO?
+        #
+        # Dấu `data-gp-cu` chỉ có giá trị khi tab không rời trang — điều hướng là
+        # DOM dựng lại, dấu bay hết, và mọi clip cũ trên trang mới đều trông như
+        # vừa sinh ra. Chốt này là thứ duy nhất đứng giữa "clip của lượt này" và
+        # "clip của shot khác đã tải về từ lâu".
+        duoc, vi_sao = nhan_duoc_clip(url_luc_submit, self.page.url or "")
+        if not duoc:
+            raise C.ExecutorError(
+                f"Không nhận clip: {vi_sao}. Credit của lượt này đã trừ nhưng board "
+                f"KHÔNG tải về, vì tải là ghi đè video sai lên shot. Bấm Tạo lại. "
+                f"{self._chan_doan()}")
+        # Grok trả 2 biến thể cho một submit (nút Thumbnail 1/2 trên trang post),
+        # cả hai đều đã trừ credit — giữ hết để user so.
+        if len(new) > 1:
+            self.logger.info(
+                "Grok trả %d biến thể cho lượt này (đã trừ %d credit) "
+                "— giữ hết, bản thừa vào versions/", len(new), len(new))
+        return new[0]["src"], [v["src"] for v in new[1:]]
 
     def _tai_ve(self, src: str) -> bytes:
         """Tải một clip. CDN của Grok hay chậm hoặc ngắt giữa chừng nên timeout

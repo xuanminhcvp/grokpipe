@@ -29,9 +29,22 @@ class RetryCharacterizationTest(unittest.TestCase):
         self.assertIn("_ban_xep_lai", source)
 
     def test_retry_authorities_are_explicitly_counted(self):
+        """ĐẾM số nơi có quyền xếp lại — không phải hỏi các tên ấy có tồn tại không.
+
+        Bản cũ chỉ assert bốn chuỗi nằm đâu đó trong một file 4900 dòng. Nó
+        không thể phát hiện một authority MỚI, mà đó đúng là bất biến nó mang
+        tên (`docs/JOB-LIFECYCLE-README.md`: mỗi lifecycle fact có đúng một
+        authority). Đếm CHỖ GỌI thì thêm một đường xếp lại là đỏ ngay.
+        """
         source = BOARD.read_text(encoding="utf-8")
         markers = ["_xep_lai_sau(", "_HOAN", "AUTO_MAX_TRY", "VID_MAX_TRY"]
         self.assertEqual([marker for marker in markers if marker not in source], [])
+
+        # 1 định nghĩa + 1 chỗ gọi trong `_worker` + 1 chỗ gọi trong `_ban_xep_lai`
+        # là hết. Thêm chỗ nào nữa thì phải sửa doc trước, không phải sửa số này.
+        self.assertEqual(source.count("_xep_lai_sau("), 2,
+                         "có thêm nơi hẹn xếp lại — quyền re-enqueue đang bị nhân đôi")
+        self.assertEqual(source.count("def _ban_xep_lai("), 1)
 
     def test_video_has_inner_session_reconnect_and_outer_retry_cap(self):
         video = function_source(BOARD, "_gen_video")

@@ -81,7 +81,9 @@ class FakeBoard:
     def read(self):
         return {"scenes": []}
 
-    def get_sf(self, sf_id):
+    def get_sf(self, sf_id, data=None):
+        # `data` là tham số tuỳ chọn của bản thật — `/api/tao-lo` truyền vào để
+        # khỏi đọc lại file board cho từng SF.
         return {"id": sf_id}
 
     def get_shot(self, shot_id):

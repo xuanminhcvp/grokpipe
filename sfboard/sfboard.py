@@ -67,6 +67,7 @@ class Board:
         self.pl = os.path.join(self.dir, PL_TEN)          # ảnh chờ phân loại
         self.nk_path = os.path.join(self.pl, "nhat-ky.json")
         self._nk = {"mtime": -1.0, "data": {}}
+        self._nk_lock = threading.Lock()   # sổ lượt: bốn thợ ghi cùng lúc
         os.makedirs(self.assets, exist_ok=True)
         os.makedirs(self.versions, exist_ok=True)
         os.makedirs(self.videos, exist_ok=True)
@@ -93,21 +94,40 @@ class Board:
         return self._nk["data"]
 
     def turn_log_ghi(self, ten_file: str, info: dict) -> None:
-        d = dict(self.turn_log())
-        d[ten_file] = info
-        # Cắt bớt dòng của file đã biến mất, để sổ không phình mãi.
-        if len(d) > 4000:
-            con = set(os.listdir(self.versions))
-            d = {k: v for k, v in d.items() if k in con}
-        tmp = self.nk_path + ".tmp"
-        try:
-            os.makedirs(self.pl, exist_ok=True)
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(d, f, ensure_ascii=False, indent=1, sort_keys=True)
-            os.replace(tmp, self.nk_path)
-            self._nk = {"mtime": os.path.getmtime(self.nk_path), "data": d}
-        except OSError as e:
-            _LOG.warning("không ghi được sổ lượt: %s", e)
+        # MỘT KHOÁ CHO CẢ ĐỌC-SỬA-GHI, và tên file tạm RIÊNG theo luồng.
+        #
+        # Bản cũ hỏng hai tầng khi bốn thợ cùng ghi (log ALTAR 2026-08-15):
+        #   · tên tạm cố định `nhat-ky.json.tmp` dùng chung → thợ nào `os.replace`
+        #     trước thì mang file tạm đi, thợ sau replace vào chỗ trống và văng
+        #     "[Errno 2] No such file or directory";
+        #   · nặng hơn và KHÔNG hiện trong log: cả hai đọc `turn_log()` từ trước
+        #     rồi ghi đè NGUYÊN file, nên dòng của thợ này xoá dòng của thợ kia.
+        #     Đo bằng test: 60 dòng ghi vào, 14 sống sót.
+        #
+        # Sổ lượt là thứ duy nhất trả lời "bản trong versions/ ra từ lượt ChatGPT
+        # nào" — mất là mất hẳn, không dựng lại được từ đâu.
+        with self._nk_lock:
+            d = dict(self.turn_log())
+            d[ten_file] = info
+            # Cắt bớt dòng của file đã biến mất, để sổ không phình mãi.
+            if len(d) > 4000:
+                con = set(os.listdir(self.versions))
+                d = {k: v for k, v in d.items() if k in con}
+            tmp = f"{self.nk_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            try:
+                os.makedirs(self.pl, exist_ok=True)
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(d, f, ensure_ascii=False, indent=1, sort_keys=True)
+                os.replace(tmp, self.nk_path)
+                self._nk = {"mtime": os.path.getmtime(self.nk_path), "data": d}
+            except OSError as e:
+                _LOG.warning("không ghi được sổ lượt: %s", e)
+                # Ghi hỏng thì dọn file tạm của CHÍNH MÌNH, đừng để rơi vãi
+                # trong thư mục ảnh chờ phân loại.
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
 
     def read(self) -> dict:
         with open(self.path, "r", encoding="utf-8") as f:
@@ -382,10 +402,32 @@ def _ep(a: dict) -> str:
     return f"http://localhost:{a['port']}"
 
 
+# TRẦN REF MỖI LÔ — chỉnh được trên board vì NGƯỠNG THẬT CHƯA AI ĐO.
+# Log ALTAR 2026-08-15: lô 5 ref chạy sạch, lô 9 hỏng 2/2, lô 14-17 hỏng mọi
+# lượt. Vách nằm đâu đó giữa 5 và 9, nhưng chỉ có 4 mốc quan sát nên đừng đóng
+# cứng — user tự dò 8 hay 12 hợp hơn mà không cần sửa mã.
+TRAN_REF = 10
+TRAN_REF_MAX = 30
+
+
+def _dat_tran_ref(n) -> int:
+    """Đặt trần ref và lưu lại. Tách khỏi handler vì `do_POST` đã ĐỌC `TRAN_REF`
+    ở nhánh tạo lô phía trên — khai `global` sau lần đọc đầu là SyntaxError."""
+    global TRAN_REF
+    try:
+        TRAN_REF = max(1, min(TRAN_REF_MAX, int(str(n).strip() or TRAN_REF)))
+    except ValueError:
+        pass
+    _save_accounts()
+    _LOG.info("Trần ref mỗi lô: %d.", TRAN_REF)
+    return TRAN_REF
+
+
 def _save_accounts():
     with ACC_LOCK:
         with open(ACC_PATH, "w", encoding="utf-8") as f:
-            json.dump({"accounts": ACCOUNTS}, f, ensure_ascii=False, indent=2)
+            json.dump({"accounts": ACCOUNTS, "tran_ref": TRAN_REF},
+                      f, ensure_ascii=False, indent=2)
 
 
 # ---- Bộ đếm bản/ngày cho từng tài khoản ---------------------------------
@@ -450,10 +492,12 @@ def _dem_xem(port: int) -> dict:
 
 def _init_accounts():
     """Nạp accounts từ file; lần đầu chạy thì dựng từ cờ --cdp/--cdp-grok rồi lưu lại."""
-    global ACCOUNTS
+    global ACCOUNTS, TRAN_REF
     if os.path.exists(ACC_PATH):
         try:
-            ACCOUNTS = json.load(open(ACC_PATH, encoding="utf-8"))["accounts"]
+            _d = json.load(open(ACC_PATH, encoding="utf-8"))
+            ACCOUNTS = _d["accounts"]
+            TRAN_REF = max(1, min(TRAN_REF_MAX, int(_d.get("tran_ref") or TRAN_REF)))
             return
         except Exception:
             pass
@@ -845,6 +889,101 @@ def _loai_viec(ident: str) -> str:
         return "vid" if BOARD.get_shot(ident)[0] is not None else "img"
     except Exception:                                # noqa: BLE001
         return ""
+
+
+def _dau_vet_buoc(kind: str) -> list:
+    """Dấu vết TỪNG BƯỚC của lượt vừa hỏng, lấy từ phiên của chính luồng thợ này.
+
+    Sổ lỗi trước đây chỉ ghi kết cục ("hết 600s chờ render"), nên đọc sổ không
+    biết lượt ấy chết ở bước nào. Đính danh sách này vào sự kiện là biến câu hỏi
+    "có bug video" thành câu trả lời "chết ở `chip_thoi_luong`, sau 8 giây".
+
+    Không bao giờ ném: đây là phần phụ trợ của một thông báo lỗi.
+    """
+    try:
+        sess = getattr(_TL, "gsess" if kind == "vid" else "sess", None)
+        vet = getattr(sess, "vet", None)
+        return vet.lay() if vet is not None else []
+    except Exception:                       # noqa: BLE001
+        return []
+
+
+def _phanh_ghi_so(kind: str) -> int:
+    """Bao nhiêu lần lặp mới ghi sổ — VIDEO ghi ngay lần đầu.
+
+    Phanh sinh ra để sổ khỏi thành rác: với ẢNH, xoay tài khoản là chuyện thường
+    ngày nên chỉ lần thứ 3 mới đáng lưu. Với VIDEO thì ngược hẳn — Grok trừ
+    credit theo TỪNG submit, nên "chờ hỏng 3 lần" nghĩa là đốt 3 lần tiền rồi
+    mới có dòng đầu tiên. Bug tab-trôi-sang-post-cũ im lặng suốt cũng vì thế.
+    """
+    return 1 if kind == "vid" else LAP_MOI_GHI
+
+
+def _ly_do_lo(vi: str | None, chi_tiet: str = "") -> str:
+    """Lô hỏng → reason code cho sổ lỗi runtime. Hàm thuần, không ghi state.
+
+    Khác `_ly_do_loi`: chỗ kia phân loại EXCEPTION của thợ, chỗ này phân loại
+    một lô KHÔNG ném lỗi — nó tính ra câu `_vi` rồi dán nhãn và tự gửi lại. Vì
+    không ai ném nên trước đây không có gì vào sổ: sổ 15 sự kiện trong khi log
+    Terminal đặc kín lỗi cả ngày (đo 2026-08-15).
+
+    `chi_tiet` là văn bản ChatGPT trả kèm, nếu có. Nó là thứ DUY NHẤT phân biệt
+    được ba ca trông giống hệt nhau ở mức `_vi` ("không trả ảnh nào") mà hướng
+    xử lý ngược nhau: hết quota → đổi tài khoản · guardrail → sửa prompt · không
+    rõ → chưa biết, đừng đoán.
+    """
+    v = f"{vi or ''} {chi_tiet or ''}".lower()
+    if any(k in v for k in _LY_DO_HUY):
+        return "CANCELLED"                  # user dừng — không phải bug
+    if "chế độ" in v:
+        return "MODE_UNSET"                 # selector chết, chặn cả board
+    if "send bị nuốt" in v or "chưa gửi được tin" in v:
+        return "SEND_SWALLOWED"
+    if "không đính được" in v or "thiếu" in v and "ref" in v:
+        return "REF_UPLOAD_FAILED"
+    # Quota phải soi TRƯỚC guardrail: câu quota cũng nằm trong nhánh "không trả
+    # ảnh nào", mà đổ nhầm sang guardrail là đẩy user đi sửa prompt vô can.
+    if "limit" in v and ("image gen" in v or "hạn mức" in v):
+        return "ACCOUNT_LOST"
+    if "content polic" in v or "guardrail" in v:
+        return "GUARDRAIL"
+    if "trả kèm chữ" in v:
+        return "TEXT_INSTEAD_OF_IMAGE"
+    if "thừa" in v and "ảnh" in v:
+        return "COUNT_EXTRA"
+    if "chỉ về" in v:
+        return "COUNT_SHORT"
+    if "không trả ảnh nào" in v:
+        return "NO_IMAGES"
+    return "LO_FAILED"
+
+
+def _ghi_so_lo_hong(ident: str, viec, vi: str, chi_tiet: str, n_ve: int) -> None:
+    """Ghi một sự kiện vào sổ runtime khi LÔ hỏng hẳn (đã thử hết lượt).
+
+    CHỈ ghi ở lần hỏng CUỐI, không ghi mỗi lần gửi lại: lô nào cũng thử 2 lượt
+    nên ghi cả hai là sổ nhân đôi mà không thêm tin gì. Lượt giữa vẫn nằm trong
+    log Terminal và trong dấu vết `VET` của từng thẻ.
+
+    Không ném ra ngoài trong mọi trường hợp — `report_runtime_bug` đã cam kết
+    thế, nhưng chỗ này đứng SAU khi nhãn đã dán, nên kể cả nó đổi ý thì lô vẫn
+    phải đi tiếp bình thường.
+    """
+    ly_do = _ly_do_lo(vi, chi_tiet)
+    if ly_do == "CANCELLED":
+        return                              # user bấm dừng, không phải bug
+    try:
+        report_runtime_bug({
+            "reason_code": ly_do,
+            "category": "lo_that_bai",
+            "severity": "ERROR",
+            "job": {"job_id": ident, "kind": "img", "phase": "lo",
+                    "so_anh": len(viec), "ve_duoc": n_ve},
+            "runtime": {"buoc": _dau_vet_buoc("img")},
+            "exc": RuntimeError(f"{vi} · {(chi_tiet or '')[:200]}".strip(" ·")),
+        })
+    except Exception as e:                  # noqa: BLE001
+        _LOG.warning("không ghi được sổ lỗi cho lô (%s)", str(e)[:80])
 
 
 def _ly_do_loi(e: Exception) -> str:
@@ -1506,6 +1645,64 @@ def _cho_ngoi_con_dung(endpoint: str, kind: str, slot: int) -> bool:
     return slot < _so_tab_theo_viec(a, kind)
 
 
+def _dat_nhan_lo(viec, nhan: dict) -> int:
+    """Dán nhãn của LÔ cho từng thành viên — TRỪ thẻ đã có ảnh. Trả về số thẻ bỏ qua.
+
+    Một lô là MỘT tin nhắn, nhưng kết quả về theo từng thẻ: lượt này có thể trả
+    ảnh cho 9/10 thẻ. Chín thẻ ấy xong thật, ảnh đã nằm trong `assets/`. Lượt sau
+    của cùng lô đó mà dán đè nhãn cho cả 10 thì chín thẻ có ảnh bị kéo ngược về
+    `queued`, rồi chết `error` theo lượt hỏng — user nhìn thấy thẻ đỏ cho ảnh
+    đang có thật (dấu vết ALTAR 2026-08-15: cả 8 thẻ scene 21).
+
+    Chỉ soi đúng nhãn `done`, và chỉ ở đây: `done → queued` là chiều HỢP LỆ khi
+    user bấm Tạo lại, nên không chặn được ở tầng ghi trạng thái. Chỗ này thì
+    biết chắc đây là lượt sau của cùng một lô, không phải ý định mới của user.
+    """
+    bo_qua = 0
+    for i, _ in viec:
+        if (JOBS.get(i) or {}).get("state") == "done":
+            bo_qua += 1
+            continue
+        JOBS[i] = dict(nhan)
+    return bo_qua
+
+
+def _xep_ghe_cho_tai_khoan(a: dict, kinds: list, mo_tho) -> None:
+    """Cấp ghế còn thiếu và thu ghế dôi ra cho MỘT tài khoản, đúng một vòng.
+
+    Tách khỏi thân `_supervisor` để kiểm được: vòng kia ngủ 4 giây mỗi nhịp và
+    mở luồng thợ thật, nên không có cách nào bắn nó một cách xác định.
+
+    `mo_tho(kind, slot)` trả về đối tượng luồng đã chạy — nơi gọi quyết định là
+    luồng thật hay bản giả.
+    """
+    for k in kinds:
+        so_tab = _so_tab_theo_viec(a, k)
+        for slot in range(so_tab):
+            key = (a["port"], k, slot)
+            th = WORKERS.get(key)
+            if th is None or not th.is_alive():
+                WORKERS[key] = mo_tho(k, slot)
+        # Hạ số tab thì cho các luồng thừa tự nghỉ ở vòng lặp kế tiếp — nhưng
+        # CHỈ XOÁ KHOÁ KHI LUỒNG ĐÃ CHẾT THẬT.
+        #
+        # Bản cũ xoá ngay. Mà `_worker` chỉ soi chỗ ngồi ở ĐẦU VÒNG: tới 2 giây
+        # nếu đang rỗi, tới vài phút nếu đang giữa lượt vẽ. Nâng số tab lại
+        # trong quãng đó thì `WORKERS.get(key)` trả None và vòng trên mở THÊM
+        # một luồng nữa cho đúng ghế ấy. Ghế không phải sổ sách — nó là danh
+        # tính tab (`window.name == "cgslot<N>"`), nên hai luồng cùng slot gõ
+        # vào cùng một tab Chrome; rồi luồng cũ tới lượt nghỉ gọi
+        # `_dong_tab_cho_ngoi` đóng tab, giật khỏi tay luồng mới đang làm dở.
+        #
+        # Giữ khoá lại là đủ: luồng còn sống thì vòng cấp ghế ở trên bỏ qua,
+        # luồng chết rồi thì vòng này dọn ở nhịp sau.
+        for key in [x for x in list(WORKERS)
+                    if x[0] == a["port"] and x[1] == k and len(x) > 2 and x[2] >= so_tab]:
+            th = WORKERS.get(key)
+            if th is None or not th.is_alive():
+                WORKERS.pop(key, None)
+
+
 def _dong_tab_cho_ngoi(slot: int) -> None:
     """Đóng tab riêng của chỗ ngồi này khi thợ nghỉ vì dôi ra.
 
@@ -1552,16 +1749,33 @@ def _xep_lai_sau(kind: str, item: tuple, giay: float) -> None:
     bấm dừng trong lúc chờ thì việc này biến mất theo.
     """
     gen = dung_gen()
-    t = threading.Timer(max(1.0, giay), _ban_xep_lai, args=(kind, item, gen))
+    # DẤU SỞ HỮU. Thợ vừa dán nhãn 'đang chạy · thử lại sau…' ngay trên dòng gọi
+    # này, và `_dong_dau` đóng một `t` mới vào mỗi lần ghi trạng thái. Cầm theo
+    # `t` đó là cầm theo câu "nhãn hiện tại là nhãn của TÔI" — xem `_ban_xep_lai`.
+    dau = (JOBS.get(item[1]) or {}).get("t")
+    t = threading.Timer(max(1.0, giay), _ban_xep_lai, args=(kind, item, gen, dau))
     t.daemon = True
     t.start()
 
 
-def _ban_xep_lai(kind: str, item: tuple, gen: int) -> str:
+def _ban_xep_lai(kind: str, item: tuple, gen: int, dau: float | None) -> str:
     """THÂN của bộ hẹn giờ — tới giờ rồi thì làm gì. Trả về quyết định đã chọn.
 
     Tách khỏi closure để máy trạng thái Hypothesis bắn được nó một cách xác
     định, thay vì phải chờ đồng hồ thật mỗi bước."""
+    # VIỆC CÒN LÀ CỦA MÌNH KHÔNG? Chuông này hẹn từ tối đa 180 giây trước
+    # (`cho = min(20 + 20*tries, 180)`); trong quãng đó user tạo lại được, thợ
+    # khác nhận và làm xong được. Nhãn hiện tại khác dấu đã cầm nghĩa là có
+    # người ghi đè rồi — việc không còn của mình, im lặng là đúng.
+    #
+    # Bỏ phép gác này thì chuông cũ ghi `error` lên việc đang render thật, mà cả
+    # ba đường tạo (`/api/generate`, nhánh tạo nhiều SF, chốt video của auto)
+    # đều đọc nhãn để biết "còn chạy không" — nên nhãn sai mở lại chốt chống
+    # trùng và auto đẩy lệnh thứ hai sang Grok, trừ credit lần nữa. Gác cả nhánh
+    # xếp lại chứ không riêng nhánh ghi nhãn: xếp lại một việc đã xong cũng là
+    # một lượt render thừa.
+    if (JOBS.get(item[1]) or {}).get("t") != dau:
+        return "nhuong"
     quyet = _quyet_xep_lai(item[1], gen)
     if quyet == "xep":
         _xep(IMG_QUEUE if kind == "img" else VID_QUEUE, item)
@@ -1757,7 +1971,8 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                     "severity": "ERROR",
                     "job": {"job_id": ident, "kind": "vid", "phase": "retry_exhausted",
                             "tries": VID_MAX_TRY},
-                    "runtime": {"endpoint": endpoint, "slot": slot},
+                    "runtime": {"endpoint": endpoint, "slot": slot,
+                                "buoc": _dau_vet_buoc("vid")},
                     "exc": e,
                 })
             else:
@@ -1774,8 +1989,9 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                     "severity": "ERROR",
                     "job": {"job_id": ident, "kind": kind, "phase": "rotate",
                             "tries": tries + 1},
-                    "runtime": {"endpoint": endpoint, "slot": slot},
-                    "min_repeats": LAP_MOI_GHI,
+                    "runtime": {"endpoint": endpoint, "slot": slot,
+                                "buoc": _dau_vet_buoc(kind)},
+                    "min_repeats": _phanh_ghi_so(kind),
                     "exc": e,
                 })
         finally:
@@ -1972,8 +2188,9 @@ def _gac_hang_doi():
                     theo_nhom.setdefault(_nhom_cua(k, _dl) or "", []).append(k)
                 for xs in theo_nhom.values():
                     xs.sort(key=_uu_tien)
-                    for i in range(0, len(xs), TRAN_MAY_TU_GOM):
-                        can_xep.append("LO:" + ",".join(xs[i:i + TRAN_MAY_TU_GOM]))
+                    for lo in _chia_lo(xs, lambda i: _ref_id_cua_sf(i, _dl),
+                                       TRAN_MAY_TU_GOM, TRAN_REF):
+                        can_xep.append("LO:" + ",".join(lo))
 
             for k in can_xep:
                 # Trần nới 3 → 12 (2026-08-14) cho hợp với luật thử-lại-vô-hạn.
@@ -2048,20 +2265,13 @@ def _supervisor():
                 # Một tài khoản có thể chạy NHIỀU TAB song song: mỗi tab một luồng
                 # thợ riêng, cùng trỏ vào một cửa sổ Chrome. Số tab do user đặt ở
                 # mục Tài khoản trên board (mặc định 1 = như cũ).
-                for k in kinds:
-                    so_tab = _so_tab_theo_viec(a, k)
-                    for slot in range(so_tab):
-                        key = (a["port"], k, slot)
-                        th = WORKERS.get(key)
-                        if th is None or not th.is_alive():
-                            t = threading.Thread(target=_worker_entry,
-                                                 args=(ep, k, slot), daemon=True)
-                            WORKERS[key] = t
-                            t.start()
-                    # hạ số tab thì cho các luồng thừa tự nghỉ ở vòng lặp kế tiếp
-                    for key in [x for x in list(WORKERS)
-                                if x[0] == a["port"] and x[1] == k and len(x) > 2 and x[2] >= so_tab]:
-                        WORKERS.pop(key, None)
+                def _mo_tho(k, slot, _ep=ep):
+                    t = threading.Thread(target=_worker_entry,
+                                         args=(_ep, k, slot), daemon=True)
+                    t.start()
+                    return t
+
+                _xep_ghe_cho_tai_khoan(a, kinds, _mo_tho)
         except Exception:
             pass
         time.sleep(4)
@@ -2137,6 +2347,12 @@ def _auto_allow(st: dict, ident: str, cyc: int, ghi: bool = True) -> bool:
 
 def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     """Quét một scene, xếp việc còn thiếu. Trả (ảnh thiếu, ảnh tổng, video thiếu, video tổng)."""
+    # Snapshot này thuộc THẾ HỆ NÀO? `_auto_runner` thả AUTO_LOCK trong lúc đọc
+    # board và tính task, nên user có thể bấm Dừng tất cả đúng giữa quãng đó.
+    # Chụp generation ở cửa vào rồi kiểm lại NGAY TẠI chỗ commit dưới cùng
+    # AUTO_LOCK với `/api/dung-het`: hoặc auto commit trước và cú dừng vét nó,
+    # hoặc cú dừng thắng và snapshot cũ không được ghi JOBS/enqueue nữa.
+    auto_gen = dung_gen()
     sfs, shots = sc.get("sfs", []), sc.get("shots", [])
 
     # 1) ảnh SF còn thiếu — CHẠY THEO LÔ, GOM THEO ĐỊA ĐIỂM.
@@ -2178,8 +2394,9 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
         tasks: list[tuple[str, list[str]]] = []
         for m, xs in sorted(nhom.items(), key=lambda kv: min(map(_uu_tien, kv[1]))):
             xs.sort(key=_uu_tien)
-            for k in range(0, len(xs), TRAN_MAY_TU_GOM):
-                tasks.append((m, xs[k:k + TRAN_MAY_TU_GOM]))
+            for lo in _chia_lo(xs, lambda i: _ref_id_cua_sf(i, _data),
+                               TRAN_MAY_TU_GOM, TRAN_REF):
+                tasks.append((m, lo))
 
         # ĐẨY HẾT MỌI TASK VÀO HÀNG CHỜ NGAY, theo đúng thứ tự T1 → T2 → T3.
         #
@@ -2190,14 +2407,20 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
         # không huỷ được, không biết thứ tự.
         # Chi phí gần như bằng không: một việc trong hàng chỉ tốn ~700 byte, và
         # thứ chặn tốc độ vẫn là số tab chứ không phải độ dài hàng.
+        da_xep: list[list[str]] = []
         for m, lo in tasks:
-            for i in lo:
-                _auto_allow(st, i, cyc)      # tính một lần thử: task này đi thật
-                JOBS[i] = {"state": "queued",
-                           "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m, _data)}"}
-            _xep(IMG_QUEUE, ("img", "LO:" + ",".join(lo), 0, False))
-        _LOG.info("[auto %s] đẩy %d task (%d ảnh) vào hàng chờ",
-                  sc["id"], len(tasks), sum(len(l) for _, l in tasks))
+            with AUTO_LOCK:
+                if dung_gen() != auto_gen or AUTO.get(sc["id"]) is not st:
+                    break
+                for i in lo:
+                    _auto_allow(st, i, cyc)  # tính một lần thử: task này đi thật
+                    JOBS[i] = {"state": "queued",
+                               "msg": f"chờ · {len(lo)} ảnh · {_ten_gon(m, _data)}"}
+                _xep(IMG_QUEUE, ("img", "LO:" + ",".join(lo), 0, False))
+                da_xep.append(lo)
+        if da_xep:
+            _LOG.info("[auto %s] đẩy %d task (%d ảnh) vào hàng chờ",
+                      sc["id"], len(da_xep), sum(map(len, da_xep)))
 
     # 2) video còn thiếu, nhưng chỉ khi ảnh SF của shot đó đã có
     #    VÀ chỉ khi công tắc auto-video đang bật (mặc định tắt).
@@ -2205,11 +2428,15 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     for sh in (shots if _auto_vid_doc() else []):
         if BOARD.video_file(sh["id"]) or not BOARD.find_file(sh.get("sf", "")):
             continue
-        if JOBS.get(sh["id"], {}).get("state") == "running":
-            continue
-        if _auto_allow(st, sh["id"], cyc):
-            _enqueue("vid", sh["id"])
-            _LOG.info("[auto %s] video %s (lần %d)", sc["id"], sh["id"], st["try"][sh["id"]])
+        with AUTO_LOCK:
+            if dung_gen() != auto_gen or AUTO.get(sc["id"]) is not st:
+                break
+            if JOBS.get(sh["id"], {}).get("state") == "running":
+                continue
+            if _auto_allow(st, sh["id"], cyc):
+                _enqueue("vid", sh["id"])
+                _LOG.info("[auto %s] video %s (lần %d)",
+                          sc["id"], sh["id"], st["try"][sh["id"]])
 
     return len(miss_img), len(sfs), len(miss_vid), len(shots)
 
@@ -2526,6 +2753,104 @@ def can_touch_image(sf_id: str) -> bool:
     return True
 
 
+def _nguoi_cua_ref(rid: str) -> str:
+    """Tên nhân vật trong id ref, '' nếu ref này không phải của nhân vật.
+
+    Nhận diện bằng ĐUÔI `_PORTRAIT` / `_FULL` — đó là thứ duy nhất phân biệt ref
+    nhân vật với bối cảnh (`REF_NHATHOTIEC_CHIEU`) và đạo cụ (`REF_PROP_VONGCO`),
+    hai loại không bao giờ được đụng tới khi hạ ref.
+    """
+    if not (rid.endswith("_PORTRAIT") or rid.endswith("_FULL")):
+        return ""
+    phan = rid.split("_")
+    return phan[1] if len(phan) > 1 else ""
+
+
+def _ha_ref_nhan_vat_phu(ids: list[str], tran: int, tu_nguoi_thu: int = 5) -> list[str]:
+    """Tràn trần thì nhân vật PHỤ chỉ gửi `_FULL`, bỏ `_PORTRAIT`. Giữ thứ tự.
+
+    Nhân vật phụ = từ người thứ `tu_nguoi_thu` trở đi theo THỨ TỰ XUẤT HIỆN trong
+    danh sách ref (user chốt 2026-08-15). Bốn người đầu là nhân vật chính và phản
+    diện chính, luôn giữ đủ cặp.
+
+    Vì sao bỏ portrait chứ không bỏ full: full mang cả DÁNG lẫn TRANG PHỤC, còn
+    portrait chỉ neo khuôn mặt. Ca S5 (xem `_generate_lo_ruot`) đã cho thấy chiều
+    ngược lại hỏng ra sao — chỉ gửi portrait thì model tự bịa áo. Giữ full là dồn
+    hết rủi ro vào khuôn mặt của nhân vật nền, thứ khán giả không nhớ mặt.
+
+    Người phụ mà KHÔNG có bản `_FULL` thì giữ nguyên portrait: bỏ nốt là mất hẳn
+    nhân vật khỏi tin, model bịa ra cả người chứ không riêng khuôn mặt.
+
+    Hàm này chỉ HẠ, không cắt tới trần bằng mọi giá. Hạ xong vẫn tràn thì việc
+    còn lại là chốt lô sớm — xem `_chia_lo`.
+    """
+    if len(ids) <= tran:
+        return list(ids)
+    thu_tu: list[str] = []
+    for rid in ids:
+        ng = _nguoi_cua_ref(rid)
+        if ng and ng not in thu_tu:
+            thu_tu.append(ng)
+    phu = set(thu_tu[tu_nguoi_thu - 1:])
+    co_full = {_nguoi_cua_ref(r) for r in ids if r.endswith("_FULL")}
+    return [r for r in ids
+            if not (r.endswith("_PORTRAIT")
+                    and _nguoi_cua_ref(r) in phu
+                    and _nguoi_cua_ref(r) in co_full)]
+
+
+def _ref_id_cua_sf(sf_id: str, data: dict) -> list[str]:
+    """ID ref của một SF, dùng để đếm khi chia lô. Thiếu file thì vẫn tính —
+    ref thiếu là lượt hỏng, không phải lượt nhẹ ref."""
+    try:
+        return _sf_attachments(BOARD.get_sf(sf_id, data) or {"id": sf_id})[2]
+    except Exception:
+        return []
+
+
+def _chia_lo(sf_ids: list[str], ref_cua, tran_sf: int, tran_ref: int) -> list[list[str]]:
+    """Chia danh sách SF thành các lô ≤ `tran_sf` ảnh VÀ ≤ `tran_ref` ref.
+
+    Trần ref mới là trần ràng buộc thật (log ALTAR 2026-08-15: lô 5 ref chạy
+    sạch, lô 14–17 ref hỏng mọi lượt và tắt sạch 6 tài khoản). Số SF rơi ra từ
+    đó: 6 SF mà đã chạm 10 ref thì lô đó chỉ 6 SF.
+
+    Đi ĐÚNG THỨ TỰ SHOT, đầy thì chốt — không xếp lại cho lô đầy hơn. Shot liền
+    nhau nằm cùng lô thì đoạn liền mạch nhất được sinh trong cùng một lượt.
+
+    Ref dùng chung giữa các SF chỉ tính MỘT lần, nên thêm một SF dùng lại đúng bộ
+    ref cũ là miễn phí. Lô đắt ref là lô đông nhân vật — đúng loại lô đang hỏng.
+
+    Một SF mà tự nó đã vượt trần vẫn được gửi: lô một ảnh không chẻ nhỏ hơn được
+    nữa, chặn là chặn việc của user (user chốt 2026-08-15).
+    """
+    ra: list[list[str]] = []
+    lo: list[str] = []
+    for i in sf_ids:
+        thu = _ha_ref_nhan_vat_phu(
+            list(dict.fromkeys([r for x in lo + [i] for r in ref_cua(x)])), tran_ref)
+        # PHỤ THUỘC CẮT LÔ TRƯỚC CẢ TRẦN.
+        #
+        # Thẻ trang phục đính chân dung của chính nhân vật đó làm ref. Nhét cả
+        # hai vào MỘT tin thì lúc gửi, chân dung chưa có ảnh → `_sf_attachments`
+        # báo thiếu ref → `_generate_lo_ruot` dán lỗi cho CẢ LÔ và ném. Chân dung
+        # chết theo, nên lần sau chạy lại vẫn thiếu đúng nó: lô tự khoá chính
+        # mình, chạy bao nhiêu lần cũng thế (đo trên AISLE-SEVEN 2026-08-15: 14
+        # task kẹt kiểu này).
+        #
+        # Board đã gác quan hệ y hệt cho ĐỊA ĐIỂM bằng `_cong_master`; nhân vật
+        # thì chưa có cổng nào. Chặn ở đây là chặn cho mọi loại phụ thuộc, không
+        # riêng nhân vật.
+        if lo and set(ref_cua(i)) & set(lo):
+            ra.append(lo)
+            lo = []
+        elif lo and (len(lo) >= tran_sf or len(thu) > tran_ref):
+            ra.append(lo)
+            lo = []
+        lo.append(i)
+    if lo:
+        ra.append(lo)
+    return ra
 def _sf_attachments(sf: dict) -> tuple[list[str], list[str], list[str]]:
     """Resolve refs của SF; tự kèm full-body khi nhân vật có sẵn ảnh FULL.
 
@@ -3310,18 +3635,20 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
     # MỘT lần đọc board cho cả lô. get_sf() không tham số sẽ đọc lại toàn bộ
     # cho TỪNG thẻ — lô 10 ảnh là 10 lần đọc, mỗi lần ~300ms.
     _d = BOARD.read()
-    viec, attach, thieu = [], [], []
+    viec, attach, attach_id, thieu = [], [], [], []
     for i in sf_ids:
         sf = BOARD.get_sf(i, _d)
         if not sf or not (sf.get("prompt") or "").strip():
             thieu.append(i); continue
         viec.append((i, sf["prompt"].strip()))
-        a, mis, _ = _sf_attachments(sf)
+        a, mis, rid = _sf_attachments(sf)
         if mis:
             thieu.append(f"{i}(thiếu ref)"); continue
-        for x in a:
+        # Giữ SONG SONG đường dẫn và id: phép hạ ref bên dưới quyết định theo id
+        # (đuôi _PORTRAIT/_FULL) nhưng thứ đem đính là đường dẫn.
+        for x, r in zip(a, rid):
             if x not in attach:
-                attach.append(x)
+                attach.append(x); attach_id.append(r)
     if thieu:
         for i in sf_ids:
             JOBS[i] = {"state": "error", "msg": "lô dừng: " + ", ".join(thieu[:4])}
@@ -3363,7 +3690,18 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
     # CHAT TRẮNG THÌ ĐÍNH ĐỦ REF, không lọc gì. Trước đây board lọc bớt ref
     # "đã gửi rồi trong chat này" để đỡ upload; giờ không còn chat cũ nên phép
     # lọc đó vô nghĩa — và thiếu ref là model tự bịa mặt/trang phục, hỏng câm.
-    can_dinh = list(attach)
+    # HẠ REF KHI TRÀN TRẦN: nhân vật từ thứ 5 trở đi chỉ gửi _FULL.
+    #
+    # Áp cho MỌI đường tạo, kể cả lô user tự tích — vì đây KHÔNG phải chẻ tin.
+    # Luật "tích bao nhiêu gửi bấy nhiêu, trong đúng một tin" (2026-08-12) vẫn
+    # nguyên: vẫn một tin, vẫn đủ từng ấy SF, chỉ nhẹ đi vài ảnh tham chiếu.
+    # Log ALTAR 2026-08-15: lô 14-17 ref hỏng mọi lượt và tắt sạch 6 tài khoản,
+    # trong khi lô 5 ref cùng phút chạy sạch.
+    _giu = set(_ha_ref_nhan_vat_phu(attach_id, TRAN_REF))
+    can_dinh = [x for x, r in zip(attach, attach_id) if r in _giu]
+    if len(can_dinh) < len(attach):
+        _LOG.info("lô %d ảnh: hạ %d→%d ref (nhân vật phụ chỉ gửi full-body)",
+                  len(viec), len(attach), len(can_dinh))
 
     # Luật chung của địa điểm, gửi kèm mỗi lần vì lần nào cũng là chat mới.
     luat_chung = ""
@@ -3371,10 +3709,9 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
         m = BOARD.get_sf(master) or {}
         luat_chung = (m.get("luatchung") or "").strip()
 
-    for i, _ in viec:
-        JOBS[i] = {"state": "running",
-                   "msg": f"{len(viec)} ảnh{_acct_label()} · chat mới"
-                          + (f" · đính {len(can_dinh)} ref" if can_dinh else "")}
+    _dat_nhan_lo(viec, {"state": "running",
+                        "msg": f"{len(viec)} ảnh{_acct_label()} · chat mới"
+                               + (f" · đính {len(can_dinh)} ref" if can_dinh else "")})
     _gen0 = dung_gen()        # chụp thế hệ TRƯỚC khi đi vào lượt chạy dài
     sess = _session()
     srcs, url, ghi = sess.generate_lo(viec, can_dinh, chat_url="",
@@ -3429,9 +3766,10 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
         with HUY_LOCK:
             DUNG_RIENG.difference_update(i for i, _ in viec)
         for i, _ in viec:
-            JOBS[i] = {"state": "error",
-                       "msg": "đã dừng riêng" if i in _bi_dung
-                              else "dừng theo lô (một lô là một tin nhắn)"}
+            _dat_nhan_lo([(i, None)],
+                         {"state": "error",
+                          "msg": "đã dừng riêng" if i in _bi_dung
+                                 else "dừng theo lô (một lô là một tin nhắn)"})
         _LOG.info("lô %d ảnh bị user dừng riêng — không thử lại", len(viec))
         return
 
@@ -3444,8 +3782,15 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
         # chung vào câu "ChatGPT không trả ảnh nào", nên user nhìn thấy chat đầy
         # ảnh (của lượt khác) mà board thì bảo không có — đi tìm lỗi nhận diện
         # ảnh suốt trong khi bệnh nằm ở cú bấm gửi.
+        #
+        # `chan_doan` = executor ĐÃ BIẾT chỗ hỏng và tự dừng trước khi gửi (chưa
+        # mở được chat trắng · chưa đặt được chế độ High/Medium). Nó cụ thể hơn
+        # mọi câu đoán bên dưới nên phải được nói NGUYÊN VĂN: gộp vào câu "nút
+        # Send bị nuốt" là đẩy user đi đóng tab ChatGPT trong khi bệnh nằm chỗ khác.
         _chua_gui = not ghi.get("da_gui", True)
-        _vi = ("board CHƯA GỬI ĐƯỢC tin (nút Send bị nuốt, draft còn trong ô soạn) "
+        _cd = (ghi.get("chan_doan") or "").strip()
+        _vi = (_cd if _cd
+               else "board CHƯA GỬI ĐƯỢC tin (nút Send bị nuốt, draft còn trong ô soạn) "
                "— chưa tốn lượt nào" if _chua_gui
                else "ChatGPT nhận tin nhưng không trả ảnh nào" if not n_ve
                else f"lượt trả kèm chữ ({loi_text[:50]}…)" if loi_text and n_ve == len(viec)
@@ -3455,16 +3800,17 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
         # chốt này thì "Dừng tất cả" bị vô hiệu một cách im lặng: lô hỏng quay
         # lại hàng đợi rồi vẽ đè lên ảnh đang có.
         if dung_gen() != _gen0:
-            for i, _ in viec:
-                JOBS[i] = {"state": "error", "msg": "đã dừng — không thử lại"}
+            _dat_nhan_lo(viec, {"state": "error", "msg": "đã dừng — không thử lại"})
             _LOG.info("lô %d ảnh xong sau khi user bấm dừng — bỏ, không xếp lại", len(viec))
             return
         _n = _HOAN.get(_gr, 0)
         if _n < LO_THU_LAI:
             _HOAN[_gr] = _n + 1
-            for i, _ in viec:
-                JOBS[i] = {"state": "queued",
-                           "msg": f"{_vi} — gửi lại cả tin, lần {_n + 1}/{LO_THU_LAI}"}
+            _bo = _dat_nhan_lo(viec, {"state": "queued",
+                                      "msg": f"{_vi} — gửi lại cả tin, "
+                                             f"lần {_n + 1}/{LO_THU_LAI}"})
+            if _bo:
+                _LOG.info("gửi lại lô: giữ nguyên %d thẻ đã có ảnh từ lượt trước", _bo)
             _LOG.warning("lô %d ảnh: %s — gửi lại nguyên task, lần %d/%d",
                          len(viec), _vi, _n + 1, LO_THU_LAI)
             time.sleep(15)
@@ -3472,19 +3818,22 @@ def _generate_lo_ruot(sf_ids: list[str], data: dict, master: str | None, tay: bo
             return
         _HOAN.pop(_gr, None)
         if not n_ve:
-            _cach = ("Board không bấm nổi nút Send sau nhiều lần. Xem hộp 🐞 để biết ô "
+            _cach = ("" if _cd
+                     else "Board không bấm nổi nút Send sau nhiều lần. Xem hộp 🐞 để biết ô "
                      "soạn và nút gửi lúc đó ra sao — thường là tab ChatGPT kẹt ở khung "
                      "cũ, đóng tab đó rồi bấm Tạo lại." if _chua_gui
                      else "Thường là guardrail chặn: sửa prompt — bớt chữ nhấn vào gương "
                           "mặt, đổi vài chi tiết bố cục, hoặc đổi ảnh ref rồi bấm Tạo lại.")
-            for i, _ in viec:
-                JOBS[i] = {"state": "error",
-                           "msg": f"{_vi} — sau {LO_THU_LAI} lần thử. {_cach}"}
+            _dat_nhan_lo(viec, {"state": "error",
+                                "msg": f"{_vi} — sau {LO_THU_LAI} lần thử. "
+                                       f"{_cach}".rstrip()})
             _LOG.warning("lô %d ảnh trượt cả %d lần — dừng, chờ user sửa prompt",
                          len(viec), LO_THU_LAI)
+            _ghi_so_lo_hong(_ident, viec, _vi, loi_text, 0)
             return
         _LOG.warning("lô %d ảnh: %s sau %d lần gửi lại — thôi không thử nữa, ghép "
                      "bấy nhiêu về được", len(viec), _vi, LO_THU_LAI)
+        _ghi_so_lo_hong(_ident, viec, _vi, loi_text, n_ve)
 
     _HOAN.pop(_gr, None)                 # có ảnh về = lượt đã xong, xoá đếm
 
@@ -3897,7 +4246,8 @@ class Handler(BaseHTTPRequestHandler):
                 "items": _scan_projects(),
             })
         elif u.path == "/api/accounts":
-            self._json({"accounts": _accounts_status()})
+            self._json({"accounts": _accounts_status(),
+                        "tran_ref": TRAN_REF, "tran_ref_max": TRAN_REF_MAX})
         elif u.path == "/api/so-tk":
             self._json({"ok": True, "so": _so_tk_doc()})
         elif u.path == "/api/loi":
@@ -3954,8 +4304,17 @@ class Handler(BaseHTTPRequestHandler):
             ok, err, port = _open_project(q.get("dir", [""])[0])
             self._json({"ok": ok, "err": err, "port": port}, 200 if ok else 409)
         elif u.path == "/api/generate":
-            if JOBS.get(sf_id, {}).get("state") == "running":
-                self._json({"ok": False, "err": "đang chạy"}); return
+            # CHẶN CẢ 'queued', không riêng 'running'. Chỉ chặn 'running' thì bấm
+            # Tạo lại lúc việc còn nằm chờ đẩy BẢN THỨ HAI cùng ident vào hàng:
+            # thợ nhấc bản một làm xong, thợ khác nhấc bản hai chạy lại nguyên
+            # lượt — với video là trừ credit lần nữa cho đúng shot vừa dựng xong.
+            # `_auto_scene` đã chặn đúng cả hai nhãn từ trước; đây là áp lại luật
+            # ấy cho đường tạo tay chứ không phải chính sách mới.
+            _nhan = JOBS.get(sf_id, {}).get("state")
+            if _nhan in ("running", "queued"):
+                self._json({"ok": False,
+                            "err": "đang chạy" if _nhan == "running" else "đã nằm trong hàng chờ"})
+                return
             _d0 = BOARD.read()
             if not _la_the_dia_diem(BOARD.get_sf(sf_id) or {"id": sf_id}):
                 _ly = _cong_master(_nhom_cua(sf_id, _d0), _d0)
@@ -3999,8 +4358,12 @@ class Handler(BaseHTTPRequestHandler):
             # của những tài khoản ảnh đang bận. Đóng Chrome là cách DUY NHẤT cắt
             # được việc đang chạy: thợ đang nằm trong vòng chờ ChatGPT vẽ, không
             # có chỗ nào để nó ngó lại cờ huỷ giữa chừng.
-            tang_dung_gen()      # thợ đang chạy dở soi số này, thấy đổi là không thử lại
-            AUTO.clear()
+            # Cùng critical section với chỗ auto COMMIT JOBS + queue. Nếu auto
+            # commit trước thì cú vét bên dưới dọn nó; nếu stop vào trước thì
+            # snapshot auto cũ thấy generation/identity lệch và tự bỏ.
+            with AUTO_LOCK:
+                tang_dung_gen()  # thợ đang chạy dở soi số này, thấy đổi là không thử lại
+                AUTO.clear()
             TAY_SF.clear()       # dừng hết = bỏ mọi ý định tạo tay còn treo
             bo = 0
             for Q in (IMG_QUEUE, VID_QUEUE):
@@ -4219,9 +4582,11 @@ class Handler(BaseHTTPRequestHandler):
             out = []
             for m, xs in nhom.items():
                 xs.sort(key=_uu_tien)
-                lo = [{"sf": xs,
+                lo = [{"sf": x,
                        "ky_tu": sum(len((tat.get(i) or {}).get("prompt") or "")
-                                    for i in xs)}]
+                                    for i in x)}
+                      for x in _chia_lo(xs, lambda i: _ref_id_cua_sf(i, data),
+                                        TRAN_MAY_TU_GOM, TRAN_REF)]
                 bieu_tuong, ten = _ten_nhom(m, tat)
                 # Nhóm toàn thẻ địa điểm thì KHÔNG tự gác chính mình.
                 _chi_goc = all(_la_the_dia_diem(tat.get(i) or {"id": i}) for i in xs)
@@ -4250,7 +4615,10 @@ class Handler(BaseHTTPRequestHandler):
             data = BOARD.read()
             nhom: dict[str, list[str]] = {}
             for i in ids:
-                if JOBS.get(i, {}).get("state") == "running":
+                # Bỏ qua cả 'queued', không riêng 'running' — cùng lý do với
+                # `/api/generate`: xếp thêm bản nữa cho việc đang chờ là bắt thợ
+                # render hai lượt. `_auto_scene` đã dùng đúng cặp nhãn này.
+                if JOBS.get(i, {}).get("state") in ("running", "queued"):
                     continue
                 nhom.setdefault(_nhom_cua(i, data), []).append(i)
             # TÍCH LẪN ĐỊA ĐIỂM → KHÔNG CHO CHẠY (2026-08-12, theo yêu cầu user).
@@ -4301,13 +4669,26 @@ class Handler(BaseHTTPRequestHandler):
                 ep = 0
             # Cờ `moi=1` đã bỏ 2026-08-12: lần nào cũng là chat trắng.
 
-            # KHÔNG CẮT. Tích bao nhiêu gửi bấy nhiêu, trong ĐÚNG một tin nhắn
-            # (2026-08-12). Cắt hộ nghĩa là user tưởng mình gửi một tin mà thực
-            # ra hai — mà hai tin là hai chat trắng nên ảnh không đồng bộ.
+            # CẮT THEO ĐÚNG TRẦN, kể cả lô user tự tích (đảo luật 2026-08-12).
+            #
+            # Luật cũ: tích bao nhiêu gửi bấy nhiêu trong ĐÚNG một tin, vì cắt hộ
+            # thì user tưởng mình gửi một tin mà thực ra hai — hai tin là hai chat
+            # trắng nên look có thể lệch.
+            #
+            # User chốt lại 2026-08-15: tích 15 thì cũng KHÔNG tạo được. Log
+            # ALTAR cùng ngày cho thấy lô 14-17 ref hỏng MỌI lượt và tắt sạch 6
+            # tài khoản vì "không đính được ảnh ref", trong khi lô 5 ref cùng phút
+            # chạy sạch. Nên "một tin nhắn" ấy chỉ là một tin trên lý thuyết —
+            # thực tế nó không bao giờ tới nơi. Chia ra thì còn chạy được.
+            #
+            # `/api/xem-lo` dùng CHUNG phép chia này, nên ô xem trước vẫn nói
+            # đúng cái sắp xảy ra — đó là điều kiện để việc cắt không thành cắt
+            # lén sau lưng user.
             so_lo = 0
             for m, xs in nhom.items():
                 xs.sort(key=_uu_tien)
-                for lo in (xs,):
+                for lo in _chia_lo(xs, lambda i: _ref_id_cua_sf(i, data),
+                                   TRAN_MAY_TU_GOM, TRAN_REF):
                     so_lo += 1
                     ident = "LO:" + ",".join(lo)
                     bo_co_huy(ident, *lo)   # user vừa bấm tạo → thắng cờ huỷ cũ
@@ -4585,6 +4966,11 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/acct":
             op = q.get("op", [""])[0]
             port = int(q.get("port", ["0"])[0] or 0)
+            if op == "tran-ref":
+                # Trần chung cho cả board, không theo tài khoản — nó là giới hạn
+                # của MỘT TIN NHẮN ChatGPT, tài khoản nào cũng vậy.
+                self._json({"ok": True, "tran_ref": _dat_tran_ref(q.get("n", ["10"])[0])})
+                return
             with ACC_LOCK:
                 acc = next((a for a in ACCOUNTS if a["port"] == port), None)
             if op == "add":

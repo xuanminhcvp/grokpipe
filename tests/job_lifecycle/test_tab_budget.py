@@ -9,11 +9,18 @@ thứ đẩy máy tới "Aw, Snap!".
 import unittest
 from pathlib import Path
 
-from helpers import function_source, load_sfboard
+from helpers import load_sfboard
 
 
 ROOT = Path(__file__).resolve().parents[2]
 BOARD_PATH = ROOT / "sfboard/sfboard.py"
+
+
+class _LuongSong:
+    """Bản giả của luồng thợ — phần sổ ghế chỉ hỏi `is_alive()`."""
+
+    def is_alive(self):
+        return True
 
 
 class TabBudgetTest(unittest.TestCase):
@@ -60,21 +67,58 @@ class TabBudgetTest(unittest.TestCase):
             self.m._so_tab_theo_viec(self.tk(tabs=999), "img"), self.m.MAX_TABS
         )
 
-    def test_supervisor_tinh_so_tab_theo_tung_loai_viec(self):
-        nguon = function_source(BOARD_PATH, "_supervisor")
+    def test_ghe_duoc_cap_theo_TUNG_loai_viec_chu_khong_nhan_deu(self):
+        """ĐẾM GHẾ THẬT, không tìm chuỗi trong mã.
 
-        self.assertIn("so_tab = _so_tab_theo_viec(a, k)", nguon)
-        # phải nằm TRONG vòng `for k in kinds`, nếu không lại nhân cho mọi loại
-        vi_tri_for = nguon.index("for k in kinds:")
-        self.assertGreater(nguon.index("so_tab = _so_tab_theo_viec(a, k)"), vi_tri_for)
-        # dọn luồng thừa cũng phải dùng đúng con số theo loại việc đó
-        self.assertIn("x[2] >= so_tab", nguon)
+        Bản cũ của test này khớp `"so_tab = _so_tab_theo_viec(a, k)"` trong thân
+        `_supervisor` và so vị trí chuỗi để đoán nó nằm trong vòng `for k`. Nó
+        vỡ ngay khi khối cấp ghế được TÁCH RA thành `_xep_ghe_cho_tai_khoan` —
+        một thay đổi làm hành vi đúng hơn, không sai đi. Đếm ghế thì phép kiểm
+        sống sót qua mọi lần dọn mã mà vẫn canh đúng con số user quan tâm.
 
-    def test_thay_doi_khong_dung_toi_luat_kiem_nhiem(self):
-        nguon = function_source(BOARD_PATH, "_supervisor")
+        Tài khoản ảnh 3 tab, chưa có tài khoản Grok nào → kiêm nhiệm video.
+        Đúng luật là 3 ghế ảnh + 1 ghế video (kiêm nhiệm là phương án chống cháy,
+        được 1 tab), KHÔNG phải 3+3.
+        """
+        m = load_sfboard()
+        workers_cu = dict(m.WORKERS)
+        m.WORKERS.clear()
+        try:
+            a = {"id": "gpt", "kind": "img", "port": 9222, "tabs": 3, "enabled": True}
 
-        self.assertIn('if a["kind"] == "img" and not has_vid:', nguon)
-        self.assertIn('kinds.append("vid")', nguon)
+            m._xep_ghe_cho_tai_khoan(a, ["img", "vid"], lambda k, s: _LuongSong())
+
+            ghe = sorted(k for k in m.WORKERS if k[0] == 9222)
+            self.assertEqual(ghe, [(9222, "img", 0), (9222, "img", 1), (9222, "img", 2),
+                                   (9222, "vid", 0)])
+        finally:
+            m.WORKERS.clear()
+            m.WORKERS.update(workers_cu)
+
+    def test_co_tai_khoan_grok_that_thi_tho_anh_thoi_kiem_nhiem(self):
+        """Kiểm HÀNH VI của luật kiêm nhiệm, không kiểm hai dòng mã có còn không.
+
+        Bản cũ khớp `'if a["kind"] == "img" and not has_vid:'` — hai dòng có sẵn
+        từ trước loạt sửa này, nên nó xanh kể cả khi revert sạch mọi thay đổi
+        về tab. Hỏi thẳng `_cho_ngoi_con_dung`: có tài khoản Grok bật thì thợ
+        ảnh không được giữ ghế video nữa.
+        """
+        m = load_sfboard()
+        acc_cu = m.ACCOUNTS
+        try:
+            anh = {"id": "gpt", "kind": "img", "port": 9222, "tabs": 2, "enabled": True}
+            m.ACCOUNTS = [anh]
+            self.assertTrue(m._cho_ngoi_con_dung("http://localhost:9222", "vid", 0),
+                            "chưa có Grok thì thợ ảnh phải kiêm video")
+
+            m.ACCOUNTS = [anh, {"id": "grok", "kind": "vid", "port": 9333,
+                                "tabs": 1, "enabled": True}]
+            self.assertFalse(m._cho_ngoi_con_dung("http://localhost:9222", "vid", 0),
+                             "có Grok thật rồi mà thợ ảnh vẫn giữ ghế video")
+            self.assertTrue(m._cho_ngoi_con_dung("http://localhost:9222", "img", 1),
+                            "ghế ảnh của chính nó thì không được đụng tới")
+        finally:
+            m.ACCOUNTS = acc_cu
 
 
 if __name__ == "__main__":

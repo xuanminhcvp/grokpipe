@@ -50,6 +50,24 @@ class _Jobs(dict):
     nhan_tk = None          # …và hàm trả về 'gpt-4 :9225' của luồng thợ đang chạy
 
     def __setitem__(self, k, v):
+        # XONG RỒI THÌ KHÔNG AI BÔI ĐỎ ĐƯỢC NỮA.
+        #
+        # `docs/JOB-LIFECYCLE-README.md` ghi 'done' là trạng thái CUỐI, nhưng
+        # luật đó chưa nằm ở đâu trong mã. Hai cú vét hàng (`/api/huy`,
+        # `/api/dung-het`) và bộ hẹn giờ xếp lại đều ghi 'error' mù theo ident
+        # nhặt được, nên một BẢN THỪA trong hàng bôi đỏ việc đã xong — và vì
+        # `dat_job` rải cho thành viên `LO:`, nó bôi đỏ cả lô.
+        #
+        # Chặn ở ĐÂY, cùng chỗ với việc đóng dấu: hơn hai chục nhánh đặt trạng
+        # thái rải khắp `sfboard.py`, vá từng nhánh là bỏ sót nhánh thêm sau.
+        # Chỉ chặn đúng chiều `done → error`; user tạo lại vẫn ghi được vì
+        # đường đó đi qua 'queued'/'running' trước.
+        try:
+            if (isinstance(v, dict) and v.get("state") == "error"
+                    and (self.get(k) or {}).get("state") == "done"):
+                return
+        except Exception:
+            pass
         try:
             v = self._dong_dau(k, v)
             if isinstance(v, dict) and v.get("state") == "error":
@@ -272,9 +290,14 @@ def uu_tien(ident: str, tt: dict | None = None) -> int:
     def _n(sf: str) -> int:
         sf = sf.strip()
         if sf.startswith("SF-M-") or sf.startswith("REF_"):
-            return 0            # ref nhân vật và thẻ master luôn đi trước
+            # TRANG PHỤC ĐI SAU CHÂN DUNG. Trước đây mọi thẻ REF cùng mức 0, nên
+            # hàng đợi không có cớ gì xếp chân dung lên trước — mà thẻ trang phục
+            # lại ĐÍNH chân dung làm ref, chạy trước là chắc chắn thiếu ref.
+            return 1 if sf.endswith("_FULL") and sf.startswith("REF_") else 0
         if sf in tt:
-            return tt[sf] + 1   # +1 để không giẫm lên mức 0 ở trên
+            # +2: chừa mức 0 cho chân dung/thẻ master và mức 1 cho trang phục.
+            # Mọi thẻ REF đều phải xong trước SF của scene — chúng là neo look.
+            return tt[sf] + 2
         # Không shot nào dùng SF này (thẻ mồ côi, hoặc board chưa chia shot):
         # quay về cách đọc tên như cũ để thứ tự vẫn hợp lý thay vì ngẫu nhiên.
         m = re.match(r"(?:SF|V)-S(\d+)-(\d+)", sf)

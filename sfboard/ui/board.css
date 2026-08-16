@@ -1766,6 +1766,40 @@ section.scene {
   color: #fff
 }
 
+/* BADGE TRẠNG THÁI cạnh mã SF / mã video (xem `stag()` trong board.js).
+   `.st` chỉ đảo lề vì badge này đứng SAU mã, còn MASTER đứng trước.
+   Ba màu nền hardcode chứ KHÔNG lấy --ok/--warn/--bad: chữ trắng cỡ 9.5px cần
+   tương phản ≥4.5:1, mà --ok bản light (#129a55) chỉ đạt 3.6. Ba mã dưới đạt
+   4.9 / 4.5 / 5.6 và dùng chung cho CẢ HAI theme — nền pill tự nó là nền nên
+   không phải ăn theo theme như các biến khác. */
+.kindtag.st {
+  margin-right: 0;
+  margin-left: 6px
+}
+
+/* Trong .sh-head thì KHÔNG cộng thêm lề: khối đó là flex có gap:8px, nên
+   margin-left cộng dồn thành 14px phía trước badge mà chỉ 8px phía sau — badge
+   dính vào ô thời lượng hơn là vào mã shot mà nó mô tả. (.sfid là div thường,
+   không flex, nên ở đó 6px vẫn đúng.) */
+.sh-head .kindtag.st {
+  margin-left: 0
+}
+
+.kindtag.ok {
+  background: #0f8148;
+  color: #fff
+}
+
+.kindtag.warn {
+  background: #a8690a;
+  color: #fff
+}
+
+.kindtag.bad {
+  background: #c62a20;
+  color: #fff
+}
+
 @media (max-width:900px) {
   .card.ismaster {
     grid-column: span 1
@@ -2341,8 +2375,11 @@ button.auto-b.on {
   cursor: pointer
 }
 
+/* Nền theo THEME, không phải mã cứng. Board mặc định chạy theme TỐI (--tx là
+   #e6e9ef), nên nền trắng cứng ở đây cho chữ sáng trên nền sáng — tương phản
+   1.05:1, chữ biến mất đúng vào những dòng bấm được. */
 .loirow.bam:hover {
-  background: #f8fafc
+  background: var(--hover)
 }
 
 .loivet {
@@ -2351,9 +2388,11 @@ button.auto-b.on {
   color: var(--tx2)
 }
 
+/* Cùng lý do: đây là nơi chứa TOÀN BỘ nội dung sổ dấu vết, mà chữ trong hộp
+   dùng --tx2 (#98a1b3 ở theme tối) — trên nền trắng cứng chỉ được ~2.5:1. */
 .vetbox {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line);
   padding: 4px 10px 6px 68px
 }
 

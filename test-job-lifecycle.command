@@ -22,7 +22,7 @@ trap cleanup EXIT
 
 cd "$REPO_ROOT"
 COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
-  tests/job_lifecycle tests/runtime_bugs \
+  tests/job_lifecycle tests/runtime_bugs tests/executors \
   --cov=sfboard.jobs \
   --cov-report=term-missing \
   --cov-fail-under=80
@@ -44,3 +44,4 @@ COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
   sfboard/jobs/runtime_service.py
 
 echo "Job lifecycle gate: PASS"
+echo "  (coverage ở trên CHỈ đo sfboard/jobs — không đo sfboard.py lẫn executors)"

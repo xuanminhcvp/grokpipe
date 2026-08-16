@@ -74,9 +74,39 @@ class HttpContractTest(unittest.TestCase):
             {"mode", "pending", "last_sync_at", "last_error", "created", "updated"},
         )
 
-    def test_create_and_cancel_routes_keep_response_keys(self):
-        source = (ROOT / "sfboard/sfboard.py").read_text(encoding="utf-8")
-        self.assertIn('{"ok": True, "qua_lo": True, "so_ban": so_ban}', source)
-        self.assertIn('"cho_da_huy": len(cho)', source)
-        self.assertIn('"dang_chay": dang', source)
-        self.assertIn('{"ok": True, "video": True}', source)
+    def test_cancel_route_keeps_response_keys(self):
+        """GỌI handler thật, so status + khoá của body.
+
+        Bản cũ mang tên contract test nhưng chỉ tìm literal trong file nguồn
+        (`'"cho_da_huy": len(cho)'` có nằm đâu đó không). Chuỗi ấy có thể nằm
+        trong code chết, trong comment, hay trong một nhánh không bao giờ chạy —
+        test vẫn xanh trong khi endpoint đã trả về hình dạng khác. Hợp đồng HTTP
+        chỉ chứng minh được bằng cách gọi rồi nhìn thứ đi ra.
+        """
+        self.m._dat_job("SF-S1-01", {"state": "queued", "msg": "chờ"})
+        self.m._dat_job("SF-S1-02", {"state": "running", "msg": "đang vẽ"})
+
+        handler = make_handler(self.m, "/api/huy")
+        handler.do_POST()
+        code, body = handler.captured
+
+        self.assertEqual(code, 200)
+        self.assertEqual(set(body), {"ok", "bo", "cho_da_huy", "dang_chay"})
+        self.assertIs(body["ok"], True)
+        self.assertEqual(body["cho_da_huy"], 1, "đúng một việc đang chờ bị huỷ")
+        self.assertEqual(body["dang_chay"], ["SF-S1-02"],
+                         "việc đang chạy phải được LIỆT KÊ, không bị huỷ")
+
+    def test_create_route_keeps_response_keys(self):
+        acc_cu, self.m.ACCOUNTS = self.m.ACCOUNTS, []
+        try:
+            handler = make_handler(self.m, "/api/tao-lo?sf=SF-S1-01,SF-S1-02")
+            handler.do_POST()
+            code, body = handler.captured
+
+            self.assertEqual(code, 200)
+            self.assertIs(body["ok"], True)
+            self.assertIn("so_lo", body, "giao diện in 'đã xếp N tin nhắn' từ khoá này")
+            self.assertEqual(body["so_lo"], 1)
+        finally:
+            self.m.ACCOUNTS = acc_cu

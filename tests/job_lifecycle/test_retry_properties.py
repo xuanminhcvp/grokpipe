@@ -37,7 +37,8 @@ class KhongCoJobMaMachine(RuleBasedStateMachine):
         self.acc_cu, self.m.ACCOUNTS = self.m.ACCOUNTS, []   # rỗng = không đụng Chrome
         self.m.AUTO.clear()
         self.giu = set()      # ident đang có một thợ cầm
-        self.hen = []         # hẹn giờ đã đặt, chưa bắn: (kind, item, gen)
+        self.hen = []         # hẹn giờ đã đặt, chưa bắn: (kind, item, gen, dau)
+        self.nhan_truoc = {}  # ident → nhãn ở cuối bước trước, để soi CHUYỂN TIẾP
 
     def teardown(self):
         self.m.BOARD = self.board_cu
@@ -49,6 +50,15 @@ class KhongCoJobMaMachine(RuleBasedStateMachine):
         h = make_handler(self.m, path)
         h.do_POST()
         return h.captured
+
+    def hen_gio(self, kind, ident):
+        """Lên nòng một chuông y như `_xep_lai_sau` production — kể cả DẤU SỞ HỮU.
+
+        Dấu phải chụp ĐÚNG lúc hẹn, không phải lúc bắn: cả giá trị của phép gác
+        lẫn khả năng bắt lỗi của test này nằm ở khoảng thời gian giữa hai mốc đó.
+        """
+        dau = (self.m.JOBS.get(ident) or {}).get("t")
+        self.hen.append((kind, (kind, ident, 1, False), self.m.dung_gen(), dau))
 
     # ───────────────────────────── thao tác ──────────────────────────────
 
@@ -88,14 +98,14 @@ class KhongCoJobMaMachine(RuleBasedStateMachine):
         ident = sorted(self.giu)[0]
         self.giu.discard(ident)
         self.m._dat_job(ident, {"state": "running", "msg": "lỗi → thử lại sau 20s"})
-        self.hen.append((kind, (kind, ident, 1, False), self.m.dung_gen()))
+        self.hen_gio(kind, ident)
 
     @precondition(lambda self: self.hen)
     @rule()
     def bo_hen_gio_ban(self):
         """Tới giờ — gọi ĐÚNG thân bộ hẹn giờ của production."""
-        kind, item, gen = self.hen.pop(0)
-        self.m._ban_xep_lai(kind, item, gen)
+        kind, item, gen, dau = self.hen.pop(0)
+        self.m._ban_xep_lai(kind, item, gen, dau)
 
     @rule()
     def user_huy_hang_cho(self):
@@ -113,7 +123,7 @@ class KhongCoJobMaMachine(RuleBasedStateMachine):
         self.goi("/api/dung-het?dong_chrome=0")
         for ident in sorted(self.giu):
             self.m._dat_job(ident, {"state": "running", "msg": "lỗi → thử lại sau 20s"})
-            self.hen.append((kind, (kind, ident, 1, False), self.m.dung_gen()))
+            self.hen_gio(kind, ident)
         self.giu.clear()
 
     @rule(sf=SF)
@@ -127,7 +137,7 @@ class KhongCoJobMaMachine(RuleBasedStateMachine):
         trong_hang = self.m._y_trong_hang(self.m.IMG_QUEUE) | self.m._y_trong_hang(
             self.m.VID_QUEUE
         )
-        dang_hen = {item[1] for _, item, _ in self.hen}
+        dang_hen = {item[1] for _, item, _, _ in self.hen}
         co_do = self.giu | trong_hang | dang_hen
         # Thành viên của một lô đang được đỡ thì cũng được đỡ theo lô.
         for ident in list(co_do):
@@ -143,6 +153,30 @@ class KhongCoJobMaMachine(RuleBasedStateMachine):
             f"job ma: {ma} mang nhãn 'running' mà không thợ nào giữ, không nằm "
             f"trong hàng đợi, cũng không có hẹn giờ nào chờ bắn"
         )
+
+    @invariant()
+    def khong_chuyen_thang_tu_xong_sang_loi(self):
+        """`done → error` KHÔNG có bước trung gian = có kẻ ghi đè trạng thái cuối.
+
+        `docs/JOB-LIFECYCLE-README.md` ghi 'done' là trạng thái cuối, nhưng luật
+        đó chưa có phép kiểm nào canh. Cái nguy không phải nhãn xấu mà là TIỀN:
+        cả ba đường tạo (`/api/generate`, nhánh tạo nhiều SF, chốt video của
+        auto) đọc nhãn để biết "việc này còn chạy không", nên nhãn sai mở lại
+        chốt chống trùng và đẻ ra một lượt submit nữa sang Grok.
+
+        Soi CHUYỂN TIẾP chứ không soi "ident nào từng xong": user tạo lại là
+        chuyện thường, và mọi cách đoán xem user đã tạo lại hay chưa đều sai ở
+        ident lô — `/api/generate?sf=X` xếp hàng dưới tên `LO:X` nhưng chỉ ghi
+        nhãn cho thành viên `X`, nên nhãn cũ của `LO:X` nằm lại tới khi thợ nhấc.
+        `done → running → error` là hợp lệ; `done → error` thì không.
+        """
+        for ident, v in list(self.m.JOBS.items()):
+            gio = v.get("state")
+            assert not (self.nhan_truoc.get(ident) == "done" and gio == "error"), (
+                f"{ident} nhảy thẳng 'done' → 'error' ({v.get('msg')!r}) — "
+                f"có kẻ ghi đè trạng thái cuối"
+            )
+        self.nhan_truoc = {k: v.get("state") for k, v in self.m.JOBS.items()}
 
     @invariant()
     def viec_da_huy_khong_con_nam_trong_hang(self):

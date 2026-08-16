@@ -18,6 +18,16 @@ const esc = s => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const ST = { proposed: ['pend', 'Chờ duyệt'], approved: ['ok', 'ĐÃ DUYỆT'], revise: ['warn', 'Cần sửa'], rejected: ['bad', 'Loại'] };
 
+/* BADGE TRẠNG THÁI cạnh mã SF và mã video — xanh DUYỆT, đỏ LÀM LẠI (user chốt
+   2026-08-15). Trước đó thử báo bằng viền thẻ: viền đủ đậm để nhìn ra thì cả
+   lưới thành vòng màu bão hoà, chói mắt; badge gọn hơn vì chỉ chiếm một điểm.
+   Thẻ chưa duyệt KHÔNG có badge — không dán nhãn cho trạng thái mặc định, bảng
+   sẽ đầy nhãn vô nghĩa.
+   Không dùng lại nhãn của `ST` ở trên: ST phục vụ chip thống kê ở header với
+   cách gọi khác ("ĐÃ DUYỆT" · "Loại"), đổi nó là đổi luôn chỗ đó. */
+const STAG = { approved: ['ok', 'DUYỆT'], revise: ['warn', 'SỬA'], rejected: ['bad', 'LÀM LẠI'] };
+const stag = s => STAG[s] ? `<span class="kindtag st ${STAG[s][0]}">${STAG[s][1]}</span>` : '';
+
 /* ══ HỘP HỎI / BÁO ══ thay await hoi() và bao() của trình duyệt.
    Hộp gốc dán nguyên "localhost:8780 says", nền trắng bất kể theme, không xuống
    dòng được và nút thì theo hệ điều hành. Hộp này dùng <dialog> nên vẫn KHOÁ thao
@@ -806,6 +816,10 @@ async function pollAccts() {
     // ĐANG GÕ THÌ ĐỪNG VẼ LẠI. Vòng poll 4 giây thay sạch innerHTML, nên nó
     // nuốt luôn chữ user đang gõ dở trong ô tên (và cả ô số tab). Chỉ hoãn một
     // nhịp, vòng sau vẽ bình thường.
+    // Ô trần ref đọc từ CÙNG một lần gọi, khỏi thêm nhịp mạng. Không ghi đè
+    // khi user đang gõ dở — cùng lý do với ô tên và ô số tab bên dưới.
+    const _tr = $('#tranref');
+    if (_tr && r.tran_ref && document.activeElement !== _tr) _tr.value = r.tran_ref;
     if ($('#acctrows').contains(document.activeElement)) return;
     $('#acctrows').innerHTML = rows.join('')
       || `<span class="hint">chưa có tài khoản ${ACCT_TAB === 'img' ? 'ChatGPT' : 'Grok'} nào</span>`;
@@ -813,6 +827,10 @@ async function pollAccts() {
 }
 async function acctTen(port, v) {
   await fetch(`/api/acct?op=ten&port=${port}&v=${encodeURIComponent(v)}`, { method: 'POST' });
+  setTimeout(pollAccts, 400);
+}
+async function datTranRef(n) {
+  await fetch(`/api/acct?op=tran-ref&n=${n}`, { method: 'POST' });
   setTimeout(pollAccts, 400);
 }
 async function acctTabs(port, n) {
@@ -1786,7 +1804,10 @@ function shotRow(sc, sh, idx) {
   const d = document.createElement('div');
   d.className = 'shot' + (!f || !f.image ? ' warn-sf' : '')
     + (sh.vstatus === 'approved' ? ' vok' : sh.vstatus === 'rejected' ? ' vbad' : sh.video ? ' vnew' : '');
-  // Badge trạng thái đè lên ảnh đã bỏ 2026-08-09 — viền thẻ và nút ✓/✎/✕ đã nói đủ.
+  // Badge ĐÈ LÊN ẢNH đã bỏ 2026-08-09 — nó che mất chính cái ảnh đang cần nhìn.
+  // Badge CẠNH MÃ SHOT thì thêm lại 2026-08-15: hai thứ khác nhau, đừng gộp.
+  // Viền thẻ (--okline #1e5c3a) quá nhạt để đọc ở khoảng cách xa, còn nút
+  // ✓/✎/✕ không mang class `on` nên không cho biết trạng thái nào đang bật.
   d.innerHTML = `
 <div class="sf-side">
   <div class="fr">${f && f.image ? `<img src="${thumb(f.image, 640)}" loading="lazy" decoding="async">`
@@ -1806,7 +1827,7 @@ function shotRow(sc, sh, idx) {
 </div>
 <div class="sh-main">
   <div class="sh-head">
-    <span class="vid">${esc(sh.id)}</span>
+    <span class="vid">${esc(sh.id)}</span>${stag(sh.vstatus)}
     <select class="dur" data-dur>
       <option value="6" ${sh.dur == 6 ? 'selected' : ''}>6s</option>
       <option value="10" ${sh.dur == 10 ? 'selected' : ''}>10s</option>
@@ -2346,7 +2367,7 @@ function card(sc, f) {
  ${running ? `<div class="run"><div class="spin"></div><div>${esc(job.msg || 'đang tạo…')}</div></div>` : ''}
    </div>
    <div class="body">
- <div class="sfid">${isM ? '<span class="kindtag m">MASTER</span>' : ''}${esc(f.id)}</div>
+ <div class="sfid">${isM ? '<span class="kindtag m">MASTER</span>' : ''}${esc(f.id)}${stag(f.status)}</div>
  <input class="ed" data-k="label" value="${esc(f.label || '')}" placeholder="Tên góc máy…">
  ${(isR && !isM) ? `<textarea class="ed" data-k="desc" placeholder="Mô tả / dùng cho beat nào…">${esc(f.desc || '')}</textarea>` : ''}
  ${/* `goc` sống trên SHOT (2026-08-09) — nó là tiêu chuẩn của vị trí trong
