@@ -89,7 +89,7 @@ hoặc tiêu credit.
 tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
 tưởng mình đã tăng độ an toàn của board.
 
-Kết quả hiện tại: **389 pass và đúng 4 `xfailed`** (Phase 2 shadow foundation +
+Kết quả hiện tại: **393 pass và đúng 4 `xfailed`** (Phase 2 shadow foundation +
 sổ lỗi runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
 cái PHẢI giữ nguyên là **đúng 4 `xfailed`**. Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
