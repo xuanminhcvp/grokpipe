@@ -436,8 +436,8 @@
         đưa vào theo shadow/adapter để quan sát và tạo identity trước, chưa big-bang cutover.
       </p>
       <ol class="steps">
-        <li>Producer command + idempotency + legacy adapter. <span class="tag now">TIẾP THEO</span></li>
-        <li>Scheduler sở hữu queue/execution lease. <span class="tag todo">chưa</span></li>
+        <li>Producer command + idempotency + legacy adapter. <span class="tag done">XONG 2026-08-16</span></li>
+        <li>Scheduler sở hữu queue/execution lease. <span class="tag now">TIẾP THEO</span></li>
         <li>Account allocation và forced-account constraint. <span class="tag todo">chưa</span></li>
         <li>Executor/attempt/result commit có typed outcome. <span class="tag todo">chưa</span></li>
         <li>Cancel, stop-all và retry chỉ còn một authority. <span class="tag todo">chưa</span></li>
@@ -449,6 +449,17 @@
         và shadow core <span class="mono">JobStore</span> + event log có CAS đang mirror mọi lần
         legacy ghi state rồi báo chỗ bất đồng — không enqueue, không gọi provider, không đổi kết
         quả. <span class="tag done">XONG</span>
+      </p>
+      <p class="note">
+        <strong>Bước 1 đã xong 2026-08-16.</strong> Năm đường tạo HTTP
+        (<span class="mono">/api/generate · /api/master · /api/tao-lo · /api/genvideo ·
+        /api/video-lo</span>) và người quét auto không còn tự xếp hàng hay tự ghi nhãn: chúng gửi
+        ý định qua <span class="mono">ProducerService</span> rồi để
+        <span class="mono">LegacyEnqueueAdapter</span> chạm hàng đợi cũ. Trình duyệt và
+        <span class="mono">chay-anh.py</span> gửi kèm <span class="mono">Idempotency-Key</span>,
+        nên bấm hai lần hoặc gửi lại vì mạng chớp đều trả về đúng job cũ. Một phép kiểm AST canh
+        không cho ai lén gọi <span class="mono">_xep</span> lại. Hai trong bốn bug đang bị khoá đã
+        được sửa; hai cái còn lại nằm ở bước 3 (ép tài khoản) và bước 5 (huỷ theo lô).
       </p>
       <p class="note">
         <strong>Rollback:</strong> trong thời gian migration, đặt
