@@ -1,0 +1,99 @@
+import unittest
+
+from sfboard.jobs.manager import JobManager
+from sfboard.jobs.models import JobKind, JobState
+from sfboard.jobs.projection import LegacyShadowProjection
+from sfboard.jobs.store import MemoryJobStore
+
+
+class LegacyProjectionTest(unittest.TestCase):
+    def setUp(self):
+        self.store = MemoryJobStore()
+        self.manager = JobManager(self.store)
+        self.projection = LegacyShadowProjection(
+            self.manager,
+            lambda key: JobKind.VIDEO if key.startswith("V-") else JobKind.IMAGE,
+        )
+
+    def test_first_write_bootstraps_current_legacy_state(self):
+        self.projection.observe("A", None, {"state": "queued", "msg": "chờ"})
+        job = self.projection.job_for("A")
+        self.assertEqual(job.state, JobState.QUEUED)
+        self.assertEqual(job.version, 1)
+
+    def test_legal_legacy_sequence_uses_manager_transitions(self):
+        self.projection.observe("A", None, {"state": "queued", "msg": "chờ"})
+        self.projection.observe("A", {"state": "queued"}, {"state": "running"})
+        self.projection.observe("A", {"state": "running"}, {"state": "done"})
+        job = self.projection.job_for("A")
+        self.assertEqual(job.state, JobState.COMPLETED)
+        self.assertEqual(job.version, 3)
+
+    def test_same_state_write_is_progress_event_without_version_change(self):
+        self.projection.observe("A", None, {"state": "queued", "msg": "chờ"})
+        self.projection.observe(
+            "A", {"state": "queued"}, {"state": "running", "msg": "step 1"}
+        )
+        before = self.projection.job_for("A")
+        event_count = len(self.store.events_for(before.job_id))
+        self.projection.observe(
+            "A", {"state": "running"}, {"state": "running", "msg": "step 2"}
+        )
+        after = self.projection.job_for("A")
+        self.assertEqual(after.version, before.version)
+        self.assertEqual(
+            len(self.store.events_for(after.job_id)),
+            event_count + 1,
+        )
+
+    def test_cancel_words_project_legacy_error_to_cancelled(self):
+        self.projection.observe(
+            "A", None, {"state": "error", "msg": "đã huỷ riêng"}
+        )
+        self.assertEqual(self.projection.job_for("A").state, JobState.CANCELLED)
+
+    def test_plain_legacy_error_projects_to_failed(self):
+        self.projection.observe(
+            "A", None, {"state": "error", "msg": "selector lỗi"}
+        )
+        self.assertEqual(self.projection.job_for("A").state, JobState.FAILED)
+
+    def test_terminal_to_active_creates_new_job_with_rerun_link(self):
+        self.projection.observe("A", None, {"state": "queued", "msg": "chờ"})
+        self.projection.observe(
+            "A", {"state": "queued"}, {"state": "running", "msg": "chạy"}
+        )
+        self.projection.observe(
+            "A", {"state": "running"}, {"state": "done", "msg": "xong"}
+        )
+        old = self.projection.job_for("A")
+        self.projection.observe(
+            "A", {"state": "done"}, {"state": "queued", "msg": "tạo lại"}
+        )
+        new = self.projection.job_for("A")
+        self.assertNotEqual(new.job_id, old.job_id)
+        self.assertEqual(new.rerun_of, old.job_id)
+        self.assertEqual(new.state, JobState.QUEUED)
+        self.assertEqual(new.version, 1)
+
+    def test_first_running_write_is_reported_as_created_to_running_mismatch(self):
+        self.projection.observe(
+            "A", None, {"state": "running", "msg": "chạy thẳng"}
+        )
+        self.assertEqual(self.projection.job_for("A").state, JobState.CREATED)
+        self.assertEqual(self.projection.diagnostics()["mismatches"], 1)
+
+    def test_illegal_legacy_transition_records_mismatch_without_shadow_write(self):
+        self.projection.observe("A", None, {"state": "queued", "msg": "chờ"})
+        before = self.projection.job_for("A")
+        self.projection.observe(
+            "A", {"state": "queued"}, {"state": "done", "msg": "xong"}
+        )
+        self.assertEqual(self.projection.job_for("A"), before)
+        diagnostics = self.projection.diagnostics()
+        self.assertEqual(diagnostics["mismatches"], 1)
+        self.assertEqual(
+            diagnostics["recent_mismatches"][0]["legacy_key"],
+            "A",
+        )
+        self.assertNotIn("xong", str(diagnostics))

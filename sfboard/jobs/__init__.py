@@ -39,6 +39,11 @@ from .manager import (
     JobManager,
     TransitionCommand,
 )
+from .projection import (
+    LEGACY_STATE_MAP,
+    LegacyShadowProjection,
+    ShadowMismatch,
+)
 
 __all__ = [
     "AccountLease",
@@ -70,7 +75,10 @@ __all__ = [
     "JobManager",
     "IllegalTransition",
     "LEGAL_TRANSITIONS",
+    "LEGACY_STATE_MAP",
+    "LegacyShadowProjection",
     "MemoryJobStore",
+    "ShadowMismatch",
     "StoreInvariantError",
     "StoreWriteResult",
     "TransitionCommand",
