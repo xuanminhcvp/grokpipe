@@ -4,6 +4,22 @@ Trạng thái: **ĐÃ ĐƯỢC NGƯỜI DÙNG PHÊ DUYỆT**
 Ngày phê duyệt: 2026-08-14
 Đích đến: `JOB-ARCHITECTURE-TARGET.md` và `JOB-STATE-MACHINE.md`.
 
+## Trạng thái triển khai 2026-08-16
+
+- Phase nền tảng đã có domain model, CAS/event idempotency, producer command,
+  scheduler, retry/account/result policy, SQLite repository, recovery và monitor.
+- Mode `authoritative` đã nối HTTP create/cancel/stop vào `LifecycleRuntime`, dùng
+  durable schedule và compatibility projection. DB nằm tại
+  `<project>/.grokpipe/job-lifecycle.sqlite3`.
+- Fake/injected one-attempt executor, restart/fault tests, concurrency stress và
+  inert HTTP smoke đã xanh. Default vẫn là `legacy`.
+- **Chưa live cutover:** `_generate_lo_ruot`/`_gen_video` và supervisor live chưa
+  được chuyển thành one-attempt fact emitter. Legacy worker bị chặn fail-closed
+  trong `authoritative`; vì vậy mode này hiện dành cho kiểm thử core, không dành
+  cho render production.
+- Rollback/re-init không được đi qua legacy khi còn execution authoritative active;
+  startup DB lỗi phải fail rõ. Không xóa DB khi rollback.
+
 ## Luật migration
 
 1. Không big-bang rewrite.
@@ -45,8 +61,8 @@ Rollback là revert đúng commit/feature mode của phase; không sửa tiếp 
 
 ## Chiến lược test
 
-Repo hiện chưa có test suite sống. Phase 0 dùng `unittest` chuẩn của Python để không
-thêm dependency. Test được chia:
+Phase 0 ban đầu dùng `unittest`; hiện repo đã có lifecycle suite pytest/Hypothesis
+và coverage gate. Các nhóm test chính gồm:
 
 ```text
 tests/job_lifecycle/
@@ -74,12 +90,13 @@ tests/job_lifecycle/
 - Executor integration dùng fake provider/session; test live Chrome để trong suite
   opt-in riêng, không chạy mặc định.
 
-Lệnh chuẩn ban đầu:
+Lệnh gate hiện tại:
 
 ```bash
-python3 -m unittest discover -s tests/job_lifecycle -p 'test_*.py'
-python3 -m py_compile sfboard/hangdoi.py sfboard/sfboard.py
+./test-job-lifecycle.command
 ```
+
+Gate không mở Chrome, không gọi provider và không tiêu credit.
 
 ## Phase 0 — Characterization tests, không đổi production
 
@@ -676,3 +693,10 @@ Không gom cleanup hoặc tách file không liên quan vào commit behavior.
 7. Mỗi phase có commit độc lập và rollback đã được thử ở môi trường test.
 8. Tài liệu AGENTS/architecture liên kết tới source-of-truth mới, không sao chép
    policy thành nhiều bản dễ lệch.
+
+### Trạng thái so với Definition of done
+
+Core authoritative và compatibility HTTP đã đạt các mục restart/recovery,
+cancel/stop, retry/account, fake E2E và static authority guard. Toàn chương trình
+**chưa done** ở các mục live image/video executor, structured UI/API cuối và xóa
+legacy writers. Không dùng kết quả fake/inert để đánh dấu các mục live này đã xong.

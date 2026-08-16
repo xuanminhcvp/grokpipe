@@ -4,6 +4,12 @@ Ngày chụp: 2026-08-14. Phạm vi: working tree hiện tại của `grokpipe` 
 `main`. Đây là tài liệu mô tả và đánh giá; không đề xuất thay đổi production trong
 đợt này.
 
+> **Cập nhật 2026-08-16:** phần audit bên dưới là baseline lịch sử của legacy,
+> không còn là mô tả đầy đủ của mode mới. HTTP/auto producer đã đi qua command
+> boundary; opt-in `authoritative` đã có `LifecycleRuntime` + SQLite + durable
+> scheduler/recovery + runtime-owned retry/account/result/cancel. Tuy vậy live
+> DOM worker vẫn là legacy và default vẫn là `legacy`; chưa chạy provider thật.
+
 ## Kết luận ngắn
 
 Hệ thống chưa có một state machine duy nhất. Một “job” hiện được biểu diễn đồng
@@ -24,6 +30,19 @@ Vì vậy `JOBS.state` không đủ để suy ra job có thật trong queue hay 
 trong timer hay không, đang được worker nào giữ, còn bao nhiêu lần retry, hoặc đã
 bị user huỷ chưa. Watchdog `_gac_hang_doi()` tồn tại để suy đoán và sửa chênh lệch
 này, nhưng chính nó là một writer/re-enqueuer nữa.
+
+## Authority hiện tại sau migration core
+
+| Mode | Producer | Schedule/retry/account/result | Executor live | UI state |
+|---|---|---|---|---|
+| `legacy` | Compatibility command → callback cũ | Legacy queue/worker | Legacy | `JOBS` legacy |
+| `shadow` | `ProducerService` + legacy delivery | Legacy, core quan sát | Legacy | `JOBS` + shadow diagnostics |
+| `authoritative` | `LifecycleRuntime` | Runtime + SQLite durable | Chỉ fake/injected one-attempt; legacy worker bị chặn | Projection một chiều từ durable state |
+
+Các guard mới cấm authoritative submit/adapter gọi queue RAM, browser/provider,
+legacy retry hoặc ghi `JOBS[...]` trực tiếp. `/api/jobs` đọc durable schedule trong
+mode này; `JOBS` chỉ còn compatibility label. Multi-copy đã tách một execution
+cho mỗi child job nhưng gộp trạng thái ở nhãn UI.
 
 ## Thành phần và quyền sở hữu thực tế
 

@@ -5,10 +5,11 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 
 ## Đọc trong 60 giây
 
-- Current phase: **Lõi vòng đời đã đủ bộ (Phase 1–5, 9–11 dạng module thuần);
-  CHƯA cutover — legacy vẫn thực thi.**
-- Production **execution** authority vẫn là legacy: `PriorityQueue`, worker,
-  retry timer, cancel/stop và account rotation.
+- Current phase: **authoritative core + SQLite + recovery + fake/injected
+  executor path đã sẵn sàng; live DOM worker CHƯA cutover.**
+- Production live **execution** authority mặc định vẫn là legacy:
+  `PriorityQueue`, worker và DOM executor cũ. Mode `authoritative` là opt-in;
+  trong mode này legacy worker bị chặn fail-closed, nên chưa dùng để render thật.
 - **Đã đổi chủ:** năm đường tạo HTTP (`/api/generate`, `/api/master`,
   `/api/tao-lo`, `/api/genvideo`, `/api/video-lo`) và auto producer chỉ còn gửi
   ý định qua `ProducerService → LegacyEnqueueAdapter`. Chúng KHÔNG còn gọi
@@ -17,21 +18,25 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 - Client gửi `Idempotency-Key` (`sfboard/ui/job-request.js`, `chay-anh.py`).
   Gửi lại cùng key trả về đúng job cũ và không xếp thêm; key khác nội dung cùng
   key cũ → 409.
-- `GROKPIPE_JOB_MODE=shadow` là opt-in nội bộ; mặc định vẫn là `legacy`. Ở
-  `legacy` không có store/producer nào chạy, adapter giao đúng callback cũ.
-- **Lịch execution** (`sfboard/jobs/scheduler.py`) chạy ở CẢ HAI mode nhưng chỉ
-  QUAN SÁT: nó giữ quan hệ `thành viên ⇢ lô vật lý` và lease của lượt đang chạy.
-  `PriorityQueue` legacy vẫn là thứ đưa việc tới thợ.
+- `GROKPIPE_JOB_MODE=shadow` và `authoritative` đều là opt-in nội bộ; mặc định
+  vẫn là `legacy`. `legacy` không mở lifecycle DB. `authoritative` mở
+  `.grokpipe/job-lifecycle.sqlite3` cạnh project và fail startup rõ nếu DB lỗi.
+- **Lịch execution** (`sfboard/jobs/scheduler.py`) phụ thuộc mode: ở
+  `legacy/shadow` nó chỉ quan sát `PriorityQueue`; ở `authoritative` nó là
+  durable transport và `/api/jobs` đọc hàng từ lịch này, không đọc queue RAM.
 - `/api/huy-viec` tra lô vật lý bằng HÀNG ĐỢI THẬT + lịch, không quét `JOBS` nữa
   — sửa đúng ca "bấm huỷ báo 0 lô mà ảnh vẫn ra".
 - **KHÔNG còn `expectedFailure` nào.** Cả bốn known ambiguity đã sửa và có
   regression hành vi thật: auto-video enqueue trùng, multi-copy identity,
   cancel identity lô, forced-account qua retry.
-- **Lõi đã có, chưa cầm quyền:** `retry.py` (một ngân sách, đếm theo số lần ĐÃ
-  BẤM GỬI), `accounts.py` (capability · sức khoẻ · ràng buộc ép), `results.py`
-  (loại kết quả về muộn), `persistence.py` (lịch SQLite + kế hoạch hồi phục),
-  `monitor.py` (chỉ báo, cấm sửa). Production vẫn chạy đường legacy — xem
-  "Còn lại gì trước cutover" bên dưới.
+- Trong `authoritative`, `LifecycleRuntime` là coordinator duy nhất cho schedule,
+  retry, account, cancel, result và recovery. Multi-copy giữ quan hệ
+  `1 copy = 1 job = 1 execution`; UI cũ chỉ nhận projection gộp.
+- Lô ảnh trả thiếu commit ngay member có output và chỉ retry member thiếu, tối đa
+  hai lượt chạy lại cả execution; member đã `COMPLETED` không regress. Video
+  không có output sau submit vào `NEEDS_ATTENTION`, không dùng partial retry.
+- Startup recovery giữ queued/retry-wait; pre-submit lease được trả về retry,
+  post-submit hoặc mất attempt vào `NEEDS_ATTENTION`, không tự gửi lại.
 - Không refactor production trước khi xác định phase, owner và regression test.
 
 ## Quy trình sửa lỗi bắt buộc
@@ -107,29 +112,29 @@ hoặc tiêu credit.
 tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
 tưởng mình đã tăng độ an toàn của board.
 
-Kết quả hiện tại: **569 pass, KHÔNG còn `xfailed`** (Phase 4 scheduler/lease +
-sổ lỗi runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
+Kết quả xác minh của đợt cutover core: **666 pass, KHÔNG có `xfailed`**, coverage
+`sfboard.jobs` trên 91%, compile PASS; thêm stress recovery/concurrency 20 vòng
+và inert localhost smoke. Con số pass sẽ còn tăng khi thêm test;
 cái PHẢI giữ nguyên là **không có `xfailed` mới**. Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
 
-## Còn lại gì trước cutover
+## Còn lại gì trước live cutover
 
-Lõi mới đã đủ bộ và có test, nhưng **quyền thực thi vẫn là legacy**. Ba việc còn
-lại, theo đúng thứ tự:
+Core mới, SQLite, recovery, HTTP create/cancel/stop và executor fact boundary đã
+có test, nhưng **DOM worker thật vẫn là legacy**. Ba việc còn lại:
 
-1. **Executor phát fact thay vì tự ghi state.** `_generate_lo_ruot` và
-   `_gen_video` vẫn ghi thẳng `JOBS` và tự xếp lại. Đây là phần cuối còn giữ
-   quyền lifecycle trong tay executor.
-2. **Bật `RetryPolicy` và `AccountAllocator` làm authority.** Hai module đã có
-   test đầy đủ nhưng chưa thay `VID_MAX_TRY`/`_HOAN`/`_xoay_chrome`.
-3. **Cutover sang lịch bền vững.** `persistence.py` chạy được nhưng chưa được
-   nối vào startup: hàng chờ vẫn nằm trong RAM.
+1. Tách logic DOM của `_generate_lo_ruot` và `_gen_video` thành hàm chạy đúng một
+   attempt, chỉ phát phase/output/error qua `LegacyExecutorAdapter`.
+2. Cho supervisor/worker live xin `RuntimeLease` và gọi adapter đó; xóa quyền
+   retry/state/account còn nằm trong worker cũ. Hiện worker cũ bị chặn khi bật
+   `authoritative` để không có hai authority.
+3. Chạy shadow/live canary có chủ đích khi hàng đợi rỗng, có backup và user cho
+   phép tiêu credit; sau đó mới cân nhắc đổi default và xóa compatibility path.
 
-Cutover phải làm lúc hàng đợi RỖNG, có backup, và chỉ sau khi chạy shadow đủ một
-chu kỳ workload thật không lệch. Đây là thay đổi hành vi có thể tốn credit —
-không tự bật.
+Không bật `authoritative` để render production lúc này. Fake E2E/inert smoke xanh
+chỉ chứng minh lifecycle path, không chứng minh selector/provider live.
 
 ## Sổ lỗi runtime (`.grokpipe/runtime-bugs/`)
 
@@ -187,6 +192,12 @@ bằng TDD, mỗi lần chỉ hạ đúng một expected failure ở đúng phas
 - [AccountAllocator](../sfboard/jobs/accounts.py): capability · sức khoẻ · ép tài khoản.
 - [ResultCommit](../sfboard/jobs/results.py): nhận hay loại kết quả về muộn.
 - [Persistence](../sfboard/jobs/persistence.py): lịch SQLite + kế hoạch hồi phục.
+- [SQLite repository](../sfboard/jobs/sqlite_store.py): Job/Batch/Event/Intent/
+  Execution/Attempt trong transaction bền vững.
+- [Lifecycle runtime](../sfboard/jobs/runtime.py): coordinator duy nhất của mode
+  authoritative.
+- [Executor boundary](../sfboard/jobs/executor_adapter.py): một attempt phát fact,
+  không biết queue/browser/provider.
 - [InvariantMonitor](../sfboard/jobs/monitor.py): chỉ báo lệch, cấm mutate.
 - [Lifecycle tests](../tests/job_lifecycle/): executable legacy/domain contract.
 - [Legacy queue/state](../sfboard/hangdoi.py) và [runtime/API](../sfboard/sfboard.py):
