@@ -1213,6 +1213,7 @@ _JOB_MODE = "legacy"
 _JOB_SHADOW = None
 _JOB_PRODUCER = None
 _JOB_ADAPTER = None
+_JOB_ACCOUNTS = None
 # Lịch theo execution_id. Ở Phase 4 nó CHỈ QUAN SÁT: `PriorityQueue` legacy vẫn
 # là thứ đưa việc tới thợ. Giá trị dùng được ngay là quan hệ "thành viên ⇢ lô
 # vật lý" (xem `_lo_chua`) và số liệu lease trong `/api/chan-doan`.
@@ -1281,8 +1282,23 @@ def _make_scheduler():
         return None
 
 
+def _make_accounts():
+    """Sổ tài khoản: capability · sức khoẻ · ràng buộc ép.
+
+    Ở Phase 5 nó CHƯA chọn tài khoản thay `_pool` — thứ dùng ngay là ràng buộc
+    ÉP, để đường xếp-lại-sau-lỗi trả việc về đúng cổng thay vì thả vào hàng
+    chung (chat sống trong profile của đúng máy đã mở nó)."""
+    try:
+        from jobs.accounts import AccountAllocator
+        return AccountAllocator()
+    except Exception as exc:                # noqa: BLE001
+        _LOG.warning("không dựng được sổ tài khoản (%s)", type(exc).__name__)
+        return None
+
+
 def _init_job_shadow(mode=None):
-    global _JOB_MODE, _JOB_SHADOW, _JOB_PRODUCER, _JOB_ADAPTER, _JOB_SCHEDULER
+    global _JOB_MODE, _JOB_SHADOW, _JOB_PRODUCER, _JOB_ADAPTER
+    global _JOB_SCHEDULER, _JOB_ACCOUNTS
     selected = str(
         mode or os.environ.get("GROKPIPE_JOB_MODE", "legacy")
     ).strip().lower()
@@ -1294,6 +1310,7 @@ def _init_job_shadow(mode=None):
     # Lịch dựng ở CẢ HAI mode: nó không cầm quyền gì, chỉ ghi lại việc nào đang
     # chờ để `/api/huy-viec` tra ra lô vật lý và để board có số liệu.
     _JOB_SCHEDULER = _make_scheduler()
+    _JOB_ACCOUNTS = _make_accounts()
     if selected != "shadow":
         if selected != "legacy":
             _LOG.warning(
@@ -1387,6 +1404,9 @@ def _dang_ky_lich(plan):
                 member_keys=tuple(action.state_idents or action.legacy_keys),
                 priority=_uu_tien(action.queue_ident),
             )
+            # RÀNG BUỘC ÉP đi theo việc, không theo lần chạy.
+            if action.forced_account_id and _JOB_ACCOUNTS is not None:
+                _JOB_ACCOUNTS.force(action.queue_ident, action.forced_account_id)
     except Exception as exc:                # noqa: BLE001
         _LOG.warning("không ghi được lịch execution (%s)", type(exc).__name__)
 
@@ -1480,6 +1500,16 @@ def _yeu_cau_video(shot_id, scope):
         manual=True,
         replace_current=True,
     )
+
+
+def _tk_bi_ep(ident):
+    """Cổng tài khoản mà việc này bị ghim vào — None nếu chạy hàng chung."""
+    if _JOB_ACCOUNTS is None:
+        return None
+    try:
+        return _JOB_ACCOUNTS.forced_account_for(ident)
+    except Exception:                       # noqa: BLE001
+        return None
 
 
 def _lo_chua(sf):
@@ -2140,6 +2170,16 @@ def _ban_xep_lai(kind: str, item: tuple, gen: int, dau: float | None) -> str:
         return "nhuong"
     quyet = _quyet_xep_lai(item[1], gen)
     if quyet == "xep":
+        # ÉP TÀI KHOẢN LÀ RÀNG BUỘC CỦA CẢ VIỆC, KHÔNG CHỈ CỦA LẦN CHẠY ĐẦU.
+        #
+        # Bản cũ luôn thả về hàng CHUNG. Nhưng chat sống trong profile Chrome
+        # của đúng tài khoản đã mở nó, nên lần thử sau chạy ở máy khác là mở
+        # chat trắng — đúng thứ user ép tài khoản để tránh. Ép xong mà lỗi một
+        # lượt là ràng buộc bay mất, im lặng.
+        _ep = _tk_bi_ep(item[1])
+        if kind == "img" and _ep:
+            _legacy_enqueue_private_image(_ep, item[1], True, "retry")
+            return quyet
         _xep(IMG_QUEUE if kind == "img" else VID_QUEUE, item)
         return quyet
     # NHÃN PHẢI NÓI CÙNG SỰ THẬT VỚI HÀNG ĐỢI (vá 2026-08-14).
