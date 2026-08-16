@@ -68,8 +68,10 @@ class HttpContractTest(unittest.TestCase):
                 "job_chay",
                 "bug_bridge",
                 "job_shadow",
+                "lich",
             },
         )
+        self.assertEqual(set(body["lich"]), {"executions", "theo_trang_thai"})
         self.assertEqual(
             set(body["bug_bridge"]),
             {"mode", "pending", "last_sync_at", "last_error", "created", "updated"},

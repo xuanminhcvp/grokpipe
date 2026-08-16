@@ -5,7 +5,7 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 
 ## Đọc trong 60 giây
 
-- Current phase: **Phase 3 producer command + idempotency đã triển khai; chưa cutover**.
+- Current phase: **Phase 4 scheduler/lease đã triển khai; chưa cutover**.
 - Production **execution** authority vẫn là legacy: `PriorityQueue`, worker,
   retry timer, cancel/stop và account rotation.
 - **Đã đổi chủ:** năm đường tạo HTTP (`/api/generate`, `/api/master`,
@@ -18,9 +18,14 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
   key cũ → 409.
 - `GROKPIPE_JOB_MODE=shadow` là opt-in nội bộ; mặc định vẫn là `legacy`. Ở
   `legacy` không có store/producer nào chạy, adapter giao đúng callback cũ.
-- 2 known ambiguity còn khóa bằng `expectedFailure`: cancel identity lô và
-  forced-account retry mất constraint. Hai cái kia (auto-video enqueue trùng,
-  multi-copy identity) đã được sửa ở Phase 3 và có regression hành vi thật.
+- **Lịch execution** (`sfboard/jobs/scheduler.py`) chạy ở CẢ HAI mode nhưng chỉ
+  QUAN SÁT: nó giữ quan hệ `thành viên ⇢ lô vật lý` và lease của lượt đang chạy.
+  `PriorityQueue` legacy vẫn là thứ đưa việc tới thợ.
+- `/api/huy-viec` tra lô vật lý bằng HÀNG ĐỢI THẬT + lịch, không quét `JOBS` nữa
+  — sửa đúng ca "bấm huỷ báo 0 lô mà ảnh vẫn ra".
+- 1 known ambiguity còn khóa bằng `expectedFailure`: forced-account retry mất
+  constraint (Phase 5). Ba cái kia (auto-video enqueue trùng, multi-copy
+  identity, cancel identity lô) đã sửa và có regression hành vi thật.
 - Không refactor production trước khi xác định phase, owner và regression test.
 
 ## Quy trình sửa lỗi bắt buộc
@@ -96,10 +101,10 @@ hoặc tiêu credit.
 tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
 tưởng mình đã tăng độ an toàn của board.
 
-Kết quả hiện tại: **468 pass và đúng 2 `xfailed`** (Phase 3 producer command +
+Kết quả hiện tại: **499 pass và đúng 1 `xfailed`** (Phase 4 scheduler/lease +
 sổ lỗi runtime + lưới property-based Hypothesis + test executor). Con số pass sẽ còn tăng khi thêm test;
-cái PHẢI giữ nguyên là **đúng 2 `xfailed`** cho tới phase sửa đúng hai bug đó
-(cancel identity lô ở Phase 8, forced-account ở Phase 5). Một expected
+cái PHẢI giữ nguyên là **đúng 1 `xfailed`** cho tới Phase 5 (forced-account).
+Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
@@ -154,6 +159,8 @@ bằng TDD, mỗi lần chỉ hạ đúng một expected failure ở đúng phas
 - [Domain models](../sfboard/jobs/models.py): identity và immutable facts Phase 1.
 - [Producer](../sfboard/jobs/producer.py): cửa DUY NHẤT tạo Job/Batch + idempotency.
 - [Legacy adapter](../sfboard/jobs/compat.py): nơi DUY NHẤT ý định chạm hàng đợi cũ.
+- [Scheduler](../sfboard/jobs/scheduler.py): lịch theo `execution_id`, lease atomic,
+  và quan hệ thành viên ⇢ lô vật lý.
 - [Lifecycle tests](../tests/job_lifecycle/): executable legacy/domain contract.
 - [Legacy queue/state](../sfboard/hangdoi.py) và [runtime/API](../sfboard/sfboard.py):
   production authority hiện tại.

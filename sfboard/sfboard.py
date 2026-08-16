@@ -1213,6 +1213,10 @@ _JOB_MODE = "legacy"
 _JOB_SHADOW = None
 _JOB_PRODUCER = None
 _JOB_ADAPTER = None
+# Lịch theo execution_id. Ở Phase 4 nó CHỈ QUAN SÁT: `PriorityQueue` legacy vẫn
+# là thứ đưa việc tới thợ. Giá trị dùng được ngay là quan hệ "thành viên ⇢ lô
+# vật lý" (xem `_lo_chua`) và số liệu lease trong `/api/chan-doan`.
+_JOB_SCHEDULER = None
 
 
 def _job_shadow_diagnostics() -> dict:
@@ -1225,6 +1229,15 @@ def _job_shadow_diagnostics() -> dict:
             "recent_mismatches": [],
         }
     return _JOB_SHADOW.diagnostics()
+
+
+def _lich_diagnostics() -> dict:
+    if _JOB_SCHEDULER is None:
+        return {"executions": 0, "theo_trang_thai": {}}
+    try:
+        return _JOB_SCHEDULER.diagnostics()
+    except Exception:                       # noqa: BLE001
+        return {"executions": 0, "theo_trang_thai": {}}
 
 
 def _legacy_enqueue_private_image(port, ident, manual, _action_key):
@@ -1259,8 +1272,17 @@ def _make_legacy_adapter(projection=None, producer=None):
     )
 
 
+def _make_scheduler():
+    try:
+        from jobs.scheduler import Scheduler
+        return Scheduler()
+    except Exception as exc:                # noqa: BLE001
+        _LOG.warning("không dựng được lịch execution (%s)", type(exc).__name__)
+        return None
+
+
 def _init_job_shadow(mode=None):
-    global _JOB_MODE, _JOB_SHADOW, _JOB_PRODUCER, _JOB_ADAPTER
+    global _JOB_MODE, _JOB_SHADOW, _JOB_PRODUCER, _JOB_ADAPTER, _JOB_SCHEDULER
     selected = str(
         mode or os.environ.get("GROKPIPE_JOB_MODE", "legacy")
     ).strip().lower()
@@ -1269,6 +1291,9 @@ def _init_job_shadow(mode=None):
     _JOB_PRODUCER = None
     _JOB_MODE = "legacy"
     _JOB_ADAPTER = _make_legacy_adapter()
+    # Lịch dựng ở CẢ HAI mode: nó không cầm quyền gì, chỉ ghi lại việc nào đang
+    # chờ để `/api/huy-viec` tra ra lô vật lý và để board có số liệu.
+    _JOB_SCHEDULER = _make_scheduler()
     if selected != "shadow":
         if selected != "legacy":
             _LOG.warning(
@@ -1346,6 +1371,53 @@ def _request_idempotency_key(handler, query, raw):
     return None
 
 
+def _dang_ky_lich(plan):
+    """Ghi mỗi action đã giao thành một execution trong lịch.
+
+    Fail-open: lịch mới là bản quan sát, hỏng nó KHÔNG được làm hỏng việc giao
+    xuống hàng đợi legacy."""
+    if _JOB_SCHEDULER is None or plan is None:
+        return
+    try:
+        from jobs.models import JobKind
+        for action in plan.actions:
+            _JOB_SCHEDULER.schedule(
+                kind=JobKind.IMAGE if action.queue_kind == "img" else JobKind.VIDEO,
+                queue_ident=action.queue_ident,
+                member_keys=tuple(action.state_idents or action.legacy_keys),
+                priority=_uu_tien(action.queue_ident),
+            )
+    except Exception as exc:                # noqa: BLE001
+        _LOG.warning("không ghi được lịch execution (%s)", type(exc).__name__)
+
+
+LEASE_TTL = 900.0       # giây: một lượt ảnh/video lâu nhất còn coi là đang sống
+
+
+def _lich_nhan(kind, ident):
+    """Thợ vừa nhấc ident này — gắn lease. Trả None nếu lịch chưa biết việc đó.
+
+    Fail-open tuyệt đối: đây là tầng quan sát, không được chặn thợ."""
+    if _JOB_SCHEDULER is None:
+        return None
+    try:
+        from jobs.models import JobKind
+        return _JOB_SCHEDULER.lease_ident(
+            JobKind.IMAGE if kind == "img" else JobKind.VIDEO,
+            ident, now=time.time(), ttl=LEASE_TTL)
+    except Exception:                       # noqa: BLE001
+        return None
+
+
+def _lich_tra(lease):
+    if lease is None or _JOB_SCHEDULER is None:
+        return
+    try:
+        _JOB_SCHEDULER.finish(lease.lease_id)
+    except Exception:                       # noqa: BLE001
+        pass
+
+
 def _producer_submit(request_or_batch, idempotency_key, plan_factory):
     global _JOB_ADAPTER
     if _JOB_ADAPTER is None:
@@ -1358,9 +1430,13 @@ def _producer_submit(request_or_batch, idempotency_key, plan_factory):
             if isinstance(request_or_batch, CreateBatchRequest)
             else _JOB_PRODUCER.create_job(request_or_batch, idempotency_key)
         )
-        _JOB_ADAPTER.deliver(result, plan_factory(result))
+        plan = plan_factory(result)
+        _JOB_ADAPTER.deliver(result, plan)
+        _dang_ky_lich(plan)
         return result
-    _JOB_ADAPTER.deliver_legacy(plan_factory(None))
+    plan = plan_factory(None)
+    _JOB_ADAPTER.deliver_legacy(plan)
+    _dang_ky_lich(plan)
     return None
 
 
@@ -1404,6 +1480,45 @@ def _yeu_cau_video(shot_id, scope):
         manual=True,
         replace_current=True,
     )
+
+
+def _lo_chua(sf):
+    """Các ident lô ĐANG CHỜ có chứa SF này — hỏi đúng nơi biết sự thật.
+
+    Thứ tự nguồn:
+
+    1. **Scheduler** — nơi duy nhất giữ quan hệ "thành viên ⇢ execution".
+    2. **HÀNG ĐỢI THẬT** (`IMG_QUEUE` và các hàng giao đích danh). Đây là chỗ
+       biết việc gì đang chờ; `JOBS` chỉ là NHÃN để hiển thị.
+    3. `JOBS` — giữ lại vì lô đang chờ khoá địa điểm có ghi khoá `LO:` ở đó.
+
+    Bản cũ chỉ có nguồn 3, mà lúc lô vừa được xếp thì `JOBS` mới chỉ có nhãn
+    của TỪNG THÀNH VIÊN — khoá `LO:a,b` chưa tồn tại. Nên bấm huỷ đúng lúc đó
+    trả về "đã huỷ 0 lô" trong khi lô vẫn nằm nguyên trong hàng và vẫn chạy.
+    """
+    ra = []
+
+    def _them(ident):
+        if ident and ident.startswith("LO:") and ident not in ra:
+            if sf in [x for x in ident[3:].split(",") if x]:
+                ra.append(ident)
+
+    if _JOB_SCHEDULER is not None:
+        try:
+            for exe in _JOB_SCHEDULER.executions_for_member(sf):
+                _them(exe.queue_ident)
+        except Exception:                   # noqa: BLE001
+            pass                            # lịch hỏng không được chặn việc huỷ
+    for ident in _y_trong_hang(IMG_QUEUE):
+        _them(ident)
+    with _CR_LOCK:
+        for ds in CHO_RIENG.values():
+            for ident in list(ds):
+                _them(ident)
+    for k, v in list(JOBS.items()):
+        if v.get("state") == "queued":
+            _them(k)
+    return ra
 
 
 def _da_nhan_key(khoa):
@@ -2119,6 +2234,10 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
         # 2026-08-12 với lô SF-S22 — log có hai dòng "đã gửi lô 4 khung" cách
         # nhau 2 giây, ngay sau một dòng "đã xếp lại (lần 1)".
         _dat_job(ident, {"state": "running", "msg": "đang khởi động…"})
+        # GẮN LEASE cho lượt này. Ở Phase 4 lease chỉ để QUAN SÁT — hàng đợi
+        # legacy vẫn là thứ đưa việc tới đây. Nó trả lời được câu mà `JOBS`
+        # không trả lời nổi: việc này đang do ai cầm, cầm từ bao giờ.
+        _lease = _lich_nhan(kind, ident)
         # Ghi sổ NGAY khi nhận việc, gỡ ở `finally` — để `_giu_du_tai_khoan()`
         # biết cửa sổ này đang bận mà đừng đóng ngang.
         _ban_vao(endpoint)
@@ -2243,6 +2362,7 @@ def _worker(endpoint: str, kind: str, slot: int = 0):
                 })
         finally:
             _ban_ra(endpoint)
+            _lich_tra(_lease)
             if tu_hang:                 # việc lấy từ CHO_RIENG không qua queue
                 QUEUE.task_done()
         if stop:
@@ -4607,6 +4727,7 @@ class Handler(BaseHTTPRequestHandler):
                 "job_chay": sum(1 for v in JOBS.values() if v.get("state") == "running"),
                 "bug_bridge": runtime_bug_diagnostics()["bug_bridge"],
                 "job_shadow": _job_shadow_diagnostics(),
+                "lich": _lich_diagnostics(),
             })
         elif u.path == "/api/projects":
             self._json({
@@ -4908,15 +5029,15 @@ class Handler(BaseHTTPRequestHandler):
                     DA_HUY.add(sf)
                 JOBS[sf] = {"state": "error", "msg": "đã huỷ riêng việc này"}
                 self._json({"ok": True, "video": True}); return
-            bo, con_lai = [], []
-            for k, v in list(JOBS.items()):
-                if not k.startswith("LO:") or v.get("state") != "queued":
-                    continue
-                tv = [x for x in k[3:].split(",") if x]
-                if sf not in tv:
-                    continue
-                bo.append(k)
-                con_lai = [x for x in tv if x != sf]
+            bo = _lo_chua(sf)
+            con_lai = []
+            for k in bo:
+                con_lai = [x for x in k[3:].split(",") if x and x != sf]
+            if _JOB_SCHEDULER is not None and bo:
+                try:                        # lịch cũng phải biết lô này chết rồi
+                    _JOB_SCHEDULER.cancel_member(sf)
+                except Exception:           # noqa: BLE001
+                    pass
             with HUY_LOCK:
                 DA_HUY.update(bo)
             with _CR_LOCK:                       # gỡ khỏi hàng giao đích danh

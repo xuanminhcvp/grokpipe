@@ -245,6 +245,13 @@ Feature flag đưa endpoint về producer legacy. Job shadow tạo trong phase n
 
 ## Phase 4 — Scheduler và execution lease abstraction
 
+**Trạng thái: ĐÃ TRIỂN KHAI phần lịch + lease quan sát (2026-08-16).**
+`sfboard/jobs/scheduler.py` giữ execution theo `execution_id`, lease atomic có
+hạn/heartbeat/stale-token, `not_before` và thứ tự ưu tiên. Board đăng ký mỗi
+action đã giao, thợ gắn/nhả lease, `/api/huy-viec` tra lô vật lý qua hàng đợi
+thật + lịch (hạ `xfail` cancel identity). CHƯA giao quyền: `PriorityQueue` vẫn
+đưa việc tới thợ — phần đó nằm ở Phase 10 khi có store bền vững.
+
 ### Mục tiêu
 
 Queue thao tác bằng `execution_id`; một lease atomic thay nhịp `dequeue` rồi mới ghi

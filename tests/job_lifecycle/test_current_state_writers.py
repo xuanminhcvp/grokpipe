@@ -44,7 +44,7 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
         # được cầm quyền hàng đợi/provider/tài khoản. `compat.py` chỉ gọi
         # callback được tiêm từ runtime, không tự biết hàng đợi là gì.
         for name in ("__init__.py", "store.py", "manager.py", "projection.py",
-                     "producer.py", "compat.py"):
+                     "producer.py", "compat.py", "scheduler.py"):
             path = ROOT / "sfboard/jobs" / name
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):

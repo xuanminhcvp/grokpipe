@@ -47,6 +47,7 @@ COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
   sfboard/jobs/projection.py \
   sfboard/jobs/producer.py \
   sfboard/jobs/compat.py \
+  sfboard/jobs/scheduler.py \
   sfboard/chay-anh.py
 
 echo "Job lifecycle gate: PASS"
