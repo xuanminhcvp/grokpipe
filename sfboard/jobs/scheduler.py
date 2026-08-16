@@ -22,10 +22,11 @@ from collections import deque
 from dataclasses import dataclass, replace
 import itertools
 import threading
-from typing import Optional, Tuple
+from typing import Optional, Protocol, Tuple
 from uuid import uuid4
 
 from .models import ExecutionId, ExecutionState, JobKind
+from .persistence import DurableExecution
 
 
 class SchedulerError(RuntimeError):
@@ -41,6 +42,16 @@ class StaleLease(SchedulerError):
 
     Đây là chỗ chặn thợ zombie: cửa sổ Chrome treo 10 phút rồi tỉnh dậy báo
     "xong" cho một lượt mà việc đã được thuê lại từ lâu."""
+
+
+class ScheduleRepository(Protocol):
+    def insert_execution(self, execution: DurableExecution) -> None: ...
+
+    def update_execution(
+        self, execution: DurableExecution, *, expected_version: int,
+    ) -> None: ...
+
+    def load_active_execution_records(self) -> Tuple[DurableExecution, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -71,11 +82,11 @@ class ExecutionLease:
 
 
 class Scheduler:
-    """Lịch trong bộ nhớ. Mọi thao tác đổi trạng thái nằm trong một lock."""
+    """Lịch có cache trong RAM; repository tuỳ chọn giữ identity qua restart."""
 
-    def __init__(self) -> None:
+    def __init__(self, repository: Optional[ScheduleRepository] = None) -> None:
         self._lock = threading.RLock()
-        self._seq = itertools.count()
+        self._repository = repository
         self._by_id: dict[ExecutionId, ScheduledExecution] = {}
         self._by_ident: dict[Tuple[str, str], ExecutionId] = {}
         self._by_scope: dict[Tuple[str, str], ExecutionId] = {}
@@ -85,6 +96,70 @@ class Scheduler:
         # (LeaseNotFound). Hai ca này cần xử lý khác nhau, gộp lại là mất dấu.
         self._da_thu_hoi: "deque[str]" = deque(maxlen=512)
         self._thu_hoi_set: set[str] = set()
+        max_seq = -1
+        if repository is not None:
+            for record in repository.load_active_execution_records():
+                execution = self._from_record(record)
+                self._remember(execution)
+                if execution.lease_id:
+                    self._by_lease[execution.lease_id] = execution.execution_id
+                max_seq = max(max_seq, execution.seq)
+        self._seq = itertools.count(max_seq + 1)
+
+    @staticmethod
+    def _from_record(record: DurableExecution) -> ScheduledExecution:
+        return ScheduledExecution(
+            execution_id=ExecutionId.parse(record.execution_id),
+            kind=JobKind(record.kind),
+            queue_ident=record.queue_ident,
+            member_keys=record.member_keys,
+            priority=record.priority,
+            not_before=record.not_before,
+            seq=record.seq,
+            state=ExecutionState(record.state),
+            scope_key=record.scope_key,
+            version=record.version,
+            lease_id=record.lease_id,
+            lease_expires_at=record.lease_expires_at,
+        )
+
+    @staticmethod
+    def _to_record(execution: ScheduledExecution) -> DurableExecution:
+        return DurableExecution(
+            execution_id=str(execution.execution_id),
+            kind=execution.kind.value,
+            queue_ident=execution.queue_ident,
+            member_keys=execution.member_keys,
+            priority=execution.priority,
+            not_before=execution.not_before,
+            state=execution.state.value,
+            scope_key=execution.scope_key,
+            version=execution.version,
+            seq=execution.seq,
+            lease_id=execution.lease_id,
+            lease_expires_at=execution.lease_expires_at,
+        )
+
+    def _remember(self, execution: ScheduledExecution) -> None:
+        self._by_id[execution.execution_id] = execution
+        self._by_ident[(execution.kind.value, execution.queue_ident)] = (
+            execution.execution_id
+        )
+        self._by_scope[(execution.kind.value, execution.scope_key)] = (
+            execution.execution_id
+        )
+
+    def _persist_new(self, execution: ScheduledExecution) -> None:
+        if self._repository is not None:
+            self._repository.insert_execution(self._to_record(execution))
+
+    def _persist_change(
+        self, before: ScheduledExecution, after: ScheduledExecution,
+    ) -> None:
+        if self._repository is not None:
+            self._repository.update_execution(
+                self._to_record(after), expected_version=before.version,
+            )
 
     # ─────────────────────────── xếp lịch ────────────────────────────
 
@@ -132,9 +207,8 @@ class Scheduler:
                 state=ExecutionState.READY,
                 scope_key=pham_vi[1],
             )
-            self._by_id[exe.execution_id] = exe
-            self._by_ident[khoa] = exe.execution_id
-            self._by_scope[pham_vi] = exe.execution_id
+            self._persist_new(exe)
+            self._remember(exe)
             return exe
 
     # ──────────────────────────── tra cứu ────────────────────────────
@@ -217,7 +291,8 @@ class Scheduler:
             lease_id=lease_id,
             lease_expires_at=now + float(ttl),
         )
-        self._by_id[moi.execution_id] = moi
+        self._persist_change(exe, moi)
+        self._remember(moi)
         self._by_lease[lease_id] = moi.execution_id
         return ExecutionLease(
             lease_id=lease_id,
@@ -252,8 +327,13 @@ class Scheduler:
     def heartbeat(self, lease_id: str, now: float, ttl: float = 30.0) -> None:
         with self._lock:
             exe = self._doc_lease(lease_id)
-            self._by_id[exe.execution_id] = replace(
-                exe, lease_expires_at=now + float(ttl))
+            updated = replace(
+                exe,
+                version=exe.version + 1,
+                lease_expires_at=now + float(ttl),
+            )
+            self._persist_change(exe, updated)
+            self._remember(updated)
 
     def finish(self, lease_id: str) -> ScheduledExecution:
         with self._lock:
@@ -261,7 +341,8 @@ class Scheduler:
             xong = replace(exe, state=ExecutionState.FINISHED,
                            version=exe.version + 1,
                            lease_id=None, lease_expires_at=None)
-            self._by_id[exe.execution_id] = xong
+            self._persist_change(exe, xong)
+            self._remember(xong)
             self._thu_hoi(lease_id)
             return xong
 
@@ -274,7 +355,8 @@ class Scheduler:
                           version=exe.version + 1,
                           not_before=float(not_before),
                           lease_id=None, lease_expires_at=None)
-            self._by_id[exe.execution_id] = tra
+            self._persist_change(exe, tra)
+            self._remember(tra)
             self._thu_hoi(lease_id)
             return tra
 
@@ -291,7 +373,8 @@ class Scheduler:
                 tra = replace(exe, state=ExecutionState.READY,
                               version=exe.version + 1,
                               lease_id=None, lease_expires_at=None)
-                self._by_id[exe.execution_id] = tra
+                self._persist_change(exe, tra)
+                self._remember(tra)
                 ra.append(tra)
         return tuple(ra)
 
@@ -311,7 +394,8 @@ class Scheduler:
                 huy = replace(exe, state=ExecutionState.FINISHED,
                               version=exe.version + 1,
                               lease_id=None, lease_expires_at=None)
-                self._by_id[exe.execution_id] = huy
+                self._persist_change(exe, huy)
+                self._remember(huy)
                 ra.append(huy)
         return tuple(ra)
 
@@ -320,8 +404,10 @@ class Scheduler:
             exe = self._by_id.get(execution_id)
             if exe is None or exe.state is not ExecutionState.READY:
                 return False
-            self._by_id[execution_id] = replace(
+            cancelled = replace(
                 exe, state=ExecutionState.FINISHED, version=exe.version + 1)
+            self._persist_change(exe, cancelled)
+            self._remember(cancelled)
             return True
 
     def diagnostics(self) -> dict:

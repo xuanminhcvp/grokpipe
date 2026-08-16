@@ -61,9 +61,12 @@ def make_intent(key, fingerprint, scope, jobs, batch=None):
     )
 
 
-class MemoryJobStoreTest(unittest.TestCase):
+class JobStoreContract:
+    def make_store(self):
+        raise NotImplementedError
+
     def setUp(self):
-        self.store = MemoryJobStore()
+        self.store = self.make_store()
 
     def test_create_writes_job_and_event_atomically(self):
         job = make_job()
@@ -231,3 +234,8 @@ class MemoryJobStoreTest(unittest.TestCase):
                 ((changed, make_event(changed)),),
             )
         self.assertIsNone(self.store.get(changed.job_id))
+
+
+class MemoryJobStoreTest(JobStoreContract, unittest.TestCase):
+    def make_store(self):
+        return MemoryJobStore()

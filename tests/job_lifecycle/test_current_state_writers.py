@@ -46,7 +46,7 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
         for name in ("__init__.py", "store.py", "manager.py", "projection.py",
                      "producer.py", "compat.py", "scheduler.py",
                      "accounts.py", "retry.py", "results.py",
-                     "monitor.py"):
+                     "monitor.py", "persistence.py", "sqlite_store.py"):
             path = ROOT / "sfboard/jobs" / name
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
