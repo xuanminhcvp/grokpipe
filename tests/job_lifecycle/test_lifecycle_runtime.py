@@ -75,6 +75,16 @@ class LifecycleRuntimeTest(unittest.TestCase):
         self.assertTrue(verdicts[job_id].ghi_de)
         self.assertEqual(self.runtime.scheduler.ready(now=100), ())
 
+    def test_lease_mang_dung_slot_da_duoc_allocator_cap(self):
+        result = self.submit()
+
+        lease = self.runtime.lease_next(JobKind.IMAGE, now=10, ttl=30)
+
+        seats = self.runtime.accounts.seats_of(lease.account_id)
+        self.assertEqual(len(seats), 1)
+        self.assertEqual(lease.account_seat_id, seats[0].lease_id)
+        self.assertEqual(lease.account_slot, seats[0].slot)
+
     def test_validation_error_dung_han_khong_retry(self):
         result = self.submit()
         job_id = result.jobs[0].job_id

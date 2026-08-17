@@ -45,10 +45,12 @@ class HttpContractTest(unittest.TestCase):
                 "loi",
                 "auto_vid",
                 "mtime",
+                "lifecycle",
             },
         )
         self.assertEqual(set(body["hang"]), {"anh", "video"})
         self.assertEqual(set(body["tho"]), {"img", "vid"})
+        self.assertEqual(body["lifecycle"]["source"], "legacy")
 
     def test_diagnostics_keeps_legacy_keys_and_adds_shadow_status(self):
         handler = make_handler(self.m, "/api/chan-doan")
@@ -68,6 +70,7 @@ class HttpContractTest(unittest.TestCase):
                 "job_chay",
                 "bug_bridge",
                 "job_shadow",
+                "live_executor",
                 "lich",
                 "invariants",
             },

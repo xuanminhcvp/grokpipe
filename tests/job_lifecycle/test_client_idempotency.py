@@ -110,6 +110,13 @@ class BoardHtmlOrderTest(unittest.TestCase):
                 if duong in dong and "fetch(" in dong and "postJob" not in dong:
                     self.fail(f"còn fetch trần tới {duong}: {dong.strip()[:90]}")
 
+    def test_board_ui_doc_structured_lifecycle_va_khong_optimistic_ghi_jobs(self):
+        js = (ROOT / "sfboard/ui/board.js").read_text(encoding="utf-8")
+        self.assertIn("r.lifecycle", js)
+        self.assertIn("SUBMITTING", js)
+        self.assertNotRegex(js, r"JOBS\s*\[[^\]]+\]\s*=")
+        self.assertIn("job_id=", js)
+
 
 class CliKeyTest(unittest.TestCase):
     def setUp(self):

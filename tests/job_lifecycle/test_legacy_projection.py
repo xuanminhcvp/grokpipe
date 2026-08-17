@@ -317,9 +317,8 @@ class ShadowStartupTest(unittest.TestCase):
         self.m._init_job_shadow("legacy")
         self.m.BOARD = self.board_old
 
-    def test_default_legacy_mode_has_no_observer(self):
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("GROKPIPE_JOB_MODE", None)
+    def test_explicit_legacy_mode_has_no_observer(self):
+        with patch.dict(os.environ, {"GROKPIPE_JOB_MODE": "legacy"}):
             result = self.m._init_job_shadow()
         self.assertIsNone(result)
         self.assertIsNone(self.m.hangdoi.JOBS.shadow_observer)

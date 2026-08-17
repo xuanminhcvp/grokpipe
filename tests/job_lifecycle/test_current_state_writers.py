@@ -177,6 +177,8 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
         for chu, than in vung:
             for cau in than:
                 for n in ast.walk(cau):
+                    if isinstance(n, ast.Name) and n.id == "JOBS":
+                        pham.append(f"{chu}:{n.lineno}:đọc projection JOBS")
                     if isinstance(n, ast.Call):
                         ten = (n.func.id if isinstance(n.func, ast.Name)
                                else n.func.attr if isinstance(n.func, ast.Attribute)
@@ -191,7 +193,10 @@ class CurrentStateWriterInventoryTest(unittest.TestCase):
                            for t in dich):
                         pham.append(f"{chu}:{n.lineno}:ghi JOBS")
 
-        self.assertEqual(pham, [], "producer đang tự cầm quyền hàng đợi/nhãn")
+        self.assertEqual(
+            pham, [],
+            "producer đang tự cầm quyền hoặc đọc projection hàng đợi/nhãn",
+        )
 
     def test_every_direct_jobs_write_stays_auditable(self):
         """Đếm theo TỪNG HÀM bằng cây cú pháp, không đếm chuỗi `"JOBS["`.

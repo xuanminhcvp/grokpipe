@@ -8,6 +8,12 @@ cd "$(dirname "$0")"
 PY="./.venv/bin/python3"
 [ -x "$PY" ] || { echo "Chưa có .venv — xem SETUP.md mục 1."; exit 1; }
 
+# Production dùng lifecycle mới theo mặc định. Muốn rollback có chủ đích:
+# GROKPIPE_JOB_MODE=legacy GROKPIPE_LIVE_EXECUTOR=0 ./chay-board.command <project>
+export GROKPIPE_JOB_MODE="${GROKPIPE_JOB_MODE:-authoritative}"
+export GROKPIPE_LIVE_EXECUTOR="${GROKPIPE_LIVE_EXECUTOR:-1}"
+export GROKPIPE_LIVE_GROK_LIMIT="${GROKPIPE_LIVE_GROK_LIMIT:-20}"
+
 PROJ="${1:-PIPELINE-RUTHS-HOUSE.project}"
 case "$PROJ" in
   PIPELINE-RUTHS-HOUSE.project)  PORT=8779 ;;

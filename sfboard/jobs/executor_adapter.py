@@ -73,6 +73,12 @@ class LegacyExecutorAdapter:
     ) -> ExecutorRunOutcome:
         phase_now = AttemptPhase.PREPARING
 
+        def execution_was_cancelled() -> bool:
+            return all(
+                self.runtime.job(job_id).state is JobState.CANCELLED
+                for job_id in lease.member_job_ids
+            )
+
         def emit_phase(
             phase: AttemptPhase,
             *,
@@ -98,6 +104,8 @@ class LegacyExecutorAdapter:
         try:
             result = execute(lease, emit_phase)
         except Exception as exc:
+            if execution_was_cancelled():
+                return ExecutorRunOutcome()
             decision = self.runtime.attempt_failed(
                 lease.lease_id,
                 self.classify_exception(exc, phase_now),
@@ -105,6 +113,8 @@ class LegacyExecutorAdapter:
                 now=self.clock(),
             )
             return ExecutorRunOutcome(decision=decision)
+        if execution_was_cancelled():
+            return ExecutorRunOutcome()
         unexpected = set(result.outputs) - set(lease.member_job_ids)
         if unexpected:
             decision = self.runtime.attempt_failed(

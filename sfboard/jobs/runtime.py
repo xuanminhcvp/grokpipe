@@ -276,6 +276,7 @@ class LifecycleRuntime:
                     member_job_ids=member_job_ids,
                     account_id=seat.account_id,
                     account_seat_id=seat.lease_id,
+                    account_slot=seat.slot,
                     started_at=float(now),
                     expires_at=lease.expires_at,
                 )

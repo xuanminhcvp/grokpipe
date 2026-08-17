@@ -5,11 +5,15 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 
 ## Đọc trong 60 giây
 
-- Current phase: **authoritative core + SQLite + recovery + fake/injected
-  executor path đã sẵn sàng; live DOM worker CHƯA cutover.**
-- Production live **execution** authority mặc định vẫn là legacy:
-  `PriorityQueue`, worker và DOM executor cũ. Mode `authoritative` là opt-in;
-  trong mode này legacy worker bị chặn fail-closed, nên chưa dùng để render thật.
+- Current phase: **authoritative core + SQLite + recovery + live DOM
+  one-attempt worker đã nối sau feature flag; controlled live provider canary
+  ảnh/video đã đạt ngày 2026-08-17.**
+- Production live **execution** authority mặc định là `authoritative + live`.
+  `chay-board.command` ghi rõ default này; khởi động Python trực tiếp cũng chọn
+  authoritative/live khi không có biến môi trường. Legacy worker bị chặn
+  fail-closed. Rollback phải explicit bằng
+  `GROKPIPE_JOB_MODE=legacy GROKPIPE_LIVE_EXECUTOR=0`; core-only dùng
+  `GROKPIPE_LIVE_EXECUTOR=0`.
 - **Đã đổi chủ:** năm đường tạo HTTP (`/api/generate`, `/api/master`,
   `/api/tao-lo`, `/api/genvideo`, `/api/video-lo`) và auto producer chỉ còn gửi
   ý định qua `ProducerService → LegacyEnqueueAdapter`. Chúng KHÔNG còn gọi
@@ -18,8 +22,8 @@ retry, cancel/stop, account assignment, auto producer, worker hoặc job API/UI.
 - Client gửi `Idempotency-Key` (`sfboard/ui/job-request.js`, `chay-anh.py`).
   Gửi lại cùng key trả về đúng job cũ và không xếp thêm; key khác nội dung cùng
   key cũ → 409.
-- `GROKPIPE_JOB_MODE=shadow` và `authoritative` đều là opt-in nội bộ; mặc định
-  vẫn là `legacy`. `legacy` không mở lifecycle DB. `authoritative` mở
+- `authoritative` là production default; `shadow` chỉ còn dùng nội bộ và
+  `legacy` là rollback explicit. `legacy` không mở lifecycle DB. `authoritative` mở
   `.grokpipe/job-lifecycle.sqlite3` cạnh project và fail startup rõ nếu DB lỗi.
 - **Lịch execution** (`sfboard/jobs/scheduler.py`) phụ thuộc mode: ở
   `legacy/shadow` nó chỉ quan sát `PriorityQueue`; ở `authoritative` nó là
@@ -112,29 +116,70 @@ hoặc tiêu credit.
 tốt", tuyệt đối không đọc thành "cả board được phủ 91%". Đừng nới ngưỡng 80% rồi
 tưởng mình đã tăng độ an toàn của board.
 
-Kết quả xác minh của đợt cutover core: **666 pass, KHÔNG có `xfailed`**, coverage
-`sfboard.jobs` trên 91%, compile PASS; thêm stress recovery/concurrency 20 vòng
-và inert localhost smoke. Con số pass sẽ còn tăng khi thêm test;
+Kết quả xác minh sau production-default cutover: **697 pass + 91 subtests,
+không skip/xfail**, coverage `sfboard.jobs` 91.28%, compile/JS/shell/diff PASS; có stress
+recovery/concurrency 20 vòng và inert localhost smoke. Con số pass sẽ còn tăng khi thêm test;
 cái PHẢI giữ nguyên là **không có `xfailed` mới**. Một expected
 failure biến thành unexpected success cũng phải được giải thích: chỉ bỏ decorator ở
 phase sửa lỗi tương ứng và sau khi đã xác minh target behavior. Không được thêm
 expected failure mới chỉ để làm gate xanh.
 
-## Còn lại gì trước live cutover
+## Controlled live canary 2026-08-17
 
-Core mới, SQLite, recovery, HTTP create/cancel/stop và executor fact boundary đã
-có test, nhưng **DOM worker thật vẫn là legacy**. Ba việc còn lại:
+Code one-attempt ảnh/video, account slot, cancel-safe adapter, phase callbacks,
+supervisor live, late-result guard và persisted Grok budget đã có regression +
+static authority guard. Controlled canary trên Chrome thật đã đạt:
 
-1. Tách logic DOM của `_generate_lo_ruot` và `_gen_video` thành hàm chạy đúng một
-   attempt, chỉ phát phase/output/error qua `LegacyExecutorAdapter`.
-2. Cho supervisor/worker live xin `RuntimeLease` và gọi adapter đó; xóa quyền
-   retry/state/account còn nằm trong worker cũ. Hiện worker cũ bị chặn khi bật
-   `authoritative` để không có hai authority.
-3. Chạy shadow/live canary có chủ đích khi hàng đợi rỗng, có backup và user cho
-   phép tiêu credit; sau đó mới cân nhắc đổi default và xóa compatibility path.
+1. ChatGPT single REF: một execution, một attempt, trả và tải `1/1` ảnh.
+2. ChatGPT grouped REF `PORTRAIT + *_FULL`: một tin nhắn, một execution, hai
+   member, trả và tải `2/2`. Canary đầu tiên đã phát hiện đường live còn tách
+   dependency nội bộ; lỗi được khóa bằng regression trước khi sửa và chạy lại.
+3. Stop-all trước submit: job `CANCELLED`, không có attempt/output và không hồi
+   sinh. Restart recovery: giữ nguyên `job_id`, chỉ một attempt rồi hoàn tất.
+4. Grok: reserve đúng `1/20`, một submit, tải MP4 H.264/AAC; `ffprobe` đọc được
+   và full decode không lỗi. Không có invariant mismatch trong các ca trên.
 
-Không bật `authoritative` để render production lúc này. Fake E2E/inert smoke xanh
-chỉ chứng minh lifecycle path, không chứng minh selector/provider live.
+Canary Grok bắt buộc có `GROKPIPE_LIVE_GROK_LIMIT=1..20`; reservation được ghi
+trước click vào `<project>/.grokpipe/live-grok-canary.json`, restart không reset.
+Canary đã dùng đúng một reservation trên project cô lập; project thật giữ
+`reserved=0`, `remaining=20`. Sau canary, Phase 12 đã đưa production default sang
+`authoritative + live`, `/api/jobs` trả structured lifecycle, UI đọc snapshot
+runtime và cancel/stop dùng durable `job_id`; auto-producer chạy cùng worker mới
+nhưng watchdog/retry legacy không chạy. Compatibility projection và code legacy
+chỉ còn làm rollback explicit trong thời gian soak, không phải authority mặc định.
+Rollback drill thật khi queue rỗng đã đạt: restart explicit vào `legacy/live=0`
+cho mode `legacy`, queue/invariant 0; restart lại không truyền mode tự trở về
+`authoritative + live`, structured source `runtime`, queue/invariant vẫn 0.
+
+Live image stress tiếp theo trên project cô lập đã đạt 2026-08-17: 13/13 PNG
+thật decode sạch; single, grouped `PORTRAIT + FULL`, bốn account chạy đồng
+thời, request trùng idempotent, cancel queued/running, stop-all + late result,
+restart recovery và profile Chrome chết đều giữ invariant 0. Profile chết tạo
+hai attempt pre-submit `consumes_credit=false`, rồi xoay account và chỉ submit
+một lần thành công. Stress này bắt được teardown race khi Ctrl-C: worker còn
+thức sau lúc runtime bị xoá làm `RuntimeError` + Node `EPIPE`. Shutdown nay phát
+stop event, join live worker trước khi đóng SQLite/runtime và HTTP server nuốt
+Ctrl-C sạch; regression + restart thật đều đã xác minh.
+
+Live video stress mở rộng cùng ngày dùng project cô lập và chạm đúng persisted
+budget `20/20`: 18 provider submit thành công, 2 outcome cố ý làm gián đoạn sau
+submit vào `NEEDS_ATTENTION`, không có submit thứ 21. Ba tab Grok chạy đồng thời;
+cancel trước submit, safe-cancel/stop-all sau submit, restart trước/sau submit,
+Chrome/CDP chết, download lỗi, validation, bulk rerun và budget exhaustion đều
+giữ invariant 0 sau restart cuối. Toàn bộ 30 MP4 current + version đều H.264
+768×1168, full decode sạch. Stress bắt và khóa regression cho bốn lỗi production:
+authoritative idempotency replay báo lỗi giả, live supervisor không relaunch Chrome
+chết, placeholder MP4 0 byte rơi lại sau session/crash, và projection khôi phục
+`NEEDS_ATTENTION` cũ thành nhãn chờ dù rerun mới hơn đã terminal.
+
+Live SF-correspondence canary sau đó chạy 8 start-frame khác nhau qua ba tab:
+8/8 job thành công, 8 MP4 full-decode sạch, và cả khung 0,2s lẫn 3,0s đều xếp
+đúng SF nguồn hạng 1 (16/16), không có hash current trùng chéo. Fault injection
+sau submit xác nhận post cũ bị chặn thành `NEEDS_ATTENTION` và không ghi file.
+Canary cũng tái hiện một lỗ qua restart: sổ post chỉ ở RAM khiến job KEISHA báo
+completed nhưng tải nguyên video WALTER (SHA-256 trùng tuyệt đối). ID post đã lấy
+nay append bền vững vào `~/.grokpipe-grok-posts.jsonl` (quyền `0600`); regression
+và live restart-fault xác nhận current/version không đổi, queue rỗng, invariant 0.
 
 ## Sổ lỗi runtime (`.grokpipe/runtime-bugs/`)
 
@@ -173,8 +218,9 @@ làm hỏng việc ghi sổ: sổ JSONL cục bộ mới là nguồn AI đọc.
 
 `tests/job_lifecycle/test_queue_properties.py` dùng Hypothesis sinh chuỗi
 xếp/nhấc/huỷ/ghi-trạng-thái ngẫu nhiên trên chính `hangdoi.py`, đối chiếu với một
-mô hình song song. Nó KHÔNG thay các `xfail` đang khoá — vẫn phải sửa từng bug
-bằng TDD, mỗi lần chỉ hạ đúng một expected failure ở đúng phase của nó.
+mô hình song song. Nó không thay regression cụ thể cho từng bug. Các `xfail`
+lịch sử hiện đã được hạ hết; không được thêm expected failure mới để che
+regression.
 
 ## File map
 
@@ -198,6 +244,10 @@ bằng TDD, mỗi lần chỉ hạ đúng một expected failure ở đúng phas
   authoritative.
 - [Executor boundary](../sfboard/jobs/executor_adapter.py): một attempt phát fact,
   không biết queue/browser/provider.
+- [Live one-attempt runner](../sfboard/live_executor.py): map image/video output
+  sang JobId; không biết queue/retry/account.
+- [Grok live budget](../sfboard/jobs/live_budget.py): reservation atomic, bền qua
+  restart và fail-closed khi hết trần.
 - [InvariantMonitor](../sfboard/jobs/monitor.py): chỉ báo lệch, cấm mutate.
 - [Lifecycle tests](../tests/job_lifecycle/): executable legacy/domain contract.
 - [Legacy queue/state](../sfboard/hangdoi.py) và [runtime/API](../sfboard/sfboard.py):

@@ -2,7 +2,10 @@
 
 import ast
 import importlib
+import os
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -63,15 +66,148 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertIsNone(self.board._JOB_RUNTIME)
         self.assertIsNone(self.board._JOB_REPOSITORY)
 
-    def test_authoritative_startup_khong_mo_chrome_hay_legacy_services(self):
-        self.board._init_job_shadow("authoritative")
+    def test_production_default_la_authoritative_live_va_launcher_ghi_ro_default(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            runtime = self.board._init_job_shadow()
 
-        self.assertFalse(self.board._legacy_execution_enabled())
-        targets = self.board._background_targets()
+            self.assertIsNotNone(runtime)
+            self.assertEqual(self.board._JOB_MODE, "authoritative")
+            self.assertTrue(self.board._live_executor_enabled())
+            targets = self.board._background_targets()
+
+        self.assertIn(self.board._live_authoritative_supervisor, targets)
         self.assertNotIn(self.board._supervisor, targets)
         self.assertNotIn(self.board._gac_hang_doi, targets)
-        self.assertNotIn(self.board._auto_runner, targets)
-        self.assertIn(self.board._luu_ban_runner, targets)
+        launcher = (Path(__file__).resolve().parents[2] /
+                    "chay-board.command").read_text(encoding="utf-8")
+        self.assertIn(
+            'GROKPIPE_JOB_MODE="${GROKPIPE_JOB_MODE:-authoritative}"',
+            launcher,
+        )
+        self.assertIn(
+            'GROKPIPE_LIVE_EXECUTOR="${GROKPIPE_LIVE_EXECUTOR:-1}"',
+            launcher,
+        )
+
+    def test_explicit_legacy_van_la_rollback_path(self):
+        with mock.patch.dict(os.environ, {
+            "GROKPIPE_JOB_MODE": "legacy",
+            "GROKPIPE_LIVE_EXECUTOR": "0",
+        }, clear=True):
+            runtime = self.board._init_job_shadow()
+
+        self.assertIsNone(runtime)
+        self.assertEqual(self.board._JOB_MODE, "legacy")
+        self.assertFalse(self.board._live_executor_enabled())
+        self.assertIn(self.board._supervisor, self.board._background_targets())
+
+    def test_authoritative_startup_khong_mo_chrome_hay_legacy_services(self):
+        with mock.patch.dict("os.environ", {
+            "GROKPIPE_LIVE_EXECUTOR": "0",
+        }, clear=True):
+            self.board._init_job_shadow("authoritative")
+            self.assertFalse(self.board._legacy_execution_enabled())
+            self.assertFalse(self.board._live_executor_enabled())
+            targets = self.board._background_targets()
+            self.assertNotIn(self.board._supervisor, targets)
+            self.assertNotIn(self.board._gac_hang_doi, targets)
+            self.assertNotIn(self.board._auto_runner, targets)
+            self.assertIn(self.board._luu_ban_runner, targets)
+
+    def test_authoritative_live_bat_worker_moi_va_auto_producer_khong_bat_watchdog(self):
+        with mock.patch.dict("os.environ", {
+            "GROKPIPE_LIVE_EXECUTOR": "1",
+            "GROKPIPE_LIVE_GROK_LIMIT": "20",
+        }, clear=True):
+            self.board._init_job_shadow("authoritative")
+            targets = self.board._background_targets()
+
+            self.assertTrue(self.board._live_executor_enabled())
+            self.assertIn(self.board._live_authoritative_supervisor, targets)
+            self.assertIn(self.board._auto_runner, targets)
+            self.assertNotIn(self.board._supervisor, targets)
+            self.assertNotIn(self.board._gac_hang_doi, targets)
+
+    def test_live_supervisor_relaunch_chrome_enabled_chet_co_cooldown(self):
+        self.board.ACCOUNTS = [{
+            "id": "grok-test",
+            "kind": "vid",
+            "port": 9228,
+            "profile": "/tmp/grok-test-profile",
+            "enabled": True,
+            "tabs": 1,
+        }]
+        self.board._LIVE_CHROME_RELAUNCH_AFTER.clear()
+        launch = mock.Mock(return_value=True)
+
+        with mock.patch.object(
+            self.board, "_endpoint_alive", return_value=False,
+        ), mock.patch.object(self.board, "_launch_chrome", launch):
+            self.board._live_restore_enabled_chrome(now=100.0)
+            self.board._live_restore_enabled_chrome(now=101.0)
+            self.board._live_restore_enabled_chrome(now=131.0)
+
+        self.assertEqual(launch.call_count, 2)
+        self.assertEqual(launch.call_args_list[0].args[0]["port"], 9228)
+
+    def test_shutdown_doi_live_worker_dung_truoc_khi_dong_runtime(self):
+        """Restart không được xoá runtime khi worker idle còn đang thức."""
+        entered = threading.Event()
+        calls_saw_runtime = []
+
+        def idle_once(_kind):
+            calls_saw_runtime.append(self.board._JOB_RUNTIME is not None)
+            entered.set()
+            time.sleep(0.1)
+            return None
+
+        with mock.patch.dict(os.environ, {
+            "GROKPIPE_LIVE_EXECUTOR": "1",
+        }, clear=True), mock.patch.object(
+            self.board, "_live_execute_once", side_effect=idle_once,
+        ):
+            self.board._init_job_shadow("authoritative")
+            worker = threading.Thread(
+                target=self.board._live_authoritative_worker,
+                args=(self.models.JobKind.IMAGE,), daemon=True,
+            )
+            with self.board._LIVE_WORKERS_LOCK:
+                self.board._LIVE_WORKERS[("image", 999)] = worker
+            worker.start()
+            self.assertTrue(entered.wait(1), "worker không bắt đầu")
+            try:
+                self.board._shutdown_job_lifecycle()
+                worker.join(0.5)
+
+                self.assertFalse(
+                    worker.is_alive(),
+                    "shutdown trả về khi live worker vẫn còn chạy",
+                )
+                self.assertEqual(calls_saw_runtime, [True])
+            finally:
+                setattr(self.board, "_JOB_MODE", "legacy")
+                worker.join(1)
+                with self.board._LIVE_WORKERS_LOCK:
+                    self.board._LIVE_WORKERS.pop(("image", 999), None)
+
+    def test_ctrl_c_dong_http_server_sach_khong_nem_traceback(self):
+        server = mock.Mock()
+        server.serve_forever.side_effect = KeyboardInterrupt
+
+        with mock.patch.object(
+            self.board, "ThreadingHTTPServer", return_value=server,
+        ):
+            self.board._serve_board_http(8794)
+
+        server.server_close.assert_called_once_with()
+
+    def test_auto_runner_authoritative_khong_bi_chan_boi_legacy_gate(self):
+        source = function_source(
+            Path(__file__).resolve().parents[2] / "sfboard/sfboard.py",
+            "_auto_runner",
+        )
+        self.assertIn("_browser_execution_enabled()", source)
+        self.assertNotIn("if not _legacy_execution_enabled()", source)
 
     def test_authoritative_fail_closed_khi_database_khong_mo_duoc(self):
         with mock.patch.object(
@@ -83,6 +219,16 @@ class AuthoritativeWiringTest(unittest.TestCase):
 
         self.assertEqual(self.board._JOB_MODE, "legacy")
         self.assertIsNone(self.board._JOB_RUNTIME)
+
+    def test_grok_budget_cau_hinh_sai_fail_permanent_truoc_submit(self):
+        budget = importlib.import_module("jobs.live_budget")
+
+        fact = self.board._classify_live_exception(
+            budget.BudgetConfigurationError("limit phải 1..20"),
+            self.models.AttemptPhase.ATTACHING,
+        )
+
+        self.assertIs(fact.error_class, self.errors.ErrorClass.PERMANENT)
 
     def test_authoritative_submit_khong_cham_priority_queue_legacy(self):
         self.board._init_job_shadow("authoritative")
@@ -113,6 +259,18 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(handler.captured[1]["hang_doi"]["anh"], 1)
         self.assertEqual(handler.captured[1]["hang_doi"]["video"], 0)
 
+    def test_authoritative_diagnostics_dem_job_tu_runtime_khi_projection_rong(self):
+        self.board._init_job_shadow("authoritative")
+        self.board._producer_submit(self.request(), "diag-runtime-A", self.plan)
+        self.board.JOBS.clear()
+        handler = make_handler(self.board, "/api/chan-doan")
+
+        handler.do_GET()
+
+        self.assertEqual(handler.captured[1]["job_cho"], 1)
+        self.assertEqual(handler.captured[1]["job_chay"], 0)
+        self.assertEqual(handler.captured[1]["invariants"]["tong"], 0)
+
     def test_authoritative_api_jobs_hien_hang_durable_thay_queue_ram(self):
         self.board._init_job_shadow("authoritative")
         self.board._producer_submit(self.request(), "jobs-A", self.plan)
@@ -127,6 +285,41 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(body["hang"]["anh"], ["LO:A"])
         self.assertEqual(body["hang"]["video"], [])
         self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
+
+    def test_authoritative_api_jobs_tra_structured_lifecycle_tu_store(self):
+        self.board._init_job_shadow("authoritative")
+        result = self.board._producer_submit(
+            self.request(), "structured-A", self.plan)
+        self.board.JOBS.clear()  # API mới không được đọc projection để dựng job.
+        handler = make_handler(self.board, "/api/jobs")
+
+        with mock.patch.object(self.board, "_pl_dem", return_value={}), \
+                mock.patch.object(self.board, "_dan_ma_doc", return_value=False):
+            handler.do_GET()
+        lifecycle = handler.captured[1]["lifecycle"]
+
+        self.assertEqual(lifecycle["source"], "runtime")
+        self.assertEqual(lifecycle["mode"], "authoritative")
+        self.assertEqual(lifecycle["jobs"], [{
+            "job_id": str(result.jobs[0].job_id),
+            "asset_id": "SF-A",
+            "kind": "image",
+            "origin": "manual",
+            "state": "queued",
+            "version": 1,
+            "batch_id": None,
+            "rerun_of": None,
+            "copy_index": None,
+            "replace_current": True,
+            "forced_account_id": None,
+            "allow_account_fallback": False,
+        }])
+        self.assertEqual(len(lifecycle["executions"]), 1)
+        self.assertEqual(
+            lifecycle["executions"][0]["member_job_ids"],
+            [str(result.jobs[0].job_id)],
+        )
+        self.assertEqual(lifecycle["attempts"], [])
 
     def test_authoritative_http_fake_tra_durable_id_khong_enqueue_legacy(self):
         self.board._init_job_shadow("authoritative")
@@ -144,6 +337,72 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(len(body["job_ids"]), 1)
         self.assertFalse(body["replayed"])
         self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
+
+    def test_authoritative_genvideo_cung_key_dang_active_replay_cung_job(self):
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "S1",
+            "sfs": [],
+            "shots": [{
+                "id": "V-S1-01",
+                "sf": "SF-S1-01",
+                "prompt": "chuyển động nhẹ",
+                "dur": 5,
+            }],
+        }], files=["SF-S1-01"])
+        self.board._init_job_shadow("authoritative")
+
+        first = make_handler(
+            self.board,
+            "/api/genvideo?sf=V-S1-01&idempotency_key=video-active-A",
+        )
+        first.do_POST()
+        replay = make_handler(
+            self.board,
+            "/api/genvideo?sf=V-S1-01&idempotency_key=video-active-A",
+        )
+        replay.do_POST()
+
+        self.assertEqual(first.captured[0], 200)
+        self.assertEqual(replay.captured[0], 200)
+        self.assertTrue(replay.captured[1]["ok"])
+        self.assertTrue(replay.captured[1]["replayed"])
+        self.assertEqual(
+            replay.captured[1]["job_id"], first.captured[1]["job_id"])
+        self.assertEqual(
+            len(self.board._runtime_lifecycle_snapshot()["jobs"]), 1)
+        self.assertEqual(self.board.VID_QUEUE.qsize(), 0)
+
+    def test_authoritative_live_tao_lo_gom_ref_phu_thuoc_mot_execution(self):
+        portrait = "REF_DENISE_PORTRAIT"
+        full = "REF_DENISE_UNIFORM_FULL"
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "REF",
+            "sfs": [
+                {"id": portrait, "prompt": "portrait Denise", "refs": {}},
+                {"id": full, "prompt": "full Denise",
+                 "refs": {"chars": [portrait]}},
+            ],
+            "shots": [],
+        }])
+        with mock.patch.dict("os.environ", {
+            "GROKPIPE_LIVE_EXECUTOR": "1",
+            "GROKPIPE_LIVE_GROK_LIMIT": "20",
+        }, clear=True):
+            self.board._init_job_shadow("authoritative")
+            handler = make_handler(
+                self.board,
+                f"/api/tao-lo?sf={portrait},{full}&idempotency_key=ref-group-A",
+            )
+
+            handler.do_POST()
+            code, body = handler.captured
+            executions = self.board._JOB_RUNTIME.scheduler.active_executions()
+
+        self.assertEqual(code, 200)
+        self.assertEqual(body["so_lo"], 1)
+        self.assertEqual(len(executions), 1)
+        self.assertEqual(
+            set(executions[0].member_keys), set(body["job_ids"]))
 
     def test_authoritative_multi_copy_moi_ban_mot_execution_ui_van_gop(self):
         self.board.ACCOUNTS = [{
@@ -182,6 +441,30 @@ class AuthoritativeWiringTest(unittest.TestCase):
             expected = "done" if index == 2 else "queued"
             self.assertEqual(self.board.JOBS["SF-A"]["state"], expected)
 
+    def test_user_thay_current_sau_khi_lease_thi_late_result_chi_giu_version(self):
+        self.board.ACCOUNTS = [{
+            "id": "fake", "port": 9222, "kind": "img",
+            "enabled": True, "tabs": 1,
+        }]
+        self.board._init_job_shadow("authoritative")
+        result = self.board._producer_submit(
+            self.request(), "user-wins-A", self.plan)
+        lease = self.board._JOB_RUNTIME.lease_next(
+            self.models.JobKind.IMAGE, now=10, ttl=30)
+
+        self.board._runtime_note_user_mutation("SF-A", now=11)
+        verdicts = self.board._JOB_RUNTIME.attempt_succeeded(
+            lease.lease_id,
+            outputs={result.jobs[0].job_id: ("/tmp/late.png",)},
+            event_id=__import__("uuid").uuid4(), now=12,
+        )
+
+        commit_decision = importlib.import_module("jobs.results").CommitDecision
+        self.assertIs(
+            verdicts[result.jobs[0].job_id].decision,
+            commit_decision.STORE_AS_VERSION,
+        )
+
     def test_authoritative_restart_dung_lai_projection_cho_ui(self):
         self.board._init_job_shadow("authoritative")
         create = make_handler(
@@ -198,6 +481,66 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(self.board.JOBS["SF-A"]["state"], "queued")
         self.assertEqual(self.board.JOBS["SF-A"]["job_id"], job_id)
         self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
+
+    def test_restart_khong_khoi_phuc_attention_cu_sau_rerun_da_terminal(self):
+        self.board.ACCOUNTS = [{
+            "id": "grok-test", "port": 9228, "kind": "vid",
+            "enabled": True, "tabs": 1,
+        }]
+        self.board._init_job_shadow("authoritative")
+
+        def request():
+            return self.producer.CreateJobRequest(
+                self.models.AssetId("V-A"), self.models.JobKind.VIDEO,
+                self.models.JobOrigin.MANUAL, "scope:V-A",
+                manual=True, replace_current=True,
+            )
+
+        def plan(result):
+            return self.compat.LegacyPlan((self.compat.LegacyAction(
+                "video:V-A", ("V-A",), (result.jobs[0].job_id,),
+                "vid", "V-A", False,
+            ),))
+
+        first = self.board._producer_submit(
+            request(), "restart-old-attention-1", plan)
+
+        def unknown_after_submit(_lease, phase):
+            phase(
+                self.models.AttemptPhase.SUBMITTED,
+                consumes_credit=self.models.CreditConsumption.UNKNOWN,
+            )
+            return self.executor_adapter.ExecutorAttemptResult({})
+
+        self.board._run_authoritative_once(
+            self.models.JobKind.VIDEO, unknown_after_submit, now=0, ttl=30)
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(first.jobs[0].job_id).state,
+            self.models.JobState.NEEDS_ATTENTION,
+        )
+
+        failed = self.models.Job(
+            self.models.JobId.new(), self.models.AssetId("V-A"),
+            self.models.JobKind.VIDEO, self.models.JobOrigin.MANUAL,
+            state=self.models.JobState.FAILED, version=1,
+            rerun_of=first.jobs[0].job_id, replace_current=True,
+        )
+        self.board._JOB_REPOSITORY.create(
+            failed,
+            self.models.JobEvent(
+                __import__("uuid").uuid4(), failed.job_id,
+                self.models.EventActor.MANAGER, "attempt.failed",
+                "validation.permanent", from_state=None,
+                to_state=None,
+            ),
+        )
+
+        self.board._shutdown_job_lifecycle()
+        self.board.JOBS.clear()
+        self.board._init_job_shadow("authoritative")
+
+        self.assertNotIn("V-A", self.board.JOBS)
+        self.assertEqual(self.board._job_invariant_diagnostics()["tong"], 0)
 
     def test_request_sau_shutdown_reopen_authoritative_khong_roi_ve_legacy(self):
         self.board._init_job_shadow("authoritative")
@@ -330,6 +673,28 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
         self.assertEqual(self.board.JOBS["SF-A"]["state"], "error")
 
+    def test_authoritative_huy_viec_bang_job_id_khong_can_jobs_projection(self):
+        self.board._init_job_shadow("authoritative")
+        create = make_handler(
+            self.board,
+            "/api/generate?sf=SF-A&idempotency_key=cancel-by-id-A",
+        )
+        create.do_POST()
+        job_id = create.captured[1]["job_id"]
+        self.board.JOBS.clear()
+        cancel = make_handler(
+            self.board, f"/api/huy-viec?job_id={job_id}")
+
+        cancel.do_POST()
+
+        self.assertTrue(cancel.captured[1]["ok"])
+        self.assertEqual(cancel.captured[1]["job_id"], job_id)
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(
+                self.models.JobId.parse(job_id)).state,
+            self.models.JobState.CANCELLED,
+        )
+
     def test_authoritative_dung_het_cancel_durable_khong_dong_chrome(self):
         self.board._init_job_shadow("authoritative")
         job_ids = []
@@ -356,6 +721,30 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(body["da_bam_stop"], 0)
         stop_chat.assert_not_called()
         kill_chrome.assert_not_called()
+        for job_id in job_ids:
+            self.assertEqual(
+                self.board._JOB_RUNTIME.job(
+                    self.models.JobId.parse(job_id)).state,
+                self.models.JobState.CANCELLED,
+            )
+
+    def test_authoritative_dung_het_khong_can_jobs_projection(self):
+        self.board._init_job_shadow("authoritative")
+        job_ids = []
+        for sf in ("SF-A", "SF-B"):
+            create = make_handler(
+                self.board,
+                f"/api/generate?sf={sf}&idempotency_key=projectionless-{sf}",
+            )
+            create.do_POST()
+            job_ids.append(create.captured[1]["job_id"])
+        self.board.JOBS.clear()
+        stop = make_handler(self.board, "/api/dung-het")
+
+        stop.do_POST()
+
+        self.assertEqual(stop.captured[1]["bo"], 2)
+        self.assertEqual(stop.captured[1]["con_lai"], [])
         for job_id in job_ids:
             self.assertEqual(
                 self.board._JOB_RUNTIME.job(

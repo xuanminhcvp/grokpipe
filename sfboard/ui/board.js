@@ -8,7 +8,7 @@
 // sinh mới mỗi lần gửi là quay về đúng bug "bấm hai lần render hai lượt".
 const { newJobKey, postJob } = globalThis.GrokpipeJobRequest;
 const VIEW_OK = ['script', 'sf'];
-let DATA = { scenes: [] }, JOBS = {}, AUTO = {}, T = null, DIRTY = false, MTIME = 0;
+let DATA = { scenes: [] }, JOBS = {}, SUBMITTING = {}, AUTO = {}, T = null, DIRTY = false, MTIME = 0;
 let VIEW = VIEW_OK.includes(localStorage.getItem('sfboard-view'))
   ? localStorage.getItem('sfboard-view') : 'script';
 // THẺ ĐỊA ĐIỂM — chỗ dừng khi leo refs.bg, và là nơi giữ luatchung + chat.
@@ -21,6 +21,56 @@ const esc = s => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
    để hai chỗ không lệch cách hiển thị. */
 const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const ST = { proposed: ['pend', 'Chờ duyệt'], approved: ['ok', 'ĐÃ DUYỆT'], revise: ['warn', 'Cần sửa'], rejected: ['bad', 'Loại'] };
+
+/* Lifecycle mới là nguồn trạng thái. `SUBMITTING` chỉ là trạng thái nút cục bộ
+   trong lúc request chưa được server nhận; nó không giả mạo JOBS=running. */
+const viecHienTai = id => SUBMITTING[id] || JOBS[id] || {};
+const jobQuery = id => {
+  const job = viecHienTai(id);
+  return job.job_id
+    ? 'job_id=' + encodeURIComponent(job.job_id)
+    : 'sf=' + encodeURIComponent(id);
+};
+function jobsTuLifecycle(lifecycle, fallback) {
+  if (!lifecycle || lifecycle.source !== 'runtime') return fallback || {};
+  const latest = new Map();
+  for (const job of lifecycle.jobs || []) {
+    const marker = job.batch_id || job.job_id;
+    let group = latest.get(job.asset_id);
+    if (!group || group.marker !== marker) {
+      group = { marker, jobs: [] };
+      latest.set(job.asset_id, group);
+    }
+    group.jobs.push(job);
+  }
+  const out = {};
+  for (const [assetId, group] of latest) {
+    const states = group.jobs.map(job => job.state);
+    let canonical = states.every(state => state === 'completed') ? 'completed'
+      : states.includes('running') ? 'running'
+        : states.includes('retry_wait') ? 'retry_wait'
+          : states.some(state => state === 'queued' || state === 'created') ? 'queued'
+            : states.includes('needs_attention') ? 'needs_attention'
+              : states.includes('failed') ? 'failed' : 'cancelled';
+    const legacy = {
+      created: ['queued', 'chờ lịch bền vững'],
+      queued: ['queued', 'chờ lịch bền vững'],
+      running: ['running', 'đang chạy'],
+      retry_wait: ['queued', 'lỗi → chờ thử lại'],
+      completed: ['done', 'xong'],
+      failed: ['error', 'thất bại'],
+      cancelled: ['error', 'đã dừng'],
+      needs_attention: ['error', 'cần kiểm tra — không tự gửi lại'],
+    }[canonical];
+    out[assetId] = {
+      state: legacy[0], msg: legacy[1], canonical_state: canonical,
+      job_id: group.jobs[0].job_id,
+      job_ids: group.jobs.map(job => job.job_id),
+      batch_id: group.jobs[0].batch_id,
+    };
+  }
+  return out;
+}
 
 /* BADGE TRẠNG THÁI cạnh mã SF và mã video — xanh DUYỆT, đỏ LÀM LẠI (user chốt
    2026-08-15). Trước đó thử báo bằng viền thẻ: viền đủ đậm để nhìn ra thì cả
@@ -450,8 +500,7 @@ function qTab(v) {
 
 async function xoaXong() {
   const r = await (await fetch('/api/xoa-xong', { method: 'POST' })).json();
-  for (const [k, v] of Object.entries(JOBS)) if (v.state === 'done') delete JOBS[k];
-  veHangDoi();
+  await poll();
   $('#runstatus').textContent = `đã dọn ${r.bo || 0} dòng đã xong`;
   setTimeout(() => $('#runstatus').textContent = '', 4000);
 }
@@ -483,8 +532,8 @@ async function xuLyDaChon() {
   let ok = 0; const hong = [];
   for (const id of ds) {
     const st = (JOBS[id] || {}).state;
-    const u = st === 'running' ? '/api/dung-viec?sf=' + encodeURIComponent(id)
-      : st === 'queued' ? '/api/huy-viec?sf=' + encodeURIComponent(id)
+    const u = st === 'running' ? '/api/dung-viec?' + jobQuery(id)
+      : st === 'queued' ? '/api/huy-viec?' + jobQuery(id)
         : '/api/xoa-loi?sf=' + encodeURIComponent(id);
     try {
       const r = await (await fetch(u, { method: 'POST' })).json();
@@ -507,17 +556,17 @@ async function xoaLoi(id) {
     $('#runstatus').textContent = `đã dọn ${r.bo} dòng lỗi`;
     setTimeout(() => $('#runstatus').textContent = '', 5000)
   }
-  delete JOBS[id]; veHangDoi();
+  await poll();
 }
 async function dungMotViec(id) {
   if (!await hoi(`Dừng riêng "${id}"?\n\nCả lô chứa nó sẽ dừng theo — một lô là MỘT tin nhắn nên không cắt đôi được.\nChrome KHÔNG bị đóng, các việc khác vẫn chạy bình thường.`)) return;
-  const r = await (await fetch('/api/dung-viec?sf=' + encodeURIComponent(id), { method: 'POST' })).json();
+  const r = await (await fetch('/api/dung-viec?' + jobQuery(id), { method: 'POST' })).json();
   if (!r.ok) { bao(r.err || 'Không dừng được'); return }
   $('#runstatus').textContent = `đang dừng ${id}…`;
   setTimeout(() => $('#runstatus').textContent = '', 7000);
 }
 async function huyMotViec(id) {
-  const r = await (await fetch('/api/huy-viec?sf=' + encodeURIComponent(id),
+  const r = await (await fetch('/api/huy-viec?' + jobQuery(id),
     { method: 'POST' })).json();
   if (!r.ok) { bao(r.err || 'Không huỷ được'); return }
   $('#runstatus').textContent = `đã huỷ ${id}` + (r.con_lai ? ` · xếp lại lô ${r.con_lai} ảnh còn lại` : '');
@@ -531,7 +580,12 @@ let QNHOM = {}, QHANG = {}, QTHO = {};
 let VET = {}, VET_MO = '';
 async function poll() {
   const r = await (await fetch('/api/jobs')).json();
-  const j = r.jobs || {};
+  const j = jobsTuLifecycle(r.lifecycle, r.jobs || {});
+  for (const [id, pending] of Object.entries(SUBMITTING)) {
+    if (pending.job_id && (j[id] || {}).job_ids?.includes(pending.job_id)) {
+      delete SUBMITTING[id];
+    }
+  }
   QNHOM = r.nhom || {}; QHANG = r.hang || {}; QTHO = r.tho || {}; VET = r.vet || {};
   const a = r.auto || {};
   const changed = JSON.stringify(j) !== JSON.stringify(JOBS) || JSON.stringify(a) !== JSON.stringify(AUTO);
@@ -1805,7 +1859,7 @@ ${role}${opt('a')}${opt('b')}</details>`;
 function shotRow(sc, sh, idx) {
   const f = sfById(sh.sf);
   const opts = allSF().map(x => x.f).filter(x => !x.id.startsWith('REF_'));
-  const vjob = JOBS[sh.id] || {}; const vrun = vjob.state === 'running';
+  const vjob = viecHienTai(sh.id); const vrun = vjob.state === 'running';
   const d = document.createElement('div');
   d.className = 'shot' + (!f || !f.image ? ' warn-sf' : '')
     + (sh.vstatus === 'approved' ? ' vok' : sh.vstatus === 'rejected' ? ' vbad' : sh.video ? ' vnew' : '');
@@ -1930,8 +1984,16 @@ function shotRow(sc, sh, idx) {
         'Video này ĐÃ DUYỆT — bản đang hiển thị là bản bạn chốt.\n\n' +
         'Tạo bản mới sẽ KHÔNG thay bản đã duyệt; bản mới nằm ở dãy bản để so.\n' +
         'Muốn thay hẳn thì bấm ✓ lần nữa để bỏ duyệt trước.\n\nVẫn tạo thêm bản mới?')) return;
-      JOBS[sh.id] = { state: 'running', msg: 'khởi động…' }; render();
-      await postJob('/api/genvideo?sf=' + encodeURIComponent(sh.id), newJobKey()); return
+      SUBMITTING[sh.id] = { state: 'running', msg: 'đang gửi yêu cầu…' }; render();
+      try {
+        const request = await postJob('/api/genvideo?sf=' + encodeURIComponent(sh.id), newJobKey());
+        if (!request.body.ok) { delete SUBMITTING[sh.id]; render(); }
+        else SUBMITTING[sh.id] = { state: 'queued', msg: 'đã nhận · chờ lịch bền vững',
+          job_id: request.body.job_id, job_ids: request.body.job_ids || [] };
+      } catch (error) {
+        delete SUBMITTING[sh.id]; render(); throw error;
+      }
+      return
     }
     if (a === 'donex') { delete sh.ai_done; save(); render(); return }
     if (a === 'ai') {
@@ -2354,7 +2416,7 @@ async function loChay() {
 function card(sc, f) {
   const _bu = bgUsers(sc), _rank = sfRank(f, _bu), _otag = sfOrderTag(f, _bu);
   const _bg = (f.refs || {}).bg;
-  const job = JOBS[f.id] || {}; const running = job.state === 'running';
+  const job = viecHienTai(f.id); const running = job.state === 'running';
   const refs = f.refs || { chars: [], bg: null };
   const d = document.createElement('div');
   const isM = isDiaDiem(f);
@@ -2542,8 +2604,16 @@ ${x.image ? `<img src="${thumb(x.image, 300)}" loading="lazy" decoding="async">`
 async function act(sc, f, a, n) {
   if (a === 'gen') {
     n = Math.max(1, Math.min(+n || 1, 4));
-    JOBS[f.id] = { state: 'running', msg: n > 1 ? `đang tạo 0/${n} bản…` : 'khởi động…' }; render();
-    await postJob(`/api/generate?sf=${encodeURIComponent(f.id)}&n=${n}`, newJobKey()); return
+    SUBMITTING[f.id] = { state: 'running', msg: n > 1 ? `đang gửi yêu cầu ${n} bản…` : 'đang gửi yêu cầu…' }; render();
+    try {
+      const request = await postJob(`/api/generate?sf=${encodeURIComponent(f.id)}&n=${n}`, newJobKey());
+      if (!request.body.ok) { delete SUBMITTING[f.id]; render(); }
+      else SUBMITTING[f.id] = { state: 'queued', msg: 'đã nhận · chờ lịch bền vững',
+        job_id: request.body.job_id, job_ids: request.body.job_ids || [] };
+    } catch (error) {
+      delete SUBMITTING[f.id]; render(); throw error;
+    }
+    return
   }
   // XOÁ ẢNH, GIỮ THẺ — khác hẳn nút 🗑 (xoá cả thẻ khỏi kịch bản). Cần khi ảnh
   // ra không ưng: dọn sạch rồi tạo lại, prompt và ref vẫn nguyên.
@@ -2555,7 +2625,6 @@ async function act(sc, f, a, n) {
       + (f.status === 'approved' ? '\n⚠ Thẻ này ĐÃ DUYỆT — xoá là mất bản đã chốt.\n' : '')
       + `\nKhông khôi phục được.`, { bad: true, dong: 'Xoá ảnh' })) return;
     await fetch('/api/delete-files?sf=' + encodeURIComponent(f.id), { method: 'POST' });
-    JOBS[f.id] && delete JOBS[f.id];
     await load();
     $('#runstatus').textContent = `đã xoá ảnh của ${f.id}`;
     setTimeout(() => $('#runstatus').textContent = '', 5000);

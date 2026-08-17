@@ -3,6 +3,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from uuid import uuid4
 
 from sfboard.jobs.compat import LegacyAction, LegacyPlan
 from sfboard.jobs.errors import ErrorClass, ErrorFact
@@ -55,6 +56,21 @@ class ExecutorAdapterTest(unittest.TestCase):
 
         self.assertTrue(outcome.verdicts[self.job_id].ghi_de)
         self.assertEqual(self.runtime.job(self.job_id).state, JobState.COMPLETED)
+
+    def test_cancel_trong_luc_execute_khong_finalize_lease_da_thu_hoi(self):
+        adapter = LegacyExecutorAdapter(self.runtime, clock=lambda: 1)
+
+        def cancel_during_execute(_lease, _phase):
+            verdict = self.runtime.cancel(
+                self.job_id, event_id=uuid4(), now=0.5)
+            self.assertTrue(verdict.accepted)
+            return ExecutorAttemptResult({})
+
+        outcome = adapter.run_once(self.lease, cancel_during_execute)
+
+        self.assertEqual(outcome.verdicts, {})
+        self.assertIsNone(outcome.decision)
+        self.assertEqual(self.runtime.job(self.job_id).state, JobState.CANCELLED)
 
     def test_exception_duoc_phan_loai_roi_runtime_quyet_dinh(self):
         def classify(exc, phase):

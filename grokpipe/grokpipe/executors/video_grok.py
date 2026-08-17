@@ -58,11 +58,66 @@ _TAG = "gpslot"
 # nữa. Dùng chung cho mọi luồng — bốn thợ chạy bốn tab nhưng lịch sử phiên của
 # Grok là của cả profile, tab này trôi sang post của tab kia được.
 #
-# ⚠ Sổ nằm trong BỘ NHỚ PHIÊN. Board khởi động lại là sổ trắng, nên trôi sang
-# post của phiên TRƯỚC vẫn lọt — user đã biết và chốt "vẫn tải như hiện nay"
-# (2026-08-15). Muốn bịt thì ghi sổ xuống đĩa.
+# Sổ phải BỀN QUA RESTART. Nếu chỉ giữ RAM, lượt đầu sau khi board khởi động lại
+# có thể trôi sang post của phiên trước, nhận nguyên clip cũ rồi báo completed.
+# Ca live 2026-08-17 đã ghi video WALTER đè lên shot KEISHA với SHA-256 trùng
+# tuyệt đối. Journal chỉ chứa ID post, append nguyên tử, dùng chung mọi project vì
+# các project dùng chung profile Grok và tab của project này có thể trôi sang post
+# do project khác tạo.
 _POST_DA_LAY: set[str] = set()
 _POST_LOCK = threading.Lock()
+_POST_LEDGER_LOADED: str | None = None
+_POST_LEDGER_ENV = "GROKPIPE_GROK_POST_LEDGER"
+_POST_LEDGER_DEFAULT = "~/.grokpipe-grok-posts.jsonl"
+
+
+def _duong_so_post() -> str:
+    return os.path.abspath(os.path.expanduser(
+        os.environ.get(_POST_LEDGER_ENV) or _POST_LEDGER_DEFAULT))
+
+
+def _id_post_hop_le(post: str) -> bool:
+    return 0 < len(post) <= 200 and all(c.isalnum() or c in "-_" for c in post)
+
+
+def _nap_so_post_locked() -> None:
+    """Nạp journal khi process mới sống hoặc test đổi đường dẫn ledger."""
+    global _POST_LEDGER_LOADED
+    path = _duong_so_post()
+    if _POST_LEDGER_LOADED == path:
+        return
+    _POST_DA_LAY.clear()
+    try:
+        with open(path, encoding="utf-8") as f:
+            _POST_DA_LAY.update(
+                post for line in f
+                if _id_post_hop_le(post := line.strip())
+            )
+    except FileNotFoundError:
+        pass
+    except OSError:
+        # Không đọc được đĩa vẫn giữ được chốt RAM cho process hiện tại.
+        pass
+    _POST_LEDGER_LOADED = path
+
+
+def _them_so_post_locked(post: str) -> None:
+    """Append một dòng nhỏ bằng O_APPEND; nhiều process ghi không làm mất dòng."""
+    path = _duong_so_post()
+    parent = os.path.dirname(path)
+    try:
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        try:
+            os.write(fd, f"{post}\n".encode("utf-8"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        # Không biến một clip hợp lệ thành lỗi sau submit chỉ vì journal hỏng;
+        # set RAM bên dưới vẫn chặn tải lặp trong phiên hiện tại.
+        pass
 
 
 def id_post(url: str) -> str:
@@ -78,21 +133,28 @@ def id_post(url: str) -> str:
 
 
 def ghi_so_post(post: str) -> None:
-    if not post:
+    if not _id_post_hop_le(post):
         return
     with _POST_LOCK:
+        _nap_so_post_locked()
+        if post in _POST_DA_LAY:
+            return
+        _them_so_post_locked(post)
         _POST_DA_LAY.add(post)
 
 
 def so_post_da_lay() -> set[str]:
     with _POST_LOCK:
+        _nap_so_post_locked()
         return set(_POST_DA_LAY)
 
 
 def quen_het_post() -> None:
-    """Chỉ dùng trong test."""
+    """Quên cache RAM để mô phỏng restart; journal bền vững vẫn giữ nguyên."""
+    global _POST_LEDGER_LOADED
     with _POST_LOCK:
         _POST_DA_LAY.clear()
+        _POST_LEDGER_LOADED = None
 
 
 def nhan_duoc_clip(url_luc_submit: str, url_bay_gio: str) -> tuple[bool, str]:
@@ -152,6 +214,13 @@ class GrokSession:
             # nên tuyệt đối không được vớ lấy tab mà luồng khác đang dùng — hai
             # luồng chung một tab thì cái này submit đè lên cái kia và cả hai hỏng.
             self.page = self._tim_tab()
+            # Seed post lịch sử đang mở TRƯỚC khi goto xoá URL đó. Việc này đưa
+            # các tab có từ trước ngày journal được triển khai vào sổ bền vững,
+            # nên lượt đầu sau upgrade/restart cũng không thể tải lại clip cũ.
+            try:
+                ghi_so_post(id_post(self.page.url or ""))
+            except Exception:
+                pass
             self.page.goto(self.URL, wait_until="domcontentloaded")
             time.sleep(4)
             if not self._ensure_ready():
@@ -522,7 +591,10 @@ class GrokSession:
 
     # ------------------------------------------------------------------
     def generate(self, prompt: str, image_path: str, out_path: str,
-                 duration_s: float = 10.0, duong_them=None, nen_dung=None) -> bool:
+                 duration_s: float = 10.0, duong_them=None, nen_dung=None, *,
+                 before_submit=None, on_submitted=None,
+                 on_waiting_provider=None, on_downloading=None,
+                 on_saving=None) -> bool:
         """Tạo video image-to-video, lưu mp4 ra out_path.
 
         MỘT submit của Grok đẻ ra NHIỀU clip (đo 2026-08-09: một lần bấm ra 3
@@ -668,10 +740,16 @@ class GrokSession:
         # kiểm trang soạn và lúc bấm, tab vẫn còn kịp trôi.
         self.vet.xong("go_prompt")
         url_luc_submit = page.url or ""
+        if before_submit:
+            before_submit()
         if not self._bam_submit(15):
             self.vet.hong("submit", self._nut_dang_co()[:120])
             raise C.ExecutorError(f"Không bấm được nút gửi. {self._chan_doan()}")
         self.vet.xong("submit")
+        if on_submitted:
+            on_submitted()
+        if on_waiting_provider:
+            on_waiting_provider()
         self.logger.info("Grok: đã submit, chờ render...")
 
         # ⛔ ĐỪNG BẮT TRANG PHẢI NHẢY SANG POST MỚI. Đã thử 2026-08-09 và HỎNG:
@@ -705,8 +783,12 @@ class GrokSession:
         self.logger.info(f"Grok: video xong ({vid_src[:70]}...), đang tải")
 
         self.vet.xong("nhan_clip")
+        if on_downloading:
+            on_downloading()
         data = self._tai_ve(vid_src)
         self.vet.xong("tai_ve")
+        if on_saving:
+            on_saving()
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         with open(out_path, "wb") as f:
             f.write(data)

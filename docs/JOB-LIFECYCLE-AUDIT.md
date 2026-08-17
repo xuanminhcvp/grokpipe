@@ -7,8 +7,11 @@ Ngày chụp: 2026-08-14. Phạm vi: working tree hiện tại của `grokpipe` 
 > **Cập nhật 2026-08-16:** phần audit bên dưới là baseline lịch sử của legacy,
 > không còn là mô tả đầy đủ của mode mới. HTTP/auto producer đã đi qua command
 > boundary; opt-in `authoritative` đã có `LifecycleRuntime` + SQLite + durable
-> scheduler/recovery + runtime-owned retry/account/result/cancel. Tuy vậy live
-> DOM worker vẫn là legacy và default vẫn là `legacy`; chưa chạy provider thật.
+> scheduler/recovery + runtime-owned retry/account/result/cancel. Live DOM
+> one-attempt worker đã có sau feature flag và bị AST guard cấm retry/enqueue/
+> ghi `JOBS`; controlled provider canary ảnh/video đã đạt ngày 2026-08-17,
+> production default hiện là `authoritative + live`; legacy chỉ còn rollback
+> explicit trong phase soak/deprecation.
 
 ## Kết luận ngắn
 
@@ -37,12 +40,17 @@ này, nhưng chính nó là một writer/re-enqueuer nữa.
 |---|---|---|---|---|
 | `legacy` | Compatibility command → callback cũ | Legacy queue/worker | Legacy | `JOBS` legacy |
 | `shadow` | `ProducerService` + legacy delivery | Legacy, core quan sát | Legacy | `JOBS` + shadow diagnostics |
-| `authoritative` | `LifecycleRuntime` | Runtime + SQLite durable | Chỉ fake/injected one-attempt; legacy worker bị chặn | Projection một chiều từ durable state |
+| `authoritative` | `LifecycleRuntime` | Runtime + SQLite durable | Core-only inert; `GROKPIPE_LIVE_EXECUTOR=1` dùng DOM one-attempt, legacy worker bị chặn | Projection một chiều từ durable state |
 
 Các guard mới cấm authoritative submit/adapter gọi queue RAM, browser/provider,
 legacy retry hoặc ghi `JOBS[...]` trực tiếp. `/api/jobs` đọc durable schedule trong
 mode này; `JOBS` chỉ còn compatibility label. Multi-copy đã tách một execution
 cho mỗi child job nhưng gộp trạng thái ở nhãn UI.
+
+Live worker lấy account/slot từ `RuntimeLease`, phát phase ở đúng submit/download/
+save boundary, lưu version trước rồi để `ResultCommit` quyết current. User
+upload/pick sau lúc lease luôn thắng late result. Grok reserve persisted budget
+trước `_bam_submit`, giới hạn cấu hình không được vượt 20 trong canary.
 
 ## Thành phần và quyền sở hữu thực tế
 

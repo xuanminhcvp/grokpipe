@@ -4,7 +4,7 @@ Trạng thái: **ĐÃ ĐƯỢC NGƯỜI DÙNG PHÊ DUYỆT**
 Ngày phê duyệt: 2026-08-14
 Đích đến: `JOB-ARCHITECTURE-TARGET.md` và `JOB-STATE-MACHINE.md`.
 
-## Trạng thái triển khai 2026-08-16
+## Trạng thái triển khai 2026-08-17
 
 - Phase nền tảng đã có domain model, CAS/event idempotency, producer command,
   scheduler, retry/account/result policy, SQLite repository, recovery và monitor.
@@ -12,11 +12,19 @@ Ngày phê duyệt: 2026-08-14
   durable schedule và compatibility projection. DB nằm tại
   `<project>/.grokpipe/job-lifecycle.sqlite3`.
 - Fake/injected one-attempt executor, restart/fault tests, concurrency stress và
-  inert HTTP smoke đã xanh. Default vẫn là `legacy`.
-- **Chưa live cutover:** `_generate_lo_ruot`/`_gen_video` và supervisor live chưa
-  được chuyển thành one-attempt fact emitter. Legacy worker bị chặn fail-closed
-  trong `authoritative`; vì vậy mode này hiện dành cho kiểm thử core, không dành
-  cho render production.
+  inert HTTP smoke đã xanh. DOM image/video one-attempt + supervisor live đã nối;
+  production default hiện là `authoritative + live`, legacy là rollback explicit.
+- Live worker chỉ phát fact/output, không gọi legacy retry/re-enqueue/JOBS writer.
+  Account slot đi trong lease; late user mutation được kiểm lại trước khi đè
+  current. Grok budget reserve atomic trước submit và hard-cap tối đa 20.
+- **Controlled live canary đã đạt:** ChatGPT single `1/1`, grouped REF `2/2`
+  trong một execution, stop-all trước submit không hồi sinh, restart giữ nguyên
+  identity/một attempt; Grok reserve `1/20`, tải và decode MP4 thành công. Không
+  có invariant mismatch. Stress ảnh mở rộng đạt 13/13 PNG, idempotency,
+  concurrency bốn account, cancel/late result, restart và Chrome-dead failover;
+  invariant vẫn 0. Race teardown Ctrl-C gây worker chạm runtime đã đóng + Node
+  `EPIPE` đã có regression và được sửa bằng stop-event + join-before-close.
+  Production default hiện đã đổi; compatibility chỉ còn là rollback explicit.
 - Rollback/re-init không được đi qua legacy khi còn execution authoritative active;
   startup DB lỗi phải fail rõ. Không xóa DB khi rollback.
 
@@ -603,6 +611,13 @@ watchdog enqueue trong mode authoritative.
 
 ## Phase 12 — UI/API mới, xóa legacy authority và tách file
 
+**Trạng thái 2026-08-17: ĐÃ CUTOVER PRODUCTION AUTHORITY, đang soak trước khi
+xóa vật lý rollback path.** Launcher/runtime mặc định authoritative+live;
+`/api/jobs` trả structured Job/Execution/Attempt; UI không optimistic-write
+`JOBS`, đọc runtime snapshot và gửi cancel/stop bằng `job_id`; auto-producer đã
+bật ở mode mới trong khi supervisor/watchdog/retry legacy vẫn bị chặn. Direct
+legacy code còn lại chỉ phục vụ rollback explicit và compatibility deprecation.
+
 ### Mục tiêu
 
 Chuyển consumer cuối sang structured lifecycle, xóa projection write/feature modes
@@ -696,7 +711,14 @@ Không gom cleanup hoặc tách file không liên quan vào commit behavior.
 
 ### Trạng thái so với Definition of done
 
-Core authoritative và compatibility HTTP đã đạt các mục restart/recovery,
-cancel/stop, retry/account, fake E2E và static authority guard. Toàn chương trình
-**chưa done** ở các mục live image/video executor, structured UI/API cuối và xóa
-legacy writers. Không dùng kết quả fake/inert để đánh dấu các mục live này đã xong.
+Core authoritative đã đạt restart/recovery, cancel/stop, retry/account, fake E2E,
+live one-attempt wiring, static authority guard, controlled Chrome/provider
+canary và production-default cutover. Structured lifecycle API/UI và auto
+producer mới đã vào production. Phần còn lại của Definition of done là soak,
+deprecation window rồi xóa vật lý compatibility projection/legacy writers và
+tách file; các phần đó không còn cầm authority khi chạy mặc định.
+
+Rollback drill 2026-08-17 đã đạt trên board thật khi queue rỗng: explicit
+`legacy/live=0` khởi động sạch, sau đó default khởi động lại thành
+`authoritative + live`; cả hai lượt invariant bằng 0. Gate sau cutover:
+697 pass + 91 subtests, không skip/xfail, compile/JS/shell/diff PASS.

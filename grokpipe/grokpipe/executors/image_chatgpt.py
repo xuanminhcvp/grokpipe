@@ -832,7 +832,9 @@ class ChatGPTSession:
     def generate_lo(self, viec: list[tuple[str, str]], attach_paths: list[str],
                     chat_url: str = "", luat_chung: str = "",
                     cho_moi_anh: float = 180,
-                    nen_dung=None, dan_ma: bool = True) -> tuple[list[str], str, dict]:
+                    nen_dung=None, dan_ma: bool = True, *,
+                    on_submitted=None,
+                    on_waiting_provider=None) -> tuple[list[str], str, dict]:
         """Xin NHIỀU ảnh trong MỘT lượt của MỘT đoạn chat.
 
         viec       = [(nhãn, prompt), …] theo đúng thứ tự muốn nhận
@@ -1000,6 +1002,10 @@ class ChatGPTSession:
             self.vet.hong("gui_tin", "nút Send bị nuốt, draft còn trong ô soạn")
             return [], page.url, {"loi_text": "", "da_gui": False}
         self.vet.xong("gui_tin")
+        if on_submitted:
+            on_submitted()
+        if on_waiting_provider:
+            on_waiting_provider()
         self.logger.info(f"đã gửi lô {len(viec)} khung ({len(txt):,} ký tự)")
 
         # Chờ theo SỐ ẢNH ĐÃ VỀ, không chỉ theo nút stop: giao diện carousel hiện

@@ -57,6 +57,8 @@ COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
   sfboard/jobs/facts.py \
   sfboard/jobs/runtime.py \
   sfboard/jobs/executor_adapter.py \
+  sfboard/jobs/live_budget.py \
+  sfboard/live_executor.py \
   sfboard/chay-anh.py
 
 echo "Job lifecycle gate: PASS"

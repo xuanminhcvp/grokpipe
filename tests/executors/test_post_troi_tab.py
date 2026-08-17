@@ -30,7 +30,11 @@ POST_B = "https://grok.com/imagine/post/aaaaaaaa-1111-2222-3333-444444444444"
 
 
 @pytest.fixture(autouse=True)
-def so_sach():
+def so_sach(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "GROKPIPE_GROK_POST_LEDGER",
+        str(tmp_path / "grok-posts.jsonl"),
+    )
     V.quen_het_post()
     yield
     V.quen_het_post()
@@ -87,11 +91,48 @@ def test_troi_sang_post_da_lay_clip_thi_TU_CHOI():
     assert ok is False
     assert "7c34a484" in vi
 
-def test_troi_sang_post_la_chua_tung_lay_thi_van_nhan():
-    """User chốt: không phân định được thì vẫn tải như hiện nay.
 
-    Sổ nằm trong bộ nhớ phiên nên post từ phiên TRƯỚC không có trong đó. Đây là
-    lỗ hổng đã biết và đã báo, không phải sót.
+def test_post_da_lay_van_bi_tu_choi_sau_khi_board_restart():
+    """Regression live 2026-08-17: restart không được làm sổ post cũ trắng lại.
+
+    Nếu quên POST_A, một job mới trôi vào đó sẽ báo completed rồi ghi nguyên
+    video WALTER lên shot KEISHA. `quen_het_post()` ở giữa mô phỏng cache RAM
+    của process cũ biến mất; bản bền vững trên đĩa phải nạp lại được.
+    """
+    V.ghi_so_post(V.id_post(POST_A))
+
+    V.quen_het_post()
+    ok, vi = V.nhan_duoc_clip(IMAGINE, POST_A)
+
+    assert ok is False
+    assert "7c34a484" in vi
+
+
+def test_session_ghi_nho_post_dang_mo_truoc_khi_ve_trang_soan(monkeypatch):
+    """Bản vá mới phải seed cả tab lịch sử có sẵn từ trước khi có journal."""
+    class PageCu:
+        url = POST_A
+
+        def goto(self, url, **_kwargs):
+            self.url = url
+
+    page = PageCu()
+    session = V.GrokSession(None, logging.getLogger("test"), shared_ctx=object())
+    monkeypatch.setattr(session, "_tim_tab", lambda: page)
+    monkeypatch.setattr(session, "_ensure_ready", lambda: True)
+    monkeypatch.setattr(session, "_dismiss_popups", lambda: None)
+    monkeypatch.setattr(V.time, "sleep", lambda _seconds: None)
+
+    assert session.start() is True
+    assert V.id_post(POST_A) in V.so_post_da_lay()
+
+
+def test_troi_sang_post_la_chua_tung_lay_thi_van_nhan():
+    """Post chưa từng được board ghi nhận thì hiện vẫn không phân định được.
+
+    Journal bền vững chặn được mọi post board đã lấy qua các lần restart. Một post
+    ngoài lịch sử board (ví dụ user tự tạo ở Grok) chưa có dấu nguồn tin cậy để
+    kết luận là cũ, nên vẫn được nhận như hành vi trước đây.
     """
     ok, _ = V.nhan_duoc_clip(IMAGINE, POST_A)
 

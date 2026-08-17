@@ -109,7 +109,8 @@ class AutoCharacterizationTest(unittest.TestCase):
 
     def test_auto_image_checks_running_and_queued(self):
         source = function_source(BOARD, "_auto_scene")
-        self.assertIn('not in ("running", "queued")', source)
+        self.assertIn("not _job_is_active(i)", source)
+        self.assertIn('_job_is_active(sh["id"])', source)
 
     def test_auto_producer_observes_same_stop_barrier_as_retry_timer(self):
         """Snapshot auto cũ không được enqueue sau khi `/api/dung-het` trả về.

@@ -61,6 +61,13 @@ from .compat import (
     LegacyEnqueueAdapter,
     LegacyPlan,
 )
+from .live_budget import (
+    BudgetConfigurationError,
+    BudgetExhausted,
+    BudgetScopeConflict,
+    PersistentSubmitBudget,
+    SubmitBudgetSnapshot,
+)
 
 __all__ = [
     "AccountLease",
@@ -73,6 +80,9 @@ __all__ = [
     "Batch",
     "BatchId",
     "BatchMode",
+    "BudgetConfigurationError",
+    "BudgetExhausted",
+    "BudgetScopeConflict",
     "CreditConsumption",
     "CreateBatchRequest",
     "CreateJobRequest",
@@ -107,9 +117,11 @@ __all__ = [
     "MemoryJobStore",
     "ProducerResult",
     "ProducerService",
+    "PersistentSubmitBudget",
     "ShadowMismatch",
     "StoreInvariantError",
     "StoreWriteResult",
+    "SubmitBudgetSnapshot",
     "StaleScopeParent",
     "TransitionCommand",
     "VersionConflict",

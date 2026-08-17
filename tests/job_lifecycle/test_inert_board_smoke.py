@@ -22,8 +22,16 @@ class InertBoardSmokeTest(unittest.TestCase):
         self.board.BOARD = self.board.Board(str(project))
         self.board.ACCOUNTS = []
         self.board._init_job_shadow("authoritative")
-        self.server = self.board.ThreadingHTTPServer(
-            ("127.0.0.1", 0), self.board.Handler)
+        try:
+            self.server = self.board.ThreadingHTTPServer(
+                ("127.0.0.1", 0), self.board.Handler)
+        except PermissionError as exc:
+            self.board._shutdown_job_lifecycle()
+            self.board.BOARD = self.old_board
+            self.board.ACCOUNTS = self.old_accounts
+            reset_legacy_state(self.board)
+            self.tmp.cleanup()
+            self.skipTest(f"sandbox không cho bind localhost: {exc}")
         self.thread = threading.Thread(
             target=self.server.serve_forever, daemon=True)
         self.thread.start()

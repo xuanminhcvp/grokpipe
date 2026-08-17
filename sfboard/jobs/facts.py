@@ -18,6 +18,7 @@ class RuntimeLease:
     member_job_ids: Tuple[JobId, ...]
     account_id: str
     account_seat_id: str
+    account_slot: int
     started_at: float
     expires_at: float
 
