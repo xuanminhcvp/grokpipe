@@ -1,335 +1,149 @@
-# State machine chuẩn cho job ảnh và video
+# State machine chuẩn cho job ảnh/video
 
-Trạng thái: **ĐÃ ĐƯỢC NGƯỜI DÙNG PHÊ DUYỆT**
-Ngày phê duyệt: 2026-08-14
-Áp dụng cho mỗi `Job`; `Execution` và `Attempt` có state nội bộ riêng như mô tả
-trong `JOB-ARCHITECTURE-TARGET.md`.
+> Implementation authority: `sfboard/jobs/models.py`, `manager.py`,
+> `runtime.py` và `retry.py`.
 
-## Quy ước
+## Job states
 
-- Transition chỉ được thực hiện bởi `JobManager` qua CAS `expected_version`.
-- Progress event không phải state transition.
-- Terminal state là bất biến.
-- Explicit rerun luôn tạo `job_id` mới.
-- Validation request envelope/dependency xảy ra trước khi tạo Job. Nếu request bị
-  từ chối thì không có một Job `FAILED` giả.
-
-## Các state
-
-| State | Ý nghĩa bắt buộc | Dữ liệu bắt buộc |
-|---|---|---|
-| `CREATED` | Job đã được chấp nhận nhưng chưa có durable schedule | `job_id`, `asset_id`, `kind`, `version` |
-| `QUEUED` | Có đúng một durable execution schedule sẵn sàng hoặc chờ `not_before <= now` | `execution_id`, `priority`, schedule version |
-| `RUNNING` | Execution đang có lease hợp lệ và ít nhất một Attempt active | `execution_id`, `attempt_id`, `lease_id`, `account_id` |
-| `RETRY_WAIT` | RetryPolicy đã cho retry nhưng chưa đến hạn | `next_attempt_at`, `last_error_class` |
-| `COMPLETED` | Output hợp lệ đã được lưu; terminal | output/version metadata, `finished_at` |
-| `FAILED` | Không retry tiếp theo policy hoặc lỗi permanent; terminal | error class/reason, `finished_at` |
-| `CANCELLED` | User/system đã huỷ run này; terminal | cancel actor/reason, `finished_at` |
-| `NEEDS_ATTENTION` | Có khả năng provider side effect đã xảy ra nhưng outcome không chắc chắn; không tự retry | attempt/phase/account/provider refs |
-
-`NEEDS_ATTENTION` không phải terminal kỹ thuật vì user có thể reconcile nó, nhưng
-Scheduler tuyệt đối không lease state này.
-
-## Sơ đồ đầy đủ
-
-```mermaid
-stateDiagram-v2
-    [*] --> CREATED: CreateJob accepted
-    CREATED --> QUEUED: schedule_committed
-    CREATED --> FAILED: setup_failed
-    CREATED --> CANCELLED: cancel
-
-    QUEUED --> RUNNING: execution_leased
-    QUEUED --> CANCELLED: cancel / safe_stop
-    QUEUED --> FAILED: schedule_invalidated
-
-    RUNNING --> COMPLETED: output_committed
-    RUNNING --> RETRY_WAIT: retryable_error
-    RUNNING --> FAILED: permanent_or_exhausted
-    RUNNING --> CANCELLED: interrupt_confirmed
-    RUNNING --> NEEDS_ATTENTION: unknown_external_outcome
-
-    RETRY_WAIT --> QUEUED: retry_due
-    RETRY_WAIT --> CANCELLED: cancel / safe_stop
-    RETRY_WAIT --> FAILED: policy_invalidated_or_deadline
-
-    NEEDS_ATTENTION --> COMPLETED: reconcile_output
-    NEEDS_ATTENTION --> FAILED: resolve_failed
-    NEEDS_ATTENTION --> CANCELLED: abandon_run
-
-    COMPLETED --> [*]
-    FAILED --> [*]
-    CANCELLED --> [*]
-```
-
-## Bảng transition hợp lệ
-
-| # | From | Event/command | Actor | Điều kiện | To | Side effects atomic |
-|---|---|---|---|---|---|---|
-| T01 | — | `CreateJob` | API/Auto/CLI qua Manager | request hợp lệ, idempotency chưa tồn tại | `CREATED` | insert Job + created Event |
-| T02 | `CREATED` | `ScheduleCommitted` | Manager | execution và schedule tạo được | `QUEUED` | insert Execution/schedule + event |
-| T03 | `CREATED` | `SetupFailed` | Manager | không thể tạo execution/store invariant | `FAILED` | error + terminal event |
-| T04 | `CREATED` | `CancelJob` | User/System | version khớp | `CANCELLED` | cancel event |
-| T05 | `QUEUED` | `ExecutionLeased` | Manager theo yêu cầu Worker | schedule due, capability/account hợp lệ, chưa stop barrier | `RUNNING` | lease execution/account + create Attempt + remove ready token |
-| T06 | `QUEUED` | `CancelJob` | User/System | version khớp | `CANCELLED` | invalidate schedule/token + event |
-| T07 | `QUEUED` | `ScheduleInvalidated` | Recovery/Admin | execution không còn chạy hợp lệ và không thể rebuild | `FAILED` | remove schedule + error event |
-| T08 | `RUNNING` | `AttemptSucceeded` | Worker báo fact | lease hợp lệ, outputs commit thành công | `COMPLETED` | outputs + finish attempt + release leases + event |
-| T09 | `RUNNING` | `AttemptFailed` + retry decision | Manager/RetryPolicy | error retryable, còn budget, outcome chắc chắn | `RETRY_WAIT` | finish attempt + `next_attempt_at` + release leases + event |
-| T10 | `RUNNING` | `AttemptFailed` + terminal decision | Manager/RetryPolicy | permanent, validation hoặc exhausted | `FAILED` | finish attempt + release leases + terminal event |
-| T11 | `RUNNING` | `InterruptConfirmed` | Executor/Worker | provider chưa submit hoặc image execution đã dừng chắc chắn | `CANCELLED` | finish attempt + release leases + event |
-| T12 | `RUNNING` | `OutcomeUnknown` | Recovery/Worker | đã/có thể submit nhưng không xác minh kết quả | `NEEDS_ATTENTION` | finish/expire lease + attention event |
-| T13 | `RETRY_WAIT` | `RetryDue` | Scheduler qua Manager | due, chưa cancelled, policy/version còn hợp lệ | `QUEUED` | durable schedule + event |
-| T14 | `RETRY_WAIT` | `CancelJob` | User/System | version khớp | `CANCELLED` | clear retry schedule + event |
-| T15 | `RETRY_WAIT` | `PolicyInvalidated` | Manager/Admin | deadline/budget/config mới cấm retry | `FAILED` | clear schedule + terminal event |
-| T16 | `NEEDS_ATTENTION` | `ReconcileOutput` | User/Recovery | xác minh output tồn tại và commit được | `COMPLETED` | output metadata + terminal event |
-| T17 | `NEEDS_ATTENTION` | `ResolveFailed` | User/Recovery | xác minh không có output hoặc chọn kết thúc lỗi | `FAILED` | terminal reason + event |
-| T18 | `NEEDS_ATTENTION` | `AbandonRun` | User | chấp nhận bỏ outcome cũ | `CANCELLED` | terminal event; không xóa provider output |
-
-## Transition bị cấm
-
-| Transition | Lý do |
+| State | Ý nghĩa |
 |---|---|
-| `COMPLETED -> *` | Terminal; tạo lại phải tạo Job mới |
-| `FAILED -> *` | Terminal; manual rerun tạo Job mới |
-| `CANCELLED -> *` | Terminal; token cũ không được hồi sinh |
-| `RUNNING -> RUNNING` | Progress là event; retry phải qua `RETRY_WAIT`/Attempt mới |
-| `QUEUED -> QUEUED` | Duplicate enqueue; cập nhật message/priority là event/update cùng version, không transition |
-| `RETRY_WAIT -> RUNNING` | Phải qua durable `QUEUED` và lease mới |
-| `CREATED -> RUNNING` | Không được bỏ qua schedule/lease transaction |
-| `QUEUED -> COMPLETED` | Không có Attempt/output commit hợp lệ |
-| `RETRY_WAIT -> COMPLETED` | Không có active Attempt |
-| `NEEDS_ATTENTION -> QUEUED/RUNNING` | Không tự retry outcome không chắc chắn; rerun là Job mới |
-| Bất kỳ state nào đổi chỉ vì `msg` | Text không phải policy input |
+| `created` | intent/job đã ghi bền vững, chưa schedule |
+| `queued` | execution đã schedule và sẵn sàng/chờ `not_before` |
+| `running` | execution có lease và attempt active |
+| `retry_wait` | attempt lỗi an toàn để retry, đang chờ |
+| `completed` | output đã commit |
+| `failed` | lỗi terminal hoặc hết retry budget |
+| `cancelled` | bị user/system hủy hợp lệ |
+| `needs_attention` | outcome không rõ hoặc cần quyết định thủ công |
 
-CAS không khớp hoặc transition ngoài bảng phải trả lỗi typed, ghi invariant metric,
-và không thực hiện side effect một phần.
+Terminal: `completed`, `failed`, `cancelled`. Không tự coi
+`needs_attention` là terminal.
 
-## Progress events trong `RUNNING`
-
-Các phase sau không làm `RUNNING -> RUNNING`; chúng chỉ append Attempt/JobEvent:
+## Transition chính
 
 ```text
-PREPARING
-ATTACHING
-READY_TO_SUBMIT
-SUBMITTED
-WAITING_PROVIDER
-DOWNLOADING
-SAVING
+created ──schedule──▶ queued ──lease──▶ running ──success──▶ completed
+                               │          ├─ retryable ────▶ retry_wait
+                               │          ├─ permanent ────▶ failed
+                               │          └─ unknown ──────▶ needs_attention
+                               │
+retry_wait ──not_before due────┘
+
+created/queued/retry_wait ──cancel──▶ cancelled
+running ──safe cancel───────────────▶ cancelled
 ```
 
-`SUBMITTED` là ranh giới quan trọng:
+Mọi transition phải đi qua runtime/manager, sinh event actor/type/reason và nằm
+trong transaction phù hợp.
 
-- trước nó: retry/reconnect thường không tiêu credit;
-- sau nó: `consumes_credit=true|unknown`; mất kết nối có thể thành
-  `NEEDS_ATTENTION`, không tự submit lại.
+## Attempt phases
 
-## Retry semantics
+| Phase | Credit semantics |
+|---|---|
+| `preparing` | chưa submit |
+| `attaching` | đang chuẩn bị input, chưa submit |
+| `ready_to_submit` | sẵn sàng, chưa submit |
+| `submitted` | đã bấm gửi; có thể đã tiêu credit |
+| `waiting_provider` | đang chờ provider |
+| `downloading` | đã có kết quả, đang tải |
+| `saving` | đang ghi output |
+| `finished` | attempt đóng |
 
-### Một authority
+`submitted_at`, không chỉ tên phase hiện tại, là fact quan trọng để recovery và
+retry biết submit đã xảy ra.
 
-Chỉ `RetryPolicy.decide(ErrorFact, AttemptHistory, JobPolicy)` trả:
+## Retry policy
 
-```text
-NO_RETRY(error_class, reason)
-RETRY(after, account_action, budget_cost)
-NEEDS_ATTENTION(reason)
-```
+| Error class/tình huống | Hành động |
+|---|---|
+| user cancel | `cancelled`, không tính retry budget |
+| validation/permanent | `failed`, không phạt account |
+| quota/rate-limit trước submit | `retry_wait`, backoff, cooldown + rotate |
+| account lost trước submit | `retry_wait`, rotate |
+| session transient lần đầu trước submit | retry ngay cùng account |
+| session/provider transient tiếp theo | backoff, có thể rotate |
+| unknown outcome | `needs_attention` |
+| session/account lost sau submit | `needs_attention` |
+| batch partial | retry execution cho member chưa xong |
 
-JobManager áp decision. RetryPolicy không ghi store và không enqueue.
+Default submit budget do policy cấu hình theo kind; whole-execution retry có
+trần riêng. Không thêm bộ đếm retry ở worker/UI/watchdog.
 
-### Budget
+## Partial batch
 
-- Ảnh: mặc định tối đa 8 provider-submit attempts cho một Job/Execution policy.
-- Lô ảnh không trọn vẹn: tối đa 2 lần gửi lại toàn execution theo D10; đây nằm
-  trong cùng attempt budget đã submit, không có counter riêng ngoài JobStore.
-- Video: tối đa 5 provider-submit attempts.
-- Reconnect trước submit một lần trên cùng account không tiêu submit budget.
-- Watchdog, auto và CLI không có retry counter riêng.
-- Manual rerun tạo Job mới và budget mới; `rerun_of` giữ audit chain.
+Một execution ảnh có thể chứa nhiều job. Khi provider trả thiếu:
 
-### Error class
+1. Output hợp lệ được commit cho đúng member.
+2. Member đã `completed` không quay lại `running`.
+3. Member thiếu output chuyển `retry_wait` nếu còn budget.
+4. Retry execution chỉ chứa/diễn giải member còn sống theo runtime contract.
 
-| Error class | Transition | Account action |
-|---|---|---|
-| `VALIDATION` | `RUNNING/CREATED -> FAILED` | Không đổi account |
-| `CANCELLED` | `RUNNING -> CANCELLED` khi interrupt được | Không đổi account |
-| `SESSION_TRANSIENT` trước submit | `RUNNING -> RETRY_WAIT` nếu reconnect thất bại | Same account một lần, rồi allocator chọn lại |
-| `PROVIDER_TRANSIENT` outcome chắc chắn | `RUNNING -> RETRY_WAIT` | Policy có thể exclude account vừa lỗi |
-| `QUOTA/RATE_LIMIT` | `RUNNING -> RETRY_WAIT` nếu còn budget | Account cooldown, không toggle user-enabled |
-| `PERMANENT` | `RUNNING -> FAILED` | Không rotate |
-| `UNKNOWN_OUTCOME` | `RUNNING -> NEEDS_ATTENTION` | Giải phóng/cách ly lease; không retry |
+Không gán kết quả theo thứ tự tab hoặc tên file không kiểm chứng.
 
-Backoff nằm trong `next_attempt_at`; không tạo `threading.Timer` per job.
+## Cancel
 
-## Cancel semantics
+### Chưa chạy
 
-### Queued và retry wait
+`created`, `queued`, `retry_wait` có thể cancel. Scheduler bỏ execution/member,
+runtime chuyển toàn bộ member vật lý liên quan sang `cancelled`.
 
-- Manager transition atomically sang `CANCELLED`.
-- Durable schedule bị invalidated trong cùng transaction.
-- Heap token đến muộn chứa version cũ và không lease được.
+### Image đang chạy
 
-### Image execution đang chạy
-
-- Một provider message có thể chứa nhiều member Job.
-- Cancel một member khi execution đang chạy phải hiển thị xác nhận “dừng cả lô”.
-- Khi user xác nhận, cancellation token áp cho Execution; tất cả member chưa
-  terminal chuyển `CANCELLED` sau `InterruptConfirmed`.
-- Output đến muộn chỉ lưu vào attempt artifacts/history, không đè current asset.
+Runtime đóng attempt `cancelled`, finish execution, revoke result lease và
+release account. Result đến muộn không được commit.
 
 ### Video đang chạy
 
-- Trước `SUBMITTED`: cancel được và chuyển `CANCELLED`.
-- Từ `SUBMITTED` trở đi: safe cancel bị từ chối; state giữ `RUNNING` cho tới khi lưu
-  xong hoặc outcome thành unknown.
-- Emergency stop có thể cắt browser, nhưng attempt chuyển `NEEDS_ATTENTION`, không
-  báo giả là `CANCELLED` chắc chắn.
+- Trước submit: cancel như một attempt chưa tốn credit.
+- Sau submit: không giả vờ hủy provider; trả `video.already_submitted`, tiếp tục
+  quan sát hoặc đưa về xử lý outcome phù hợp.
 
-## Stop-all semantics
+## Dừng tất cả
 
-### Safe stop mặc định
+Safe stop phải:
 
-1. Manager tạo `StopBarrier` version mới trong store.
-2. API/Auto/CLI producer mới bị từ chối hoặc giữ ở trạng thái UI `submitting` thất bại.
-3. `QUEUED/RETRY_WAIT/CREATED` chuyển `CANCELLED` transactionally.
-4. Image executions active nhận cancellation token.
-5. Video trước submit bị cancel; video sau submit chạy nốt và lưu.
-6. Stop chỉ hoàn tất khi không còn execution interruptible hoặc đang chờ safe finish.
+1. chặn producer/worker lấy thêm việc;
+2. cancel các execution chưa submit;
+3. xử lý execution đang chạy theo luật image/video ở trên;
+4. release seat/lease có thể release;
+5. phản ánh state server thật ra UI.
 
-### Emergency stop
+Không chỉ clear hàng đợi hiển thị. “Emergency stop” tiến trình chỉ dùng khi có
+nguy cơ tiếp tục tiêu credit hoặc làm hỏng dữ liệu, và restart recovery vẫn phải
+phân biệt trước/sau submit.
 
-1. User phải xác nhận nguy cơ mất credit/kết quả.
-2. Browser/account có thể bị kill.
-3. Attempt sau submit không có outcome chuyển `NEEDS_ATTENTION`.
-4. Không queue/retry nào được tạo sau barrier từ snapshot/event cũ.
+## Account semantics
 
-## Account rotation semantics
+- Allocation xảy ra trước execution lease.
+- Preferred account là gợi ý; forced account có fallback policy rõ.
+- Quota cooldown account, không fail vĩnh viễn job.
+- Fatal account loss cập nhật health.
+- Một lỗi tab/job không mặc định xoay hoặc đóng mọi account khác.
+- Release seat phải xảy ra ở mọi outcome, kể cả exception/rollback.
 
-- Account được gán cho Attempt, không gán ngầm theo thread thắng queue.
-- Validation/permanent/job-data error không rotate account.
-- Session fatal có thể relaunch/cooldown account.
-- Quota/rate-limit cooldown account; allocator chọn account khác nếu Job cho phép.
-- Forced account áp dụng mọi retry; không fallback trừ khi Job có
-  `allow_account_fallback=true`.
-- Một tab/job lỗi không tự đóng cả browser. Browser chỉ đóng khi health classifier
-  xác nhận lỗi toàn session/browser.
-- Nếu browser chết, mọi sibling Attempt nhận fact `ACCOUNT_LOST` riêng và đi qua
-  RetryPolicy; không có state mutation hàng loạt không audit.
+## Restart/recovery
 
-## Batch semantics
+| Trạng thái bền vững | Recovery |
+|---|---|
+| execution ready/waiting | giữ nguyên |
+| leased + attempt trước submit | đóng attempt lỗi, release → retry |
+| leased + attempt đã submit | `needs_attention`, không resubmit |
+| leased nhưng thiếu attempt | `needs_attention` |
+| job terminal | không đổi |
 
-### Image group
+## Mutation và rerun
 
-- Manager tạo nhiều Job và một Execution chứa member list cố định/versioned.
-- `ExecutionLeased` chuyển tất cả member `QUEUED -> RUNNING` trong một transaction.
-- Trong các attempt không trọn vẹn, output đều được lưu làm artifacts.
-- Khi execution kết thúc, mỗi member nhận `COMPLETED`, `FAILED`, `CANCELLED` hoặc
-  `NEEDS_ATTENTION` theo kết quả của chính nó.
-- Member `COMPLETED` không được quay lại `RUNNING` vì retry đến muộn.
+- Chạy lại job terminal tạo JobId/intent mới.
+- Upload/xoá/gắn asset khi có job active phải đi qua policy; mutation ghi dấu để
+  late result không ghi đè.
+- `replace_current=false` giữ current version đã duyệt.
+- Cancel token/lease cũ không có quyền tác động generation mới.
 
-### Multi-copy
+## Transition bị cấm
 
-- Mỗi copy là một child Job cùng `asset_id`, có `copy_index` khác nhau.
-- Mỗi child có Execution/Attempt/account/state riêng.
-- Batch progress là projection, không phải một state ghi đè child.
-
-### Bulk video
-
-- Batch chỉ nhóm thao tác UI/audit.
-- Mỗi video Job có Execution riêng vì mỗi submit độc lập và tiêu credit riêng.
-
-## Auto semantics
-
-- Auto chỉ là producer.
-- Auto gọi `CreateJob` idempotent khi asset đủ prompt/ref/start-frame và không có
-  active/failed-unacknowledged Job.
-- Auto không retry và không tạo Job mới sau `FAILED/CANCELLED/NEEDS_ATTENTION`.
-- User acknowledge/manual rerun mới tạo Job mới.
-- Auto off/stop barrier được kiểm tra trong transaction tạo Job, không chỉ ở đầu
-  vòng scan.
-- Auto không đè asset đã approved.
-
-## Asset mutation và late result
-
-- Upload/delete/manual attach khi có active Job gửi command qua Manager.
-- User mutation tạo intent version mới và cancel/invalidate active run cũ theo D28.
-- Late output chỉ vào versions/attempt artifacts.
-- Chỉ Job còn `replace_current=true` và intent version hiện hành mới được đè current.
-- Explicit rerun đã xác nhận có thể đè approved asset; auto không được phép.
-
-## Restart/recovery table
-
-| State trước crash | Dữ liệu attempt | Hành động startup |
-|---|---|---|
-| `CREATED` | chưa schedule | hoàn tất schedule hoặc `FAILED` nếu invariant hỏng |
-| `QUEUED` | durable schedule | đưa lại ready heap đúng một lần |
-| `RETRY_WAIT` | có `next_attempt_at` | giữ chờ hoặc queue nếu đã due |
-| `RUNNING` | trước submit, lease expired | RetryPolicy quyết định retry |
-| `RUNNING` | sau submit, không outcome | `NEEDS_ATTENTION` |
-| `RUNNING` | output đã commit nhưng event thiếu | reconcile idempotently -> `COMPLETED` |
-| terminal | bất kỳ | không transition |
-| `NEEDS_ATTENTION` | bất kỳ | chờ user/recovery reconcile; không schedule |
-
-## Concurrency và atomicity
-
-1. Mọi Job/Execution có `version` tăng đơn điệu.
-2. Command truyền `expected_version` khi dựa trên snapshot cụ thể.
-3. Lease acquisition transaction kiểm tra state, due time, stop barrier và account
-   capacity trước khi `QUEUED -> RUNNING`.
-4. Complete/cancel/fail cạnh tranh: đúng một CAS thắng; loser xử lý idempotently.
-5. Provider event có `attempt_id + event_key` unique.
-6. Output file được ghi vào path tạm, fsync/rename trước khi commit metadata; nếu DB
-   commit lỗi, recovery quét artifact theo attempt id.
-7. Batch transition nhiều member dùng một transaction; không để nửa lô `RUNNING`.
-8. Poll API đọc snapshot transaction nhất quán.
-
-## Terminal rules
-
-- `COMPLETED`, `FAILED`, `CANCELLED` không có outgoing transition.
-- Archive không đổi lifecycle state.
-- Purge là data-retention operation riêng, có audit.
-- Rerun tạo Job mới, không reset row cũ.
-- Late worker fact của terminal Job chỉ được ghi duplicate/late-event metric và
-  artifacts an toàn; không đổi state/current asset.
-
-## Các ví dụ bắt buộc
-
-### Retry ảnh
-
-```text
-J1 CREATED -> QUEUED -> RUNNING
-Attempt 1 submitted -> PROVIDER_TRANSIENT
-J1 RUNNING -> RETRY_WAIT -> QUEUED -> RUNNING
-Attempt 2 submitted -> success
-J1 RUNNING -> COMPLETED
-```
-
-### User chạy lại job lỗi
-
-```text
-J1 FAILED (terminal)
-User explicit rerun
-J2 CREATED, rerun_of=J1
-J2 -> QUEUED ...
-```
-
-### Video mất kết nối sau submit
-
-```text
-J1 RUNNING, Attempt 2 SUBMITTED, credit=unknown
-process/browser lost
-J1 -> NEEDS_ATTENTION
-không tự enqueue
-user reconcile -> COMPLETED hoặc FAILED
-```
-
-### Cancel token cũ đến muộn
-
-```text
-J1 QUEUED version=4
-cancel -> J1 CANCELLED version=5
-heap token(expected version=4) được pop
-lease CAS thất bại; token bị bỏ
-explicit rerun tạo J2, không bị cancel token J1 ảnh hưởng
-```
+- `completed → running` để retry lô partial.
+- `cancelled → completed` bởi late result.
+- `failed → queued` mà không tạo intent/rerun mới.
+- `running → queued` không đóng attempt/lease.
+- `needs_attention → retry_wait` tự động khi chưa có quyết định outcome.
+- Ghi state trực tiếp từ UI, DOM worker, watchdog hoặc legacy projection.
