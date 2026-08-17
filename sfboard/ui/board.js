@@ -7,6 +7,7 @@
 // board.html). Sinh key MỘT LẦN trước request rồi giữ nguyên khi gửi lại —
 // sinh mới mỗi lần gửi là quay về đúng bug "bấm hai lần render hai lượt".
 const { newJobKey, postJob } = globalThis.GrokpipeJobRequest;
+const { jobsTuLifecycle } = globalThis.GrokpipeJobProjection;
 const VIEW_OK = ['script', 'sf'];
 let DATA = { scenes: [] }, JOBS = {}, SUBMITTING = {}, AUTO = {}, T = null, DIRTY = false, MTIME = 0;
 let VIEW = VIEW_OK.includes(localStorage.getItem('sfboard-view'))
@@ -31,47 +32,6 @@ const jobQuery = id => {
     ? 'job_id=' + encodeURIComponent(job.job_id)
     : 'sf=' + encodeURIComponent(id);
 };
-function jobsTuLifecycle(lifecycle, fallback) {
-  if (!lifecycle || lifecycle.source !== 'runtime') return fallback || {};
-  const latest = new Map();
-  for (const job of lifecycle.jobs || []) {
-    const marker = job.batch_id || job.job_id;
-    let group = latest.get(job.asset_id);
-    if (!group || group.marker !== marker) {
-      group = { marker, jobs: [] };
-      latest.set(job.asset_id, group);
-    }
-    group.jobs.push(job);
-  }
-  const out = {};
-  for (const [assetId, group] of latest) {
-    const states = group.jobs.map(job => job.state);
-    let canonical = states.every(state => state === 'completed') ? 'completed'
-      : states.includes('running') ? 'running'
-        : states.includes('retry_wait') ? 'retry_wait'
-          : states.some(state => state === 'queued' || state === 'created') ? 'queued'
-            : states.includes('needs_attention') ? 'needs_attention'
-              : states.includes('failed') ? 'failed' : 'cancelled';
-    const legacy = {
-      created: ['queued', 'chờ lịch bền vững'],
-      queued: ['queued', 'chờ lịch bền vững'],
-      running: ['running', 'đang chạy'],
-      retry_wait: ['queued', 'lỗi → chờ thử lại'],
-      completed: ['done', 'xong'],
-      failed: ['error', 'thất bại'],
-      cancelled: ['error', 'đã dừng'],
-      needs_attention: ['error', 'cần kiểm tra — không tự gửi lại'],
-    }[canonical];
-    out[assetId] = {
-      state: legacy[0], msg: legacy[1], canonical_state: canonical,
-      job_id: group.jobs[0].job_id,
-      job_ids: group.jobs.map(job => job.job_id),
-      batch_id: group.jobs[0].batch_id,
-    };
-  }
-  return out;
-}
-
 /* BADGE TRẠNG THÁI cạnh mã SF và mã video — xanh DUYỆT, đỏ LÀM LẠI (user chốt
    2026-08-15). Trước đó thử báo bằng viền thẻ: viền đủ đậm để nhìn ra thì cả
    lưới thành vòng màu bão hoà, chói mắt; badge gọn hơn vì chỉ chiếm một điểm.

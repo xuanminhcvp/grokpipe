@@ -83,6 +83,11 @@ class BoardHtmlOrderTest(unittest.TestCase):
             html.index("/ui/board.js"),
             "sai thứ tự script thì board.js không có helper lúc chạy dòng đầu",
         )
+        self.assertLess(
+            html.index("/ui/job-projection.js"),
+            html.index("/ui/board.js"),
+            "sai thứ tự script thì board.js không có lifecycle projection",
+        )
 
     def test_moi_script_trong_html_deu_duoc_board_phuc_vu(self):
         """Thêm file JS mà quên mở đường phục vụ nó = UI CHẾT TRẮNG.

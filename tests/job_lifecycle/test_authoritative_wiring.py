@@ -404,6 +404,52 @@ class AuthoritativeWiringTest(unittest.TestCase):
         self.assertEqual(
             set(executions[0].member_keys), set(body["job_ids"]))
 
+    def test_auto_asset_dang_thieu_phai_thay_current_khi_ket_qua_ve(self):
+        """Auto quét đúng asset đang thiếu, không phải yêu cầu thêm một bản phụ."""
+        self.board._init_job_shadow("authoritative")
+        scene = {"id": "REF"}
+
+        image = self.board._auto_giao_anh(
+            scene, "nhan-vat", ["REF_A_PORTRAIT"], {"scenes": []})
+        video = self.board._auto_giao_video(scene, {"id": "V-S1-01"})
+
+        self.assertTrue(image.jobs[0].replace_current)
+        self.assertTrue(video.jobs[0].replace_current)
+
+    def test_clear_done_an_projection_nhung_giu_nguyen_lifecycle(self):
+        self.board.ACCOUNTS = [{
+            "id": "fake", "port": 9222, "kind": "img",
+            "enabled": True, "tabs": 1,
+        }]
+        self.board._init_job_shadow("authoritative")
+        result = self.board._producer_submit(
+            self.request(), "clear-done-A", self.plan)
+
+        def execute(_lease, _phase):
+            return self.executor_adapter.ExecutorAttemptResult({
+                result.jobs[0].job_id: ("/tmp/a.png",),
+            })
+
+        self.board._run_authoritative_once(
+            self.models.JobKind.IMAGE, execute, now=0, ttl=30)
+        job_id = str(result.jobs[0].job_id)
+        self.assertEqual(
+            self.board._runtime_lifecycle_snapshot()["hidden_terminal_job_ids"],
+            [],
+        )
+
+        clear = make_handler(self.board, "/api/xoa-xong")
+        clear.do_POST()
+        snapshot = self.board._runtime_lifecycle_snapshot()
+
+        self.assertTrue(clear.captured[1]["ok"])
+        self.assertIn(job_id, snapshot["hidden_terminal_job_ids"])
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(result.jobs[0].job_id).state,
+            self.models.JobState.COMPLETED,
+        )
+        self.assertIn(job_id, {job["job_id"] for job in snapshot["jobs"]})
+
     def test_authoritative_multi_copy_moi_ban_mot_execution_ui_van_gop(self):
         self.board.ACCOUNTS = [{
             "id": "fake", "port": 9222, "kind": "img",

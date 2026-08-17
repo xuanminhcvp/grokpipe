@@ -1415,8 +1415,24 @@ def _runtime_lifecycle_snapshot() -> dict:
             "attempts": [],
         }
 
+    # Lifecycle giữ toàn bộ lịch sử, còn `JOBS` chỉ là projection đang được UI
+    # hiển thị. Clear chỉ bỏ projection này; không được xoá fact bền vững.
+    # Gửi danh sách terminal đã bị ẩn để client không dựng chúng sống lại ở
+    # nhịp poll kế tiếp.
+    with JOBS.shadow_order_lock:
+        projected_job_ids = set()
+        for value in tuple(JOBS.values()):
+            if not isinstance(value, dict):
+                continue
+            raw_ids = value.get("job_ids") or (
+                [value.get("job_id")] if value.get("job_id") else [])
+            projected_job_ids.update(str(raw) for raw in raw_ids if raw)
+
     jobs = []
+    hidden_terminal_job_ids = []
     for job in _JOB_REPOSITORY.all_jobs():
+        if job.state.is_terminal and str(job.job_id) not in projected_job_ids:
+            hidden_terminal_job_ids.append(str(job.job_id))
         jobs.append({
             "job_id": str(job.job_id),
             "asset_id": str(job.asset_id),
@@ -1472,6 +1488,7 @@ def _runtime_lifecycle_snapshot() -> dict:
         "source": "runtime",
         "mode": _JOB_MODE,
         "jobs": jobs,
+        "hidden_terminal_job_ids": hidden_terminal_job_ids,
         "executions": executions,
         "attempts": attempts,
     }
@@ -3875,7 +3892,7 @@ def _auto_giao_anh(sc, m, lo, data):
     yeu_cau = CreateBatchRequest(
         tuple(
             CreateJobRequest(AssetId(i), JobKind.IMAGE, JobOrigin.AUTO,
-                             request_scope=scope)
+                             request_scope=scope, replace_current=True)
             for i in lo
         ),
         BatchMode.IMAGE_GROUP,
@@ -3912,6 +3929,7 @@ def _auto_giao_video(sc, sh):
     yeu_cau = CreateJobRequest(
         AssetId(shot_id), JobKind.VIDEO, JobOrigin.AUTO,
         request_scope=f"{_board_identity()}:auto:{sc['id']}:video:{shot_id}",
+        replace_current=True,
     )
 
     def _plan(ket_qua):
@@ -5520,7 +5538,8 @@ _UI_DIR = os.path.join(_HERE, "ui")
 def _doc_ui(ten: str) -> str:
     # Chốt tên file trong danh sách trắng: đường dẫn từ URL mà ghép thẳng vào
     # os.path.join là mở cửa cho ../../ đọc trộm file ngoài thư mục ui/.
-    if ten not in ("board.html", "board.css", "board.js", "job-request.js"):
+    if ten not in ("board.html", "board.css", "board.js", "job-request.js",
+                   "job-projection.js"):
         raise ValueError(f"file giao diện lạ: {ten}")
     with open(os.path.join(_UI_DIR, ten), encoding="utf-8") as f:
         return f.read()
@@ -5824,7 +5843,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/":
             self._send(200, _doc_ui("board.html").encode("utf-8"),
                        "text/html; charset=utf-8")
-        elif u.path in ("/ui/board.css", "/ui/board.js", "/ui/job-request.js"):
+        elif u.path in ("/ui/board.css", "/ui/board.js", "/ui/job-request.js",
+                        "/ui/job-projection.js"):
             ten = u.path.rsplit("/", 1)[1]
             kieu = ("text/css" if ten.endswith(".css") else "application/javascript")
             self._send(200, _doc_ui(ten).encode("utf-8"), kieu + "; charset=utf-8")
