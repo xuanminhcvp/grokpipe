@@ -166,3 +166,72 @@ class ProducerServiceTest(unittest.TestCase):
                 "group-1",
             )
         self.assertIsNone(self.store.get_intent("group-1"))
+
+
+class AutoScopeRerunTest(unittest.TestCase):
+    """Auto phải xếp được lứa mới sau khi lứa trước đã kết thúc hẳn.
+
+    Khoá idempotency của auto là `auto:` + scope fingerprint, cố định theo scene
+    · địa điểm · danh sách SF. Cố định như vậy là ĐÚNG trong một lứa: hai vòng
+    quét liên tiếp không được xếp thành hai lượt. Nhưng khi cả lứa đã terminal
+    mà thẻ vẫn thiếu ảnh, vòng quét sau lại đụng đúng khoá cũ — không có đường
+    sinh thế hệ mới thì auto kẹt vĩnh viễn.
+
+    Board thật 2026-08-17 dừng đúng ở đây: 25 thẻ REF nằm im, nút "Chạy hết"
+    bấm bao nhiêu lần cũng không xếp nổi một việc.
+    """
+
+    def setUp(self):
+        self.store = MemoryJobStore()
+        self.service = ProducerService(self.store)
+
+    def _auto_batch(self, replace=False):
+        request = CreateJobRequest(
+            asset_id=AssetId("REF_BEP_DEM"),
+            kind=JobKind.IMAGE,
+            origin=JobOrigin.AUTO,
+            request_scope="board:auto:REF:image:REF:BOI_CANH:REF_BEP_DEM",
+            manual=False,
+            replace_current=replace,
+        )
+        return CreateBatchRequest((request,), BatchMode.IMAGE_GROUP)
+
+    def test_auto_xep_lua_moi_khi_lua_truoc_da_terminal(self):
+        dau = self.service.create_batch(self._auto_batch())
+        for job in dau.jobs:
+            terminal_job(job, self.store, JobState.CANCELLED)
+
+        sau = self.service.create_batch(self._auto_batch())
+
+        self.assertNotEqual(sau.jobs[0].job_id, dau.jobs[0].job_id)
+        self.assertEqual(sau.jobs[0].rerun_of, dau.jobs[0].job_id)
+
+    def test_auto_giu_nguyen_mot_luot_khi_lua_truoc_chua_xong(self):
+        dau = self.service.create_batch(self._auto_batch())
+
+        lai = self.service.create_batch(self._auto_batch())
+
+        self.assertEqual(lai.jobs[0].job_id, dau.jobs[0].job_id)
+        self.assertTrue(lai.replayed)
+
+    def test_auto_van_bi_chan_boi_lua_failed_cho_toi_khi_nguoi_go(self):
+        """`failed` chặn auto là luật cố ý — nhưng phải có cửa cho người mở.
+
+        Vòng quét chạy 20 giây một lần và không có trần số lần thử, nên tự hồi
+        sinh một lứa `failed` là bắn lại mãi mãi. Chặn là đúng. Sai là chặn mà
+        KHÔNG có lối ra: S1 ngày 2026-08-17 kẹt vĩnh viễn kể cả sau khi user đã
+        viết prompt, vì `failed` là terminal và không transition đi đâu được.
+        """
+        dau = self.service.create_batch(self._auto_batch())
+        for job in dau.jobs:
+            terminal_job(job, self.store, JobState.FAILED)
+
+        van_ket = self.service.create_batch(self._auto_batch())
+        self.assertEqual(van_ket.jobs[0].job_id, dau.jobs[0].job_id)
+
+        scope = self.store.scope_of_job(dau.jobs[0].job_id)
+        self.assertTrue(self.store.retire_scope(scope))
+        sau = self.service.create_batch(self._auto_batch())
+
+        self.assertNotEqual(sau.jobs[0].job_id, dau.jobs[0].job_id)
+        self.assertIsNotNone(self.store.get(dau.jobs[0].job_id))

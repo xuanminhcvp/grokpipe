@@ -135,14 +135,21 @@ class ProducerService:
                 "copies": len(requests),
             }
         )
-        key = self._resolve_key(requests, scope_fingerprint, idempotency_key)
-
-        rebuild_parent = rerun_of is None and all(request.manual for request in requests)
+        # Auto cũng cần dựng lại parent: lứa trước terminal mà thẻ vẫn thiếu ảnh
+        # thì vòng quét sau là một Ý ĐỊNH MỚI, không phải replay của lứa đã chết.
+        rebuild_parent = rerun_of is None and (
+            all(request.manual for request in requests)
+            or all(request.origin is JobOrigin.AUTO for request in requests)
+        )
         while True:
             parent_job_ids = (
                 self._terminal_scope_job_ids(scope_fingerprint, len(requests))
                 if rebuild_parent
                 else rerun_of
+            )
+            key = self._resolve_key(
+                requests, scope_fingerprint, idempotency_key,
+                parent_job_ids=parent_job_ids,
             )
             batch_id = BatchId.new() if mode is not None else None
             jobs = tuple(
@@ -224,10 +231,18 @@ class ProducerService:
         requests: Tuple[CreateJobRequest, ...],
         scope_fingerprint: str,
         idempotency_key: Optional[str],
+        *,
+        parent_job_ids: Optional[Tuple[JobId, ...]] = None,
     ) -> str:
         if idempotency_key:
             return _validate_key(idempotency_key)
         if all(request.origin is JobOrigin.AUTO for request in requests):
+            # Cố định TRONG MỘT LỨA — hai vòng quét liên tiếp phải ra cùng khoá,
+            # nếu không auto xếp hai lượt cho một thẻ. Nhưng phải ĐỔI khi lứa
+            # trước đã terminal, nếu không khoá cũ giam auto lại vĩnh viễn.
+            if parent_job_ids:
+                return "auto:" + scope_fingerprint + ":" + _digest(
+                    [str(job_id) for job_id in parent_job_ids])
             return "auto:" + scope_fingerprint
         return "request:" + uuid4().hex
 

@@ -41,6 +41,7 @@ from .persistence import (
     ScheduleVersionConflict,
 )
 from .store import (
+    _blocking_states,
     ActiveJobConflict,
     EventConflict,
     IdempotencyConflict,
@@ -644,12 +645,8 @@ class SQLiteLifecycleRepository:
                 scoped_jobs = tuple(self.get(job_id) for job_id in scoped.job_ids)
                 if any(job is None for job in scoped_jobs):
                     raise StoreInvariantError("scope intent trỏ tới job mất")
-                incoming_origin = jobs_and_events[0][0].origin
-                blocks_new = incoming_origin is JobOrigin.AUTO or any(
-                    job.state in {
-                        JobState.CREATED, JobState.QUEUED, JobState.RUNNING,
-                        JobState.RETRY_WAIT, JobState.NEEDS_ATTENTION,
-                    }
+                blocks_new = any(
+                    job.state in _blocking_states(jobs_and_events[0][0].origin)
                     for job in scoped_jobs if job is not None
                 )
                 if blocks_new:
@@ -727,6 +724,50 @@ class SQLiteLifecycleRepository:
                 (scope_fingerprint,),
             ).fetchone()
             return self._record_for_alias(row["canonical_key"]) if row else None
+
+    def scope_of_job(self, job_id: JobId) -> Optional[str]:
+        with self._lock:
+            for row in self._conn.execute(
+                "SELECT doc FROM lifecycle_intent_records"
+            ):
+                record = _intent_from(row["doc"])
+                if job_id in record.job_ids:
+                    return record.scope_fingerprint
+            return None
+
+    def retire_scope(self, scope_fingerprint: str) -> bool:
+        """Người quyết định bỏ hẳn một lứa: gỡ ràng buộc scope VÀ khoá cũ.
+
+        Chỉ gỡ sổ dedupe (`scope_intents`, `intent_aliases`, `intent_records`).
+        `lifecycle_jobs` và `lifecycle_events` ở nguyên — đó mới là nhật ký
+        thật, và `failed` phải giữ lại để còn truy được đã hỏng vì gì.
+
+        Gỡ mỗi hàng scope là chưa đủ: khoá của auto sinh tất định từ scope, nên
+        lượt sau dựng lại đúng khoá đó, đụng record cũ rồi replay tiếp. Phải gỡ
+        cả ba, theo đúng thứ tự khoá ngoại.
+        """
+        with self.transaction():
+            row = self._conn.execute(
+                "SELECT canonical_key FROM lifecycle_scope_intents "
+                "WHERE scope_fingerprint=?",
+                (scope_fingerprint,),
+            ).fetchone()
+            if row is None:
+                return False
+            key = row["canonical_key"]
+            self._conn.execute(
+                "DELETE FROM lifecycle_scope_intents WHERE scope_fingerprint=?",
+                (scope_fingerprint,),
+            )
+            self._conn.execute(
+                "DELETE FROM lifecycle_intent_aliases WHERE canonical_key=?",
+                (key,),
+            )
+            self._conn.execute(
+                "DELETE FROM lifecycle_intent_records WHERE canonical_key=?",
+                (key,),
+            )
+            return True
 
     def create(self, job: Job, event: JobEvent) -> StoreWriteResult:
         with self.transaction():

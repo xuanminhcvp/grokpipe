@@ -543,5 +543,43 @@ class LifecycleRuntimeTest(unittest.TestCase):
             JobKind.IMAGE, now=2 + decision.delay, ttl=30))
 
 
+class DonLoiNeedsAttentionTest(LifecycleRuntimeTest):
+    """Gỡ `needs_attention` là QUYẾT ĐỊNH CỦA USER, không phải retry tự động.
+
+    Không có đường này thì job đứng ở `needs_attention` vĩnh viễn: `cancel` từ
+    chối nó (`job.not_cancellable`) và auto không được phép tự đưa nó về
+    `retry_wait`. Board thật đã kẹt đúng như vậy — 25 REF nằm im, nút "Dọn lỗi"
+    bấm bao nhiêu lần cũng không đổi được gì.
+    """
+
+    def _job_cho_kiem_tra(self):
+        result = self.submit()
+        job_id = result.jobs[0].job_id
+        lease = self.runtime.lease_next(JobKind.IMAGE, now=10, ttl=30)
+        self.runtime.attempt_phase(
+            lease.lease_id, AttemptPhase.SUBMITTED, now=11,
+            consumes_credit=CreditConsumption.UNKNOWN,
+        )
+        self.runtime.attempt_failed(
+            lease.lease_id,
+            ErrorFact(
+                ErrorClass.SESSION_TRANSIENT, "mất cửa sổ",
+                AttemptPhase.SUBMITTED),
+            event_id=uuid4(), now=12,
+        )
+        assert self.runtime.job(job_id).state is JobState.NEEDS_ATTENTION
+        return job_id
+
+    def test_don_loi_dua_job_ve_cancelled(self):
+        job_id = self._job_cho_kiem_tra()
+
+        verdict = self.runtime.resolve_needs_attention(
+            job_id, event_id=uuid4(), now=30)
+
+        self.assertTrue(verdict.accepted)
+        self.assertEqual(verdict.reason_code, "user.resolved_needs_attention")
+        self.assertEqual(self.runtime.job(job_id).state, JobState.CANCELLED)
+
+
 if __name__ == "__main__":
     unittest.main()

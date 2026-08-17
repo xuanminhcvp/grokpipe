@@ -44,6 +44,34 @@ class StoreInvariantError(JobStoreError):
     pass
 
 
+_LUA_CON_SONG = frozenset({
+    JobState.CREATED,
+    JobState.QUEUED,
+    JobState.RUNNING,
+    JobState.RETRY_WAIT,
+    JobState.NEEDS_ATTENTION,
+})
+
+
+def _blocking_states(incoming_origin: JobOrigin) -> frozenset:
+    """Trạng thái của lứa cũ khiến một scope KHÔNG được mở lứa mới.
+
+    Lứa còn sống thì ai cũng bị chặn — đó là thứ giữ cho hai vòng quét liên
+    tiếp không xếp thành hai lượt.
+
+    `failed` chặn RIÊNG auto: lỗi permanent phải do người quyết định, vòng quét
+    không được tự bắn lại mãi. Người vẫn rerun tay được, vì đó là một quyết định
+    có chủ ý.
+
+    `cancelled` KHÔNG chặn ai: nó là dấu vết của một quyết định đã có — user bấm
+    dừng, hoặc bấm "Dọn lỗi" để gỡ `needs_attention`. Chặn nó là khoá luôn lối
+    thoát, đúng chỗ board thật kẹt ngày 2026-08-17.
+    """
+    if incoming_origin is JobOrigin.AUTO:
+        return _LUA_CON_SONG | {JobState.FAILED}
+    return _LUA_CON_SONG
+
+
 @dataclass(frozen=True)
 class StoreWriteResult:
     job: Job
@@ -215,16 +243,8 @@ class MemoryJobStore:
             if scope_key is not None:
                 scoped = self._intents[scope_key]
                 scoped_jobs = tuple(self._jobs[job_id] for job_id in scoped.job_ids)
-                incoming_origin = jobs_and_events[0][0].origin
-                blocks_new = incoming_origin is JobOrigin.AUTO or any(
-                    job.state
-                    in {
-                        JobState.CREATED,
-                        JobState.QUEUED,
-                        JobState.RUNNING,
-                        JobState.RETRY_WAIT,
-                        JobState.NEEDS_ATTENTION,
-                    }
+                blocks_new = any(
+                    job.state in _blocking_states(jobs_and_events[0][0].origin)
                     for job in scoped_jobs
                 )
                 if blocks_new:
@@ -275,6 +295,31 @@ class MemoryJobStore:
         with self._lock:
             key = self._scope_intents.get(scope_fingerprint)
             return self._intents.get(key) if key is not None else None
+
+    def scope_of_job(self, job_id: JobId) -> Optional[str]:
+        with self._lock:
+            for record in self._intents.values():
+                if job_id in record.job_ids:
+                    return record.scope_fingerprint
+            return None
+
+    def retire_scope(self, scope_fingerprint: str) -> bool:
+        """Người quyết định bỏ hẳn một lứa: gỡ ràng buộc scope VÀ khoá cũ.
+
+        Chỉ gỡ sổ dedupe. Job và event ở nguyên — đó mới là nhật ký thật, và
+        `failed` phải giữ lại để còn biết đã hỏng vì gì.
+
+        Gỡ mỗi hàng scope là chưa đủ: khoá của auto sinh tất định từ scope nên
+        lượt sau đụng lại đúng record cũ rồi replay tiếp.
+        """
+        with self._lock:
+            key = self._scope_intents.pop(scope_fingerprint, None)
+            if key is None:
+                return False
+            for alias in [a for a, canonical in self._intents.items()
+                          if canonical.key == key]:
+                self._intents.pop(alias, None)
+            return True
 
     def _replay(
         self,

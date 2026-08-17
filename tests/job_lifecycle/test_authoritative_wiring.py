@@ -9,6 +9,7 @@ import time
 import unittest
 from pathlib import Path
 from unittest import mock
+from uuid import uuid4
 
 from helpers import (
     FakeBoard, function_source, load_sfboard, make_handler, reset_legacy_state,
@@ -1069,6 +1070,276 @@ class AuthoritativeWiringTest(unittest.TestCase):
                 direct_jobs_writes += 1
         self.assertEqual(calls & forbidden_calls, set())
         self.assertEqual(direct_jobs_writes, 0)
+
+
+class DonLoiAuthoritativeTest(AuthoritativeWiringTest):
+    """“Dọn lỗi” phải tác động vào lifecycle thật, không phải dict legacy rỗng.
+
+    Board thật ngày 2026-08-17 kẹt đúng ở đây: 25 job REF nằm `needs_attention`
+    trong SQLite còn `JOBS` legacy rỗng, nên `/api/xoa-loi` trả `bo: 0` và nút ✕
+    trả “việc này không ở trạng thái lỗi” — mâu thuẫn với chính dòng UI đang vẽ.
+    """
+
+    def _job_cho_kiem_tra(self, sf="SF-A", key="donloi-A"):
+        create = make_handler(
+            self.board, f"/api/generate?sf={sf}&idempotency_key={key}")
+        create.do_POST()
+        job_id = self.models.JobId.parse(create.captured[1]["job_id"])
+        runtime = self.board._JOB_RUNTIME
+        runtime.accounts.register("9222", allow_video=False, max_slots=1)
+        lease = runtime.lease_next(self.models.JobKind.IMAGE, now=10, ttl=30)
+        runtime.attempt_phase(
+            lease.lease_id, self.models.AttemptPhase.SUBMITTED, now=11,
+            consumes_credit=self.models.CreditConsumption.UNKNOWN,
+        )
+        runtime.attempt_failed(
+            lease.lease_id,
+            self.errors.ErrorFact(
+                self.errors.ErrorClass.SESSION_TRANSIENT, "mất cửa sổ",
+                self.models.AttemptPhase.SUBMITTED),
+            event_id=uuid4(), now=12,
+        )
+        self.assertEqual(
+            runtime.job(job_id).state, self.models.JobState.NEEDS_ATTENTION)
+        return job_id
+
+    def test_xoa_loi_het_go_job_needs_attention_trong_lifecycle(self):
+        self.board._init_job_shadow("authoritative")
+        job_id = self._job_cho_kiem_tra()
+        self.board.JOBS.clear()
+
+        handler = make_handler(self.board, "/api/xoa-loi?het=1")
+        handler.do_POST()
+        code, body = handler.captured
+
+        self.assertEqual(code, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["bo"], 1)
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(job_id).state,
+            self.models.JobState.CANCELLED,
+        )
+
+    def test_auto_dung_lai_va_bao_ro_khi_scene_con_viec_can_kiem_tra(self):
+        """User chốt: dọn lỗi xong mới chạy — và nút không được nói dối.
+
+        Bản cũ nuốt `IdempotencyConflict` vào một dòng WARNING rồi quay lại
+        đúng 20 giây sau, mãi mãi: nút hiện "đang chạy" mà hàng đợi rỗng.
+        """
+        self.board._init_job_shadow("authoritative")
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "S1",
+            "sfs": [{"id": "SF-A", "prompt": "cảnh bếp", "refs": {}}],
+            "shots": [],
+        }])
+        self._job_cho_kiem_tra(sf="SF-A", key="auto-guard-A")
+        with self.board.AUTO_LOCK:
+            self.board.AUTO["S1"] = {"try": {}, "last": {}, "stat": {}}
+
+        with self.assertLogs("sfboard", level="WARNING") as bat_log:
+            self.board._auto_quet_mot_vong(1)
+
+        self.assertNotIn("S1", self.board.AUTO)
+        self.assertEqual(self.board.IMG_QUEUE.qsize(), 0)
+        loi = "\n".join(bat_log.output)
+        self.assertIn("Dọn lỗi", loi)
+        self.assertIn("S1", loi)
+
+    def test_xoa_loi_go_scope_cua_job_failed_de_chay_lai_duoc(self):
+        """Sau khi user sửa dữ liệu, "Dọn lỗi" phải mở đường cho lượt mới.
+
+        `failed` là terminal, không transition đi đâu, nên cửa ra duy nhất là gỡ
+        ràng buộc scope. Không có nó thì S1 kẹt vĩnh viễn kể cả khi prompt đã
+        được viết đầy đủ.
+        """
+        self.board._init_job_shadow("authoritative")
+        create = make_handler(
+            self.board, "/api/generate?sf=SF-A&idempotency_key=failed-A")
+        create.do_POST()
+        job_id = self.models.JobId.parse(create.captured[1]["job_id"])
+        runtime = self.board._JOB_RUNTIME
+        runtime.accounts.register("9222", allow_video=False, max_slots=1)
+        lease = runtime.lease_next(self.models.JobKind.IMAGE, now=10, ttl=30)
+        runtime.attempt_failed(
+            lease.lease_id,
+            self.errors.ErrorFact(
+                self.errors.ErrorClass.VALIDATION, "thiếu prompt",
+                self.models.AttemptPhase.PREPARING),
+            event_id=uuid4(), now=12,
+        )
+        self.assertEqual(
+            runtime.job(job_id).state, self.models.JobState.FAILED)
+        scope = self.board._JOB_REPOSITORY.scope_of_job(job_id)
+        self.assertIsNotNone(scope)
+        self.board.JOBS.clear()
+
+        handler = make_handler(self.board, "/api/xoa-loi?het=1")
+        handler.do_POST()
+
+        self.assertTrue(handler.captured[1]["ok"])
+        self.assertEqual(handler.captured[1]["bo"], 1)
+        self.assertIsNone(
+            self.board._JOB_REPOSITORY.latest_for_scope(scope),
+            "scope của job failed phải được gỡ để lượt sau xếp được",
+        )
+        self.assertEqual(
+            runtime.job(job_id).state, self.models.JobState.FAILED,
+            "job và nhật ký phải giữ nguyên, chỉ gỡ sổ dedupe",
+        )
+
+    def test_auto_bo_qua_the_chua_co_prompt(self):
+        """Thẻ rỗng prompt không thể sinh ảnh — đừng tiêu lease và account seat.
+
+        S1 ngày 2026-08-17: 14 thẻ chưa viết prompt bị auto nhấc lên, cấp lease,
+        rồi chết `validation.permanent`. Đường chạy tay đã lọc prompt từ lâu;
+        vòng quét thì không, nên nó tự tạo ra 14 job `failed` — và `failed` khoá
+        luôn scope đó lại với auto.
+        """
+        self.board._init_job_shadow("authoritative")
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "S1",
+            "sfs": [
+                {"id": "SF-CO", "prompt": "có prompt", "refs": {}},
+                {"id": "SF-RONG", "prompt": "   ", "refs": {}},
+                {"id": "SF-THIEU", "refs": {}},
+            ],
+            "shots": [],
+        }])
+        with self.board.AUTO_LOCK:
+            self.board.AUTO["S1"] = {"try": {}, "last": {}, "stat": {}}
+
+        with self.assertLogs("sfboard", level="WARNING") as bat_log:
+            self.board._auto_quet_mot_vong(1)
+
+        assets = {str(job.asset_id)
+                  for job in self.board._JOB_REPOSITORY.all_jobs()}
+        self.assertIn("SF-CO", assets)
+        self.assertNotIn("SF-RONG", assets)
+        self.assertNotIn("SF-THIEU", assets)
+        self.assertIn("chưa có prompt", "\n".join(bat_log.output))
+
+    def test_auto_dung_lai_khi_scene_con_job_failed_chan_duong(self):
+        """`failed` chặn auto — nhưng phải NÓI, không được quay vòng câm.
+
+        S1 sau khi 14 thẻ chết validation: auto vẫn bật, vẫn quét 20 giây một
+        lần, mỗi lần chỉ replay lại job đã chết. Nút hiện "⏳ 0/14 ảnh" mãi mãi.
+        """
+        self.board._init_job_shadow("authoritative")
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "S1",
+            "sfs": [{"id": "SF-A", "prompt": "có prompt", "refs": {}}],
+            "shots": [],
+        }])
+        create = make_handler(
+            self.board, "/api/generate?sf=SF-A&idempotency_key=blocked-A")
+        create.do_POST()
+        runtime = self.board._JOB_RUNTIME
+        runtime.accounts.register("9222", allow_video=False, max_slots=1)
+        lease = runtime.lease_next(self.models.JobKind.IMAGE, now=10, ttl=30)
+        runtime.attempt_failed(
+            lease.lease_id,
+            self.errors.ErrorFact(
+                self.errors.ErrorClass.VALIDATION, "thiếu prompt",
+                self.models.AttemptPhase.PREPARING),
+            event_id=uuid4(), now=12,
+        )
+        with self.board.AUTO_LOCK:
+            self.board.AUTO["S1"] = {"try": {}, "last": {}, "stat": {}}
+
+        with self.assertLogs("sfboard", level="WARNING") as bat_log:
+            self.board._auto_quet_mot_vong(1)
+
+        self.assertNotIn("S1", self.board.AUTO)
+        self.assertIn("Dọn lỗi", "\n".join(bat_log.output))
+
+    def test_auto_chay_lai_duoc_sau_khi_da_don_scope_failed(self):
+        """Dọn lỗi xong thì chốt chặn phải mở — job vẫn `failed` là chuyện bình thường.
+
+        `failed` không transition đi đâu được, nên sau khi dọn nó VẪN là `failed`
+        mãi mãi. Chặn theo state thì cửa vừa mở đã khoá lại ngay.
+        Thứ quyết định là scope còn ràng buộc hay không.
+        """
+        self.board._init_job_shadow("authoritative")
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "S1",
+            "sfs": [{"id": "SF-A", "prompt": "có prompt", "refs": {}}],
+            "shots": [],
+        }])
+        create = make_handler(
+            self.board, "/api/generate?sf=SF-A&idempotency_key=reopen-A")
+        create.do_POST()
+        runtime = self.board._JOB_RUNTIME
+        runtime.accounts.register("9222", allow_video=False, max_slots=1)
+        lease = runtime.lease_next(self.models.JobKind.IMAGE, now=10, ttl=30)
+        runtime.attempt_failed(
+            lease.lease_id,
+            self.errors.ErrorFact(
+                self.errors.ErrorClass.VALIDATION, "thiếu prompt",
+                self.models.AttemptPhase.PREPARING),
+            event_id=uuid4(), now=12,
+        )
+        self.board.JOBS.clear()
+        don = make_handler(self.board, "/api/xoa-loi?het=1")
+        don.do_POST()
+        with self.board.AUTO_LOCK:
+            self.board.AUTO["S1"] = {"try": {}, "last": {}, "stat": {}}
+
+        self.board._auto_quet_mot_vong(1)
+
+        self.assertIn("S1", self.board.AUTO, "đã dọn rồi mà auto vẫn bị chặn")
+
+    def test_auto_tu_tat_khi_khong_con_the_nao_chay_duoc(self):
+        """Không xếp được gì thì phải TẮT, đừng để nút sáng suốt đêm.
+
+        Auto bật + hàng đợi rỗng + không làm được gì là đúng hình dạng của bug
+        sáng nay. Bỏ qua thẻ thiếu prompt mà vẫn để auto quay thì chỉ đổi từ
+        "câm" sang "câm và spam log mỗi 20 giây".
+        """
+        self.board._init_job_shadow("authoritative")
+        # Đúng hình dạng S1 thật: thẻ rỗng prompt VÀ shot chưa có video. Không
+        # có shot thì test qua một cách vô nghĩa — S1 thật có 14 shot, và đó
+        # chính là thứ khiến điều kiện tắt đầu tiên của tôi không nổ.
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "S1",
+            "sfs": [{"id": "SF-RONG", "prompt": "", "refs": {}}],
+            "shots": [{"id": "V-S1-01", "sf": "SF-RONG", "prompt": "clip"}],
+        }])
+        with self.board.AUTO_LOCK:
+            self.board.AUTO["S1"] = {"try": {}, "last": {}, "stat": {}}
+
+        self.board._auto_quet_mot_vong(1)
+
+        self.assertNotIn("S1", self.board.AUTO)
+
+    def test_auto_van_quet_binh_thuong_khi_scene_sach_loi(self):
+        self.board._init_job_shadow("authoritative")
+        self.board.BOARD = FakeBoard(scenes=[{
+            "id": "S1",
+            "sfs": [{"id": "SF-A", "prompt": "cảnh bếp", "refs": {}}],
+            "shots": [],
+        }])
+        with self.board.AUTO_LOCK:
+            self.board.AUTO["S1"] = {"try": {}, "last": {}, "stat": {}}
+
+        self.board._auto_quet_mot_vong(1)
+
+        self.assertIn("S1", self.board.AUTO)
+
+    def test_xoa_loi_mot_the_khong_bao_sai_rang_no_khong_loi(self):
+        self.board._init_job_shadow("authoritative")
+        job_id = self._job_cho_kiem_tra(sf="SF-B", key="donloi-B")
+        self.board.JOBS.clear()
+
+        handler = make_handler(self.board, "/api/xoa-loi?sf=SF-B")
+        handler.do_POST()
+        code, body = handler.captured
+
+        self.assertEqual(code, 200)
+        self.assertTrue(body["ok"], body.get("err"))
+        self.assertEqual(
+            self.board._JOB_RUNTIME.job(job_id).state,
+            self.models.JobState.CANCELLED,
+        )
 
 
 if __name__ == "__main__":

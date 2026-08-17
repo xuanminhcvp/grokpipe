@@ -2446,6 +2446,44 @@ def _runtime_cancel_target(label="", job_id_text="", *, now=None):
     return str(label), None, _runtime_cancel_label(label, now=now)
 
 
+def _runtime_don_loi(asset_id=None, *, now=None):
+    """Gỡ job `needs_attention` — của một asset, hoặc tất cả nếu `asset_id=None`.
+
+    Job về `cancelled`, tức terminal THẬT, nên nó tự rời hàng đợi giao diện qua
+    đúng lối `hidden_terminal_job_ids` sẵn có; không đẻ thêm cơ chế ẩn/hiện
+    riêng, và lần chạy sau tạo intent mới thay vì đụng lại attempt mờ outcome.
+
+    Trước đây `/api/xoa-loi` chỉ pop dict `JOBS`, mà ở authoritative dict đó
+    rỗng — nên "Dọn lỗi" báo dọn 0 dòng còn nút ✕ trả "việc này không ở trạng
+    thái lỗi" cho đúng dòng UI đang vẽ chữ "lỗi".
+    """
+    if _JOB_MODE != "authoritative" or _JOB_RUNTIME is None:
+        return 0
+    from jobs.models import JobState
+
+    timestamp = time.time() if now is None else float(now)
+    da_go = 0
+    da_go_scope = set()
+    for job in _JOB_REPOSITORY.all_jobs():
+        if asset_id is not None and str(job.asset_id) != asset_id:
+            continue
+        if job.state is JobState.NEEDS_ATTENTION:
+            if _JOB_RUNTIME.resolve_needs_attention(
+                    job.job_id, event_id=uuid.uuid4(), now=timestamp).accepted:
+                da_go += 1
+            continue
+        if job.state is JobState.FAILED:
+            # `failed` là terminal, không transition đi đâu được — cửa ra duy
+            # nhất là gỡ ràng buộc scope để lượt sau xếp được lứa mới. Job và
+            # event giữ nguyên; user đã sửa dữ liệu thì mới bấm nút này.
+            scope = _JOB_REPOSITORY.scope_of_job(job.job_id)
+            if scope and scope not in da_go_scope:
+                if _JOB_REPOSITORY.retire_scope(scope):
+                    da_go_scope.add(scope)
+            da_go += 1
+    return da_go
+
+
 def _runtime_project_state(label, state):
     payload = dict(state)
     current = JOBS.get(label) or {}
@@ -3984,9 +4022,33 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     # (mấy thẻ trang phục đợi nó) và cũng nằm trong `san_sang` (bản thân nó
     # không đợi ai). Không khử thì lô có hai lần cùng một SF, xin ChatGPT 2 ảnh
     # cho 1 thẻ và board đếm lệch ngay từ đầu.
-    xep = [i for i in dict.fromkeys(thieu_bg + san_sang)
-           if not _job_is_active(i)
-           and _auto_allow(st, i, cyc, ghi=False)]
+    # THẺ CHƯA CÓ PROMPT THÌ KHÔNG THỂ SINH ẢNH — bỏ qua ngay tại đây.
+    #
+    # Đường chạy tay đã lọc prompt từ lâu; vòng quét thì không, nên nó nhấc thẻ
+    # rỗng lên, tiêu một lease + một account seat, rồi chết `validation.permanent`.
+    # Tệ hơn: job `failed` đó khoá luôn scope với auto, nên viết prompt xong bấm
+    # lại vẫn không chạy. Chặn từ đầu rẻ hơn mọi cách chữa phía sau.
+    #
+    # `.get(i, True)`: id không thuộc scene này là REF của scene khác — nó có
+    # vòng quét riêng, ở đây không phán xét.
+    co_prompt = {str(f.get("id")): bool((f.get("prompt") or "").strip())
+                 for f in sfs if f.get("id")}
+    ung_vien = [i for i in dict.fromkeys(thieu_bg + san_sang)
+                if not _job_is_active(i)
+                and _auto_allow(st, i, cyc, ghi=False)]
+    xep = [i for i in ung_vien if co_prompt.get(i, True)]
+    thieu_prompt = tuple(i for i in ung_vien if not co_prompt.get(i, True))
+    # Nói MỘT LẦN cho mỗi lần danh sách đổi. Vòng quét chạy 20 giây/lần nên báo
+    # mỗi vòng là biến hộp lỗi thành máy phát nhiễu, che mất lỗi thật.
+    if thieu_prompt and thieu_prompt != tuple(st.get("bo_qua") or ()):
+        _LOG.warning(
+            "[auto %s] bỏ qua %d thẻ chưa có prompt: %s",
+            sc.get("id", "?"), len(thieu_prompt),
+            ", ".join(thieu_prompt[:5])
+            + ("…" if len(thieu_prompt) > 5 else ""),
+        )
+    st["bo_qua"] = thieu_prompt
+    st["xep_duoc"] = len(xep)
     if xep:
         _data = BOARD.read()
         nhom: dict[str, list[str]] = {}
@@ -4032,6 +4094,13 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     # 2) video còn thiếu, nhưng chỉ khi ảnh SF của shot đó đã có
     #    VÀ chỉ khi công tắc auto-video đang bật (mặc định tắt).
     miss_vid = [sh["id"] for sh in shots if not BOARD.video_file(sh["id"])]
+    # CÒN VIỆC VIDEO LÀM ĐƯỢC KHÔNG — khác hẳn "còn video thiếu". Shot thiếu
+    # video mà ảnh SF chưa có, hoặc công tắc auto-video đang tắt, thì vòng quét
+    # không thể xếp gì. Phân biệt được hai thứ này mới biết lúc nào nên tắt auto.
+    st["con_video"] = bool(_auto_vid_doc()) and any(
+        not BOARD.video_file(sh["id"]) and BOARD.find_file(sh.get("sf", ""))
+        for sh in shots
+    )
     for sh in (shots if _auto_vid_doc() else []):
         if BOARD.video_file(sh["id"]) or not BOARD.find_file(sh.get("sf", "")):
             continue
@@ -4055,6 +4124,85 @@ def _auto_scene(sc: dict, st: dict, cyc: int) -> tuple[int, int, int, int]:
     return len(miss_img), len(sfs), len(miss_vid), len(shots)
 
 
+def _auto_cho_kiem_tra(sc) -> tuple:
+    """Asset của scene mà auto KHÔNG được đụng vào cho tới khi người quyết.
+
+    Hai trạng thái, cùng một lý do — chỉ người mới gỡ được:
+
+      · `needs_attention`: đã tiêu credit mà không rõ outcome. Xếp đè lên nó là
+        vừa phá credit boundary, vừa đâm vào khoá intent của lứa cũ.
+      · `failed`: lỗi permanent. Vòng quét chạy 20 giây/lần và không có trần số
+        lần thử, nên tự hồi sinh là bắn lại mãi mãi. Nhưng chặn mà im lặng thì
+        nút hiện "⏳ 0/14 ảnh" vĩnh viễn — phải dừng hẳn và nói ra.
+
+    Với `failed`, thứ quyết định là SCOPE CÒN RÀNG BUỘC HAY KHÔNG, không phải
+    state. `failed` không transition đi đâu được nên sau khi user bấm "Dọn lỗi"
+    nó vẫn là `failed` mãi mãi — chặn theo state thì cửa vừa mở đã khoá lại.
+    """
+    if _JOB_MODE != "authoritative" or _JOB_REPOSITORY is None:
+        return ()
+    from jobs.models import JobState
+
+    cua_scene = {str(f.get("id")) for f in sc.get("sfs", []) if f.get("id")}
+    cua_scene |= {str(s.get("id")) for s in sc.get("shots", []) if s.get("id")}
+    ket = []
+    for job in _JOB_REPOSITORY.all_jobs():
+        if str(job.asset_id) not in cua_scene:
+            continue
+        if job.state is JobState.NEEDS_ATTENTION:
+            ket.append(str(job.asset_id))
+        elif job.state is JobState.FAILED:
+            if _JOB_REPOSITORY.scope_of_job(job.job_id) is not None:
+                ket.append(str(job.asset_id))
+    return tuple(dict.fromkeys(ket))
+
+
+def _auto_quet_mot_vong(cyc: int) -> None:
+    """Một vòng quét. Tách khỏi `_auto_runner` để test được mà không cần ngủ."""
+    with AUTO_LOCK:
+        if not AUTO:
+            return
+        ids = set(AUTO)
+    data = BOARD.read()
+    for sc in data.get("scenes", []):
+        if sc["id"] not in ids:
+            continue
+        with AUTO_LOCK:
+            st = AUTO.get(sc["id"])
+        if st is None:
+            continue
+        # DỌN LỖI TRƯỚC, RỒI MỚI CHẠY (user chốt 2026-08-17). Tắt auto luôn để
+        # nút trở về "▶ Chạy hết" — nút sáng mà hàng đợi rỗng là thứ khiến
+        # người dùng bấm đi bấm lại mà không hiểu gì.
+        ket = _auto_cho_kiem_tra(sc)
+        if ket:
+            with AUTO_LOCK:
+                AUTO.pop(sc["id"], None)
+            _LOG.warning(
+                "[auto %s] DỪNG: còn %d việc cần kiểm tra (%s). "
+                "Bấm 'Dọn lỗi' trong Hàng đợi rồi chạy lại.",
+                sc["id"], len(ket), ", ".join(ket[:3]) + ("…" if len(ket) > 3 else ""),
+            )
+            continue
+        mi, ni, mv, nv = _auto_scene(sc, st, cyc)
+        st["stat"] = {"img": [ni - mi, ni], "vid": [nv - mv, nv]}
+        # KHÔNG XẾP ĐƯỢC GÌ VÀ SẼ KHÔNG XẾP ĐƯỢC — tắt hẳn. Để nút sáng trong
+        # khi vòng quét không thể làm gì là đúng cái bệnh đang chữa.
+        bo_qua = tuple(st.get("bo_qua") or ())
+        if bo_qua and not st.get("xep_duoc") and not st.get("con_video"):
+            with AUTO_LOCK:
+                AUTO.pop(sc["id"], None)
+            _LOG.warning(
+                "[auto %s] DỪNG: %d thẻ chưa có prompt, không còn gì chạy được. "
+                "Viết prompt rồi bấm lại.", sc["id"], len(bo_qua),
+            )
+            continue
+        if not mi and not mv and (ni or nv):
+            with AUTO_LOCK:
+                AUTO.pop(sc["id"], None)
+            _LOG.info("[auto %s] XONG — %d ảnh, %d video. Tự tắt.", sc["id"], ni, nv)
+
+
 def _auto_runner():
     cyc = 0
     while True:
@@ -4065,27 +4213,18 @@ def _auto_runner():
             continue
         cyc += 1
         try:
-            with AUTO_LOCK:
-                if not AUTO:
-                    continue
-                ids = set(AUTO)
-            with open(BOARD.path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            for sc in data.get("scenes", []):
-                if sc["id"] not in ids:
-                    continue
-                with AUTO_LOCK:
-                    st = AUTO.get(sc["id"])
-                if st is None:
-                    continue
-                mi, ni, mv, nv = _auto_scene(sc, st, cyc)
-                st["stat"] = {"img": [ni - mi, ni], "vid": [nv - mv, nv]}
-                if not mi and not mv and (ni or nv):
-                    with AUTO_LOCK:
-                        AUTO.pop(sc["id"], None)
-                    _LOG.info("[auto %s] XONG — %d ảnh, %d video. Tự tắt.", sc["id"], ni, nv)
+            _auto_quet_mot_vong(cyc)
         except Exception as e:
-            _LOG.warning("auto lỗi: %s", e)
+            # Nuốt lỗi ở đây từng biến một xung đột intent thành vòng lặp câm
+            # 20 giây/lần. Vẫn không được để thread chết, nhưng phải tắt auto
+            # của mọi scene: giữ nó bật là hứa với user một thứ không xảy ra.
+            with AUTO_LOCK:
+                dang_bat = sorted(AUTO)
+                AUTO.clear()
+            _LOG.warning(
+                "auto lỗi, đã tắt %d scene (%s): %s",
+                len(dang_bat), ", ".join(dang_bat) or "—", e,
+            )
 
 
 def _auto_status() -> dict:
@@ -6217,10 +6356,23 @@ class Handler(BaseHTTPRequestHandler):
             # dừng rồi, giữ nó lại chỉ làm rối danh sách. Trước đây hàng lỗi không
             # có nút nào nên khi hàng đợi chỉ còn toàn lỗi, giao diện trông như
             # không cho thao tác gì.
-            if (q.get("het", [""])[0] or "") in ("1", "true", "yes"):
+            het = (q.get("het", [""])[0] or "") in ("1", "true", "yes")
+            sf = (q.get("sf", [""])[0] or "").strip()
+            if _JOB_MODE == "authoritative" and _JOB_RUNTIME is not None:
+                # Authority là lifecycle, không phải `JOBS`. Dòng legacy còn sót
+                # vẫn được quét đi, nhưng KHÔNG tính vào số báo cho user —
+                # tính cả hai là đếm một việc thành hai.
+                da_go = _runtime_don_loi(None if het else sf)
+                for k in [k for k, v in JOBS.items()
+                          if v.get("state") == "error" and (het or k == sf)]:
+                    JOBS.pop(k, None)
+                if not het and not da_go:
+                    self._json({"ok": False,
+                                "err": "việc này không ở trạng thái lỗi"}); return
+                self._json({"ok": True, "bo": da_go}); return
+            if het:
                 bo = [k for k, v in JOBS.items() if v.get("state") == "error"]
             else:
-                sf = (q.get("sf", [""])[0] or "").strip()
                 if JOBS.get(sf, {}).get("state") != "error":
                     self._json({"ok": False, "err": "việc này không ở trạng thái lỗi"}); return
                 bo = [sf]

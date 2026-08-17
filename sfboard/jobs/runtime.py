@@ -668,6 +668,45 @@ class LifecycleRuntime:
             self._fact_results[event_id] = verdict
             return verdict
 
+    def resolve_needs_attention(
+        self,
+        job_id: JobId,
+        *,
+        event_id: UUID,
+        now: float,
+    ) -> CancelVerdict:
+        """User đã xem một job `needs_attention` và quyết định bỏ nó.
+
+        KHÔNG phải retry: attempt cũ có thể đã tiêu credit nên nó không được hồi
+        sinh. Job về `cancelled` — trạng thái terminal thật — để lần chạy sau
+        tạo intent mới thay vì đụng lại attempt mờ outcome.
+
+        Không có đường này thì `needs_attention` là ngõ cụt: `cancel` từ chối nó
+        và luật cấm auto tự đưa nó về `retry_wait`.
+        """
+        del now
+        with self._lock:
+            replay = self._fact_results.get(event_id)
+            if replay is not None:
+                return replay  # type: ignore[return-value]
+            job = self.manager.get(job_id)
+            if job.state is not JobState.NEEDS_ATTENTION:
+                verdict = CancelVerdict(False, "job.not_needs_attention")
+                self._fact_results[event_id] = verdict
+                return verdict
+            with self._coordinated_transaction():
+                self._transition(
+                    job_id, JobState.CANCELLED,
+                    event_id=event_id,
+                    actor=EventActor.USER,
+                    event_type="job.cancelled",
+                    reason_code="user.resolved_needs_attention",
+                )
+            verdict = CancelVerdict(
+                True, "user.resolved_needs_attention", (job_id,))
+            self._fact_results[event_id] = verdict
+            return verdict
+
     def recover(
         self,
         *,

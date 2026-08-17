@@ -121,7 +121,7 @@ class AutoCharacterizationTest(unittest.TestCase):
         """
         scene = {
             "id": "REF",
-            "sfs": [{"id": "REF_LORETTA_PORTRAIT", "refs": {}}],
+            "sfs": [{"id": "REF_LORETTA_PORTRAIT", "prompt": "chân dung Loretta", "refs": {}}],
             "shots": [],
         }
         board = _BlockingBoard({"scenes": [scene]})
@@ -168,7 +168,7 @@ class AutoCharacterizationTest(unittest.TestCase):
         """
         scene = {
             "id": "REF",
-            "sfs": [{"id": "REF_LORETTA_PORTRAIT", "refs": {}}],
+            "sfs": [{"id": "REF_LORETTA_PORTRAIT", "prompt": "chân dung Loretta", "refs": {}}],
             "shots": [],
         }
         board = _BlockingBoard({"scenes": [scene]})
@@ -310,7 +310,7 @@ class AutoCharacterizationTest(unittest.TestCase):
             self.m._init_job_shadow("legacy")
 
     def test_auto_image_failed_intent_is_not_revived_by_next_scan(self):
-        scene = {"id": "S1", "sfs": [{"id": "SF-S1-01", "refs": {}}], "shots": []}
+        scene = {"id": "S1", "sfs": [{"id": "SF-S1-01", "prompt": "cảnh S1-01", "refs": {}}], "shots": []}
         st = {"try": {}, "last": {}, "stat": {}}
         self.m.BOARD = _ReadyVideoBoard(scene, co_anh=False)
         self.m._init_job_shadow("shadow")
