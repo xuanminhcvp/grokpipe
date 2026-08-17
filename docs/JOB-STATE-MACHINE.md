@@ -147,3 +147,25 @@ phân biệt trước/sau submit.
 - `running → queued` không đóng attempt/lease.
 - `needs_attention → retry_wait` tự động khi chưa có quyết định outcome.
 - Ghi state trực tiếp từ UI, DOM worker, watchdog hoặc legacy projection.
+
+## Gỡ `needs_attention`
+
+`needs_attention` chỉ ra khỏi trạng thái đó bằng QUYẾT ĐỊNH CỦA NGƯỜI:
+
+- `LifecycleRuntime.resolve_needs_attention` đưa job sang `cancelled`, actor
+  `user`, reason `user.resolved_needs_attention`. Attempt cũ có thể đã tiêu
+  credit nên nó không bao giờ được hồi sinh — lần chạy sau là intent mới.
+- Giao diện gọi đường này qua `/api/xoa-loi` (nút “Dọn lỗi” và ✕ từng dòng).
+- Auto KHÔNG được tự chạy đè lên scene còn `needs_attention`: vòng quét dừng,
+  tự tắt và báo “Dọn lỗi rồi chạy lại”.
+
+## Mở lứa mới cho một scope
+
+Khoá intent của auto cố định theo scope, nên nó phải mang thêm thế hệ:
+
+- Lứa trước còn sống (`created`/`queued`/`running`/`retry_wait`/
+  `needs_attention`) → replay, không xếp thêm lượt.
+- Lứa trước `failed` → auto vẫn bị chặn; lỗi permanent phải do người quyết
+  định. Rerun tay vẫn mở.
+- Lứa trước `cancelled`/`completed` → auto được mở thế hệ mới, khoá đổi theo
+  parent terminal và job mới mang `rerun_of`.
