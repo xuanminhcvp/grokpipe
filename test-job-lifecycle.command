@@ -21,11 +21,28 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$REPO_ROOT"
-COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
+export COVERAGE_FILE="$COVERAGE_TMP/.coverage"
+
+# Đo CẢ `sfboard` trong một lượt chạy, rồi ra hai báo cáo với hai sàn khác nhau.
+# Trước 2026-08-17 gate chỉ đo `sfboard.jobs`, nên `sfboard.py` (3.998 statement)
+# và các executor nằm ngoài mọi con số — hai bug "Chạy hết không chạy" và
+# "Dọn lỗi không dọn được" đều sống trong đúng vùng không ai đo đó.
+"$PYTHON_BIN" -m pytest \
   tests/job_lifecycle tests/runtime_bugs tests/executors \
-  --cov=sfboard.jobs \
-  --cov-report=term-missing \
-  --cov-fail-under=80
+  --cov=sfboard \
+  --cov-report=
+
+echo
+echo "── Authority lifecycle (sàn 80%) ──"
+"$PYTHON_BIN" -m coverage report \
+  --include='sfboard/jobs/*' --show-missing --fail-under=80
+
+echo
+echo "── Toàn bộ sfboard, gồm sfboard.py và executor (sàn chống tụt 58%) ──"
+# SÀN CHỐNG TỤT, không phải mục tiêu. Chỉ được nâng lên, không được hạ xuống:
+# hạ sàn để test qua là bỏ đúng cái lưới vừa dựng. Mỗi lần thêm test cho
+# `sfboard.py`, nâng số này lên sát mức mới.
+"$PYTHON_BIN" -m coverage report --include='sfboard/*' --fail-under=58
 
 "$PYTHON_BIN" -m py_compile \
   sfboard/hangdoi.py \
@@ -62,4 +79,4 @@ COVERAGE_FILE="$COVERAGE_TMP/.coverage" "$PYTHON_BIN" -m pytest \
   sfboard/chay-anh.py
 
 echo "Job lifecycle gate: PASS"
-echo "  (coverage ở trên CHỈ đo sfboard/jobs — không đo sfboard.py lẫn executors)"
+echo "  (hai sàn: sfboard/jobs ≥ 80% và toàn sfboard ≥ 58% — sàn thứ hai chỉ nâng)"
